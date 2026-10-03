@@ -301,14 +301,17 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | **T6** | 敌人无共用状态机基类（近战 switch 硬编码 / 远程完全没有） | `EnemyMeleeAI` / `EnemyRanged` | 加两种敌人 = 两份重复代码 |
 | **T7** | `EnemyHealth.Died` 是 **static 事件** + 房间常驻订阅 | `EnemyHealth` / `RoomController` | 跨场景重开有泄漏/重复订阅风险 |
 | **T8** | `PlayerHealth.Died` 事件与 `Die()` **被注释掉（w6）**，从未触发 | `PlayerHealth` | 死亡链路不统一，易出隐性 bug |
-| **T9** | 文件名 ≠ 类名：`PlayEnergy.cs` 里是 `PlayerEnergy`；`CameraMove.cs` 里是 `CameraFollow` | 两处 | 违反 Unity 硬要求，属隐患 |
-| **T10** | **调试作弊键留在正式场景**：`_DebugCheatsW7` 挂在 Player 上（J 扣血 / E 扣蓝 / K 秒杀） | `Player` 对象 | 交付物不该带作弊功能 |
-| T11 | 通关文案拼写错误 `VICTPRY!` | `GameManager` | 演示时可见的错别字 |
-| T12 | 面板弹出时**游戏不暂停**（`Time.timeScale` 恒为 1） | `GameManager` | 死亡/通关后玩家仍能动 |
-| T13 | `WeaponConfig` 命名空间误写 `Game.Date`，且零引用 | `Data/WeaponConfig.cs` | 死代码 + 命名不规范 |
+| ~~T9~~ | ~~文件名 ≠ 类名~~ | ✅ **已修复 2026-10-04**：`PlayEnergy.cs`→`PlayerEnergy.cs`、`CameraMove.cs`→`CameraFollow.cs`、`ManaBar.cs`→`EnergyBar.cs`（类名同步，`git mv` 保 GUID 引用不断） | 已消除 |
+| ~~T10~~ | ~~调试作弊键留在正式场景~~ | ✅ **已修复 2026-10-04**：组件已从 Player 移除，`_DebugCheats_w7.cs` 已删除 | 已消除 |
+| ~~T11~~ | ~~通关文案拼写错误 `VICTPRY!`~~ | ✅ **已修复 2026-10-04**：改为 `VICTORY` | 已消除 |
+| ~~T12~~ | ~~面板弹出时游戏不暂停~~ | ✅ **已修复 2026-10-04**：结算时置 `Time.timeScale = 0`，延时改用 `WaitForSecondsRealtime` | 已消除 |
+| ~~T13~~ | ~~`WeaponConfig` 命名空间误写 `Game.Date`~~ | ✅ **已修复 2026-10-04**：文件已删除（M2.1 重建） | 已消除 |
 | T14 | `AStar` **未接入游戏逻辑**，仅编辑器自测 | `Game.AI` / `Editor` | ✅ **已结案（2026-10-04 翻转）**：寻路改用 **Unity 自带 NavMesh**（`com.unity.ai.navigation` 2.0.14 已装）。理由：`AStar.FindPath` **不重置邻居节点的 `G/F/Parent`**，复用同一网格重算会因残留 `Parent` 成环导致 `Reconstruct` **死循环卡死编辑器**——而"每 0.3 s 重算"必须复用网格，**不加 Reset 就不能接入**；且自建网格烘焙/障碍标记/路径平滑/动态避障四件事 NavMesh 已内置。→ `AStar` + `AStarSelfTest` **保留不动**，降级为**报告"路径搜索算法实现"章节的素材**（含两个测试用例）。详见 `NAVMESH-GUIDE.md` |
-| T15 | `Tools/` 下 6 个脚本为旧方案死代码（`PlayerInput`、`EnemyMelee`、`EnemyConfig`、`EnemyDiedEvent`、`EnemyDeathLogger`、`Target`） | `Scripts/Tools/` | 概念重复、干扰阅读 |
-| T16 | `_Modules/` 11 个教学脚本混在同一程序集 | `Assets/_Modules/` | 与游戏无关，属学习痕迹 |
+| ~~T15~~ | ~~`Tools/` 下 6 个脚本为旧方案死代码~~ | ✅ **已修复 2026-10-04**：已全部删除（7 个 .cs）；**删除前先移除了 `Enemy_Slime.prefab` 上的 `EnemyMelee` 组件**，场景 Missing Script = 0 | 已消除 |
+| ~~T16~~ | ~~`_Modules/` 11 个教学脚本~~ | ✅ **已修复 2026-10-04**：整个目录已删除 | 已消除 |
+| **T22** | **`PlayerDash` 开局白送 0.5s 无敌**：无敌计时被初始化成配置值（0.5）且 `Update` 每帧递减 → 开局 0.5 s 内 `IsInvulnerable` 为真 | `PlayerDash` | ✅ **已修复 2026-10-04**：改用运行时计时 `_iFrameTimer`，初值 0 |
+| **T23** | **`EnemyMeleeAI` 每帧 `SetTrigger("Attack")`**（写在 `Update` 里）→ 攻击动画不断被重置 | `EnemyMeleeAI` | ✅ **已修复 2026-10-04**：移到 `SetState`，进入 Attack 时触发一次 |
+| **T24** | 多处 **NRE 风险**：`HitFxSystem`（预制体未连线）、`AttackFxBridge`（fx 未赋值）、`DamagePopup`（无 Text / 无 Camera.main）、`HPBar`/`EnergyBar`（`_fill` 为 null）、`RoomHintText`（`_text`） | 多处 | ✅ **已修复 2026-10-04**：均已补 null 保护（对应 T19） |
 | T17 | `TKDstyle_AnimSet` 为第三方资源包 | `Assets/` | 提交/演示需注意署名与授权 |
 | T18 | 无音频（`Audio/` 空）、无存档、无暂停菜单、无 README、无 Boss 实体 | 多处 | V1 缺口 |
 | T19 | `HitFxSystem` 用 `sparkPrefab`/`popupPrefab`，若未赋值 `Awake` 会 NRE | `HitFxSystem` | 场景里已连线，风险低 |
@@ -329,6 +332,8 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 - ✅ 打击特效（火花 + 伤害飘字，对象池驱动）
 - ✅ A* 实现 + 编辑器自测
 - ✅ 编译零报错零警告
+- ✅ **阶段 0 开工前置（2026-10-04）**：5 个层已建、输入补 `Special` 并删冲突的 `Jump`、`PlayerConfig` 补齐体力与受击无敌字段、调试作弊键移除
+- ✅ **全项目脚本清理与优化（2026-10-04）**：脚本 50 → 37（删除 19 个死代码）；修复 4 个真 bug（T22–T24）；文件名=类名、命名空间统一、多余 using 与 w6/w7 注释死代码清除
 
 ### 未完成（V1 缺口，见 `GDD.md` §3.1）
 
@@ -396,4 +401,5 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 2026-10-04 | **实机核验（借 MCP 实读）**：确认 **全场景仅 Player 一个 Rigidbody**，Boxer/Gunner 均无 Rigidbody → **否掉 `GDD §8` hitbox 方案在敌人侧的可执行性**；确认 `Player.prefab` 内既无 Rigidbody 也无 CharacterController（T2 描述属实，场景里的是实例追加组件）；确认全项目仅 `Bullet.prefab` 同时具备 Rigidbody + trigger 碰撞体，而 `Bullet.cs` 靠 `transform.position +=` 位移 —— **说明那个 Rigidbody 的唯一作用就是让 `OnTriggerEnter` 生效**；确认命名层只有 `Default/TransparentFX/Ignore Raycast/Water/UI/Enemy`（`GDD §8` 要求的 6 层缺 5 层）；确认房间内**无任何障碍物**、`SkillCD` 已存在。**仍未改动任何游戏代码**。 |
 | 2026-10-04 | **决策翻转 T14：寻路改用 Unity 自带 NavMesh**（放弃自研 A\*）。理由：`AStar.FindPath` 不重置邻居节点 `G/F/Parent`，复用网格重算会因残留 `Parent` 成环导致 `Reconstruct` 死循环卡死编辑器（而"每 0.3 s 重算"必须复用网格）；且 NavMesh 内置网格烘焙/障碍标记/路径平滑/动态避障。`AStar` + `AStarSelfTest` **保留不动**，降级为报告算法章节素材。同步更新 `GDD §6.5 / §13.3 / §13.4 / §15.2`、本文件 `§9 T14`、`§10.1 #12`；**新增 `Docs/NAVMESH-GUIDE.md`**（手把手教学手册）。**仍未改动任何游戏代码**。 |
 | 2026-10-04 | **产出 `Docs/ROADMAP.md`（完成路线图）**：编排"阶段 0 开工前置 + M1–M6"的完整分步计划，含每步产出/验收标准/依赖/阻塞项。核实并记录若干前置事实：输入系统**缺 `Special` Action**（`PlayerControls.cs` 为自动生成，需改 `.inputactions` 后重新生成）；`PlayerConfig` **无任何体力消耗/再生字段**；`.git` **已建**（`main` 分支、`origin` = `xxvv-111/Trial.git`、初始提交已推送，§2 已同步）；NavMesh 决策使"房间范围数据缺失"问题**自动消失**（整场烘焙，无需 `RoomController` 提供边界）。**仍未改动任何游戏代码**。 |
+| 2026-10-04 | **✅ 执行阶段 0 + 全项目脚本清理与优化（首次改动游戏代码）**，提交 `d4789c8` / `9b8c638` / `e21d805`。① **阶段 0**：新建 5 个层；输入补 `Special`（Q / 右键）并**删除与 `Dash` 绑键冲突的 `Jump`**；`PlayerConfig` 补体力字段与 `hitInvulnTime`；移除 Player 上的 `_DebugCheatsW7` 组件。② **删除 19 个死代码脚本**（`Tools/` 7 个 + `WeaponConfig` + `_Modules/` 11 个），脚本数 **50 → 37**；`AStar` + `AStarSelfTest` 保留作报告算法章节素材。③ **修复 4 个真 bug**：`PlayerDash` 开局白送 0.5s 无敌、`EnemyMeleeAI` 在 `Update` 里每帧 `SetTrigger` 致动画重置、`GameManager` 结算不暂停 + `VICTPRY` 拼写、多处 NRE 风险。④ **可读性**：3 处文件名=类名（`PlayEnergy`/`CameraMove`/`ManaBar`）、命名空间统一（`Game.GamePlay`→`Game.Gameplay`、`AttackStateBehaviour` 补命名空间、`DamagePopup` 裸 `Fx`→`Game.Fx`）、清 5 处多余 using、清各处 w6/w7 注释死代码、补类与方法注释及 null 保护。同步更新 §9（T9–T13/T15/T16 标记已修复，**新增 T22–T24**）与 §10 进度。**验证：编译 0 报错 0 警告；场景 Missing Script = 0。** |
 | 2026-10-03 | **建立 Git 仓库并接入远端**：在 `Demo-main\` 执行 `git init -b main`，新增 `.gitattributes`（Unity 资产禁用行尾转换，避免假 diff），初始提交 **`da8cc75`**（670 个文件：`Assets` 637 / `ProjectSettings` 25 / `Docs` 4 / `Packages` 2 / `.gitignore` / `.gitattributes`）。`Library`、`Temp`、`Logs`、`UserSettings` 由 `.gitignore` 排除。远端 `origin` = `https://github.com/xxvv-111/Trial.git`，`main` 跟踪 `origin/main`，**初始提交已推送、本地与远端一致**。**仍未改动任何游戏代码** |

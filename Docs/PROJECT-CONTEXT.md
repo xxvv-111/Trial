@@ -27,9 +27,9 @@ Unity 6 的 **3D 俯视角近战动作小游戏**（武术/拳击题材），关
 | 特殊包 | **`com.coplaydev.unity-mcp`**（Unity MCP，装了这个外部 AI 才能直接操作编辑器） |
 | 场景 | `Assets/Scenes/MainMenu.unity`（buildIndex 0）、`Assets/Scenes/Game.unity`（buildIndex 1） |
 | 编译状态 | ✅ 控制台 0 报错 0 警告 |
-| Git 仓库 | ✅ **本地仓库已建**：`Demo-main\.git`（含 `.gitattributes`）；⚠️ **未配远端**（原仓库为 `https://github.com/xxvv-111/Demo.git`） |
-| 当前工作分支 | **`main`**（原仓库分支名为 `CurriculumDesign`） |
-| 分支状态 | ✅ 已有初始提交，**可回退**；⚠️ 未推送到任何远端，**无异地备份** |
+| Git 仓库 | ✅ **已建并已接入远端**：本地 `Demo-main\.git` → `origin` = `https://github.com/xxvv-111/Trial.git`（**旧仓库 `github.com/xxvv-111/Demo.git` 不再使用**） |
+| 当前工作分支 | **`main`**，跟踪 `origin/main`（原仓库分支名为 `CurriculumDesign`） |
+| 分支状态 | ✅ 初始提交 `da8cc75` 已推送，**本地与远端一致**；仓库含 `.gitignore` + `.gitattributes` |
 
 **运行**：Unity 打开工程 → 打开 `MainMenu` 场景 → Play（或先 Play 再走开始按钮）。`Game` 场景也可直接 Play。
 
@@ -390,4 +390,4 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 2026-10-03 | **简化长枪**：取消蓄力与瞄准，改为**点按瞬间投出、固定距离**；**空手期间攻击键与特殊攻击键都能召回**。连带取消"长按三态输入 / 投掷指示器 UI / 蓄力数值"三项工作，并消掉 3 个待定项。**仍未改动任何游戏代码** |
 | 2026-10-03 | **工程迁移**：从 `D:\Unity\xv\Demo` 迁到 `D:\Unity\Unity Project\CurriculumDesign\Demo-main`。本文档内所有工程路径已改为新位置；**Git 信息栏改写为实际状态**（迁移副本未带 `.git`，当前不是仓库、无版本历史）。**仍未改动任何游戏代码** |
 | 2026-10-03 | **打通 AI 接入（MCP）**：实测 Unity MCP 链路（HTTP `127.0.0.1:8080/mcp`，服务端 v3.4.7，47 工具 / 19 资源），确认 Unity 侧已认到新工程路径与实例 `Demo-main@890c462facb3146d`、控制台 0 报错 0 警告。排掉两个坑并写入 §2：首次 `tools/list` 约 20 s（之后走缓存）、未设活动实例会返回 `no_unity_session`（已用 `set_active_instance` 设为全局活动实例）。**仍未改动任何游戏代码** |
-| 2026-10-03 | **建立本地 Git 仓库**：在 `Demo-main\` 执行 `git init -b main`，新增 `.gitattributes`（Unity 资产禁用行尾转换，避免假 diff），完成初始提交（669 个文件：`Assets` 637 / `ProjectSettings` 25 / `Docs` 4 / `Packages` 2 / `.gitignore`+`.gitattributes`）。`Library`、`Temp`、`Logs`、`UserSettings` 由 `.gitignore` 排除。**未配置远端、未推送**。§2 的 Git 信息栏同步改为实际状态。**仍未改动任何游戏代码** |
+| 2026-10-03 | **建立 Git 仓库并接入远端**：在 `Demo-main\` 执行 `git init -b main`，新增 `.gitattributes`（Unity 资产禁用行尾转换，避免假 diff），初始提交 **`da8cc75`**（670 个文件：`Assets` 637 / `ProjectSettings` 25 / `Docs` 4 / `Packages` 2 / `.gitignore` / `.gitattributes`）。`Library`、`Temp`、`Logs`、`UserSettings` 由 `.gitignore` 排除。远端 `origin` = `https://github.com/xxvv-111/Trial.git`，`main` 跟踪 `origin/main`，**初始提交已推送、本地与远端一致**。**仍未改动任何游戏代码** |

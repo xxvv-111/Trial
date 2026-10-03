@@ -306,7 +306,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | T11 | 通关文案拼写错误 `VICTPRY!` | `GameManager` | 演示时可见的错别字 |
 | T12 | 面板弹出时**游戏不暂停**（`Time.timeScale` 恒为 1） | `GameManager` | 死亡/通关后玩家仍能动 |
 | T13 | `WeaponConfig` 命名空间误写 `Game.Date`，且零引用 | `Data/WeaponConfig.cs` | 死代码 + 命名不规范 |
-| T14 | `AStar` **未接入游戏逻辑**，仅编辑器自测 | `Game.AI` / `Editor` | ⚠️ **已升级为必做**：敌人要求"视野 + 寻路 + 房间障碍物"，A\* 需真正接入（A\* / NavMesh 二选一待定，见 `GDD.md` §6.5） |
+| T14 | `AStar` **未接入游戏逻辑**，仅编辑器自测 | `Game.AI` / `Editor` | ✅ **已结案（2026-10-04 翻转）**：寻路改用 **Unity 自带 NavMesh**（`com.unity.ai.navigation` 2.0.14 已装）。理由：`AStar.FindPath` **不重置邻居节点的 `G/F/Parent`**，复用同一网格重算会因残留 `Parent` 成环导致 `Reconstruct` **死循环卡死编辑器**——而"每 0.3 s 重算"必须复用网格，**不加 Reset 就不能接入**；且自建网格烘焙/障碍标记/路径平滑/动态避障四件事 NavMesh 已内置。→ `AStar` + `AStarSelfTest` **保留不动**，降级为**报告"路径搜索算法实现"章节的素材**（含两个测试用例）。详见 `NAVMESH-GUIDE.md` |
 | T15 | `Tools/` 下 6 个脚本为旧方案死代码（`PlayerInput`、`EnemyMelee`、`EnemyConfig`、`EnemyDiedEvent`、`EnemyDeathLogger`、`Target`） | `Scripts/Tools/` | 概念重复、干扰阅读 |
 | T16 | `_Modules/` 11 个教学脚本混在同一程序集 | `Assets/_Modules/` | 与游戏无关，属学习痕迹 |
 | T17 | `TKDstyle_AnimSet` 为第三方资源包 | `Assets/` | 提交/演示需注意署名与授权 |
@@ -358,7 +358,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 9 | **Boss 招式表暂缓** | 先搭决策框架 + 状态机骨架 |
 | 10 | 音频**两种方式都用**（程序化合成 + 现成素材） | `AudioManager` 用"ID → Clip"查表，便于替换 |
 | 11 | **存档用 JSON**（`persistentDataPath` + `JsonUtility`，带 `version`） | 需处理"文件缺失 / 损坏"；会产生**可见的存档文件** |
-| 12 | **寻路接入自研 A\***（网格烘焙 + 调用 `AStar.FindPath` + 路径平滑） | **T14 升级为必做**；需自建网格与路径平滑 |
+| 12 | **寻路改用 Unity 自带 NavMesh** ⚠️（2026-10-04 翻转；原为"接入自研 A\*"） | **T14 结案**；不再需要自建网格与路径平滑；`AStar` 降级为报告素材。新增工作：房间内摆障碍物 + 烘焙 + 门的 `NavMeshObstacle`(carving)。操作手册见 `NAVMESH-GUIDE.md` |
 | 13 | **武器开局二选一**（剑 / 长枪），**单局内不切换** | 省掉切换动作与切换 UI |
 | 14 | **长枪细节**：**固定投掷距离**、**直线**飞行、到达终点**插在地上**、召回**与其他攻击同一套 hitbox 判定**、玩家死亡则**长枪留在原地**并直接进结算。**蓄力 / 瞄准 / 指示器 / 瞄准减速已整体取消** | 不再需要"长按三态"输入与指示器 UI；长枪需世界物体表现（飞行 / 插地 / 飞回） |
 | 15 | **受击打断分两档：普通小怪会被打断**（硬直 0.4 s + 闪白，攻击中断）；**Boss 不会**（仅闪白，无硬直条/破防） | ⚠️ 现有代码里小怪的受击反应**链路是断的**（`EnemyHealth` 从不通知 AI），需要**接通**而不是删除（见 **T21**）；Boss 前摇表现必须做足预警 |
@@ -374,6 +374,8 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 1 | **`Docs/PROJECT-CONTEXT.md`**（本文） | **新会话快速接管：项目全貌 + 代码地图 + 坑** |
 | 2 | `Docs/GDD.md` | 游戏策划案（要做什么） |
 | 3 | `Docs/ART-PIPELINE.md` | 美术/音频资源的获取方案与可行性 |
+| 4 | **`Docs/NAVMESH-GUIDE.md`** | **操作手册**：Unity 自带寻路的接入教学（烘焙 / Agent 改造 / 门的动态阻挡 / kiting / 常见坑），做 M3 敌人时必读 |
+| 5 | **`Docs/ROADMAP.md`** | **完成路线图**：阶段 0 + M1–M6 分步计划、每步验收标准、依赖关系、阻塞项、并行美术线 |
 
 > 交接提示：新会话建议先读本文 §1–§6（定位/环境/目录/类职责/运行链路），需要改动时再读 §9（已知问题）与 `GDD.md` §13（改造评估）。
 
@@ -390,4 +392,8 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 2026-10-03 | **简化长枪**：取消蓄力与瞄准，改为**点按瞬间投出、固定距离**；**空手期间攻击键与特殊攻击键都能召回**。连带取消"长按三态输入 / 投掷指示器 UI / 蓄力数值"三项工作，并消掉 3 个待定项。**仍未改动任何游戏代码** |
 | 2026-10-03 | **工程迁移**：从 `D:\Unity\xv\Demo` 迁到 `D:\Unity\Unity Project\CurriculumDesign\Demo-main`。本文档内所有工程路径已改为新位置；**Git 信息栏改写为实际状态**（迁移副本未带 `.git`，当前不是仓库、无版本历史）。**仍未改动任何游戏代码** |
 | 2026-10-03 | **打通 AI 接入（MCP）**：实测 Unity MCP 链路（HTTP `127.0.0.1:8080/mcp`，服务端 v3.4.7，47 工具 / 19 资源），确认 Unity 侧已认到新工程路径与实例 `Demo-main@890c462facb3146d`、控制台 0 报错 0 警告。排掉两个坑并写入 §2：首次 `tools/list` 约 20 s（之后走缓存）、未设活动实例会返回 `no_unity_session`（已用 `set_active_instance` 设为全局活动实例）。**仍未改动任何游戏代码** |
+| 2026-10-04 | **需求文档评审**（未改代码）：核对文档对现状的 12 处论断，**全部属实**；发现 3 处技术方案漏洞（hitbox 与物理组件冲突 / A\* 网格不可复用 / 长枪移动判定未设计）与 3 处文档内部旧表述。 |
+| 2026-10-04 | **实机核验（借 MCP 实读）**：确认 **全场景仅 Player 一个 Rigidbody**，Boxer/Gunner 均无 Rigidbody → **否掉 `GDD §8` hitbox 方案在敌人侧的可执行性**；确认 `Player.prefab` 内既无 Rigidbody 也无 CharacterController（T2 描述属实，场景里的是实例追加组件）；确认全项目仅 `Bullet.prefab` 同时具备 Rigidbody + trigger 碰撞体，而 `Bullet.cs` 靠 `transform.position +=` 位移 —— **说明那个 Rigidbody 的唯一作用就是让 `OnTriggerEnter` 生效**；确认命名层只有 `Default/TransparentFX/Ignore Raycast/Water/UI/Enemy`（`GDD §8` 要求的 6 层缺 5 层）；确认房间内**无任何障碍物**、`SkillCD` 已存在。**仍未改动任何游戏代码**。 |
+| 2026-10-04 | **决策翻转 T14：寻路改用 Unity 自带 NavMesh**（放弃自研 A\*）。理由：`AStar.FindPath` 不重置邻居节点 `G/F/Parent`，复用网格重算会因残留 `Parent` 成环导致 `Reconstruct` 死循环卡死编辑器（而"每 0.3 s 重算"必须复用网格）；且 NavMesh 内置网格烘焙/障碍标记/路径平滑/动态避障。`AStar` + `AStarSelfTest` **保留不动**，降级为报告算法章节素材。同步更新 `GDD §6.5 / §13.3 / §13.4 / §15.2`、本文件 `§9 T14`、`§10.1 #12`；**新增 `Docs/NAVMESH-GUIDE.md`**（手把手教学手册）。**仍未改动任何游戏代码**。 |
+| 2026-10-04 | **产出 `Docs/ROADMAP.md`（完成路线图）**：编排"阶段 0 开工前置 + M1–M6"的完整分步计划，含每步产出/验收标准/依赖/阻塞项。核实并记录若干前置事实：输入系统**缺 `Special` Action**（`PlayerControls.cs` 为自动生成，需改 `.inputactions` 后重新生成）；`PlayerConfig` **无任何体力消耗/再生字段**；`.git` **已建**（`main` 分支、`origin` = `xxvv-111/Trial.git`、初始提交已推送，§2 已同步）；NavMesh 决策使"房间范围数据缺失"问题**自动消失**（整场烘焙，无需 `RoomController` 提供边界）。**仍未改动任何游戏代码**。 |
 | 2026-10-03 | **建立 Git 仓库并接入远端**：在 `Demo-main\` 执行 `git init -b main`，新增 `.gitattributes`（Unity 资产禁用行尾转换，避免假 diff），初始提交 **`da8cc75`**（670 个文件：`Assets` 637 / `ProjectSettings` 25 / `Docs` 4 / `Packages` 2 / `.gitignore` / `.gitattributes`）。`Library`、`Temp`、`Logs`、`UserSettings` 由 `.gitignore` 排除。远端 `origin` = `https://github.com/xxvv-111/Trial.git`，`main` 跟踪 `origin/main`，**初始提交已推送、本地与远端一致**。**仍未改动任何游戏代码** |

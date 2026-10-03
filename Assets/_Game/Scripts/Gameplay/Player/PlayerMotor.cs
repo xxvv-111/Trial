@@ -1,81 +1,59 @@
 using Game.Core;
 using Game.Data;
 using UnityEngine;
+
 namespace Game.Gameplay
 {
+    /// <summary>
+    /// 玩家移动：读输入 → CharacterController 移动 → 驱动动画混合树。
+    /// ⚠️ 已知问题（T1）：PlayerFSM 用 <c>_motor.enabled = false</c> 来"停止移动"，
+    ///    这会把本脚本一起停掉，连贴地位移也停了（跳跃已取消，故降为低优先级）。
+    /// ⚠️ 已知问题（T2）：玩家身上同时有 Rigidbody + CapsuleCollider + CharacterController，
+    ///    建议只保留 CharacterController。
+    /// </summary>
     public class PlayerMotor : MonoBehaviour
     {
-        //移动速度
         [SerializeField] private PlayerConfig config;
-        CharacterController _cc;
-        private float speed = 6f;
-        private Animator _anim;
-        //混合树参数
-        private float currentSpeed;
 
-        private PlayerAttack _attack;
-        private PlayerDash _dash;
+        [SerializeField] private float groundStick = 0.1f;//每帧向下的贴地位移
+
+        private CharacterController _cc;
+        private Animator _anim;
+        private float speed;//移动速度（来自配置）
 
         private void Awake()
         {
             speed = config.moveSpeed;
             _anim = GetComponent<Animator>();
             _cc = GetComponent<CharacterController>();
-            //_attack = GetComponent<PlayerAttack>();w6
-            //_dash = GetComponent<PlayerDash>();w6
         }
 
-        void Update()
+        private void Update()
         {
-            //if (_attack != null && _dash != null && !_dash.IsDashing&&!_attack.isAttacking)w6
-            //{
-                //面向鼠标
-                //FaceMouse();
-                //移动
             Vector2 axis = InputService.Instance.Move;
             Vector3 move = new Vector3(axis.x, 0f, axis.y) * (speed * Time.deltaTime);
-                //面向
-            Face(axis);
-            _cc.Move(move + Vector3.down * 0.1f);
-            //transform.position += move;W7
 
-            //动画混合树用
-            currentSpeed = axis.sqrMagnitude > 0.01f ? speed : 0;
-            _anim.SetFloat("speed", currentSpeed, 0.15f, Time.deltaTime);
-            //}
+            Face(axis);
+
+            //向下挤压一点保证贴地（俯视角无跳跃，不需要真正的重力模拟）
+            _cc.Move(move + Vector3.down * groundStick);
+
+            //驱动动画混合树
+            float target = axis.sqrMagnitude > 0.01f ? speed : 0f;
+            _anim.SetFloat("speed", target, 0.15f, Time.deltaTime);
         }
 
-        //面向鼠标函数
-        //private void FaceMouse()
-        //{
-        //    Plane ground = new Plane(Vector3.up, Vector3.zero);
-        //    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        //    if (ground.Raycast(ray, out float enter))
-        //    {
-        //        Vector3 aim = ray.GetPoint(enter);
-        //        Vector3 dir = (aim - transform.position).FlattenY();
-        //        if (dir.sqrMagnitude > 0.001f)
-        //        {
-        //            transform.forward = dir;
-        //        }
-        //    }
-        //}
-
-        //面向函数
+        /// <summary>把输入方向转成朝向（俯视固定镜头下，屏幕方向即世界轴）。</summary>
         private void Face(Vector2 a)
         {
-            // ① 没输入就保持当前朝向，直接返回
-            if (a.sqrMagnitude <= 0.01f) return;
+            if (a.sqrMagnitude <= 0.01f) return;//没输入就保持当前朝向
 
-            // ② 输入(Vector2) → 世界方向(Vector3)。俯视固定镜头下屏幕方向 = 世界轴
             Vector3 moveDir = new Vector3(a.x, 0f, a.y);
-
-            // ③ 目标朝向 = 朝 moveDir，再叠加模型偏置
             Quaternion target = Quaternion.LookRotation(moveDir);
 
-            // ④ 从当前朝向限速转过去
+            //限速转向，避免瞬间扭头
             transform.rotation = Quaternion.RotateTowards(
-                transform.rotation, target, 720 * Time.deltaTime);
+                transform.rotation, target, 720f * Time.deltaTime);
         }
     }
 }

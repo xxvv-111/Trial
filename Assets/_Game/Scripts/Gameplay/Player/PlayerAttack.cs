@@ -2,69 +2,54 @@ using Game.Core;
 using Game.Data;
 using System;
 using UnityEngine;
-using UnityEngine.Windows;
-using static UnityEngine.Rendering.DebugUI;
 
 namespace Game.Gameplay
 {
+    /// <summary>
+    /// 普攻与连段（4 段）。伤害由动画关键帧事件 <c>OnAttackHit</c> 触发。
+    /// ⚠️ M1.2 待改造：把 <see cref="DoMeleeHit"/> 的瞬时 OverlapSphere 采样
+    /// 换成帧驱动的 Hitbox 系统（GDD §8）。
+    /// </summary>
     public class PlayerAttack : MonoBehaviour
     {
         [SerializeField] private PlayerConfig config;
+
+        /// <summary>(命中点, 伤害)。AttackFxBridge 订阅后转给 HitFxSystem。</summary>
         public event Action<Vector3, int> OnHit;
+
         private float combopWindow;//连段窗口期
         private float attackRange;//判定距离
         private int[] attackDamage;//伤害
 
         private Animator _anim;
-        private PlayerDash _dash;
 
         private int _comboIndex;//连击段数
         private float _lastAttackTime = -99f;//上次攻击时间
-        private bool _cancombo;//是否下一段
-        private bool _dead;//是否死亡
-        public bool isAttacking;//是否处于攻击
-        private int attackCount = 0;
+        private bool _cancombo;//是否可接下一段
+        private bool _dead;//是否死亡（⚠️ 当前无调用方，死亡链路待 M1.2 统一，见 T8）
+
+        public bool isAttacking;//是否处于攻击状态（由 AttackStateBehaviour 驱动）
+
+        private int attackCount;//驱动 isAttacking 的引用计数
 
         private void Awake()
         {
-            combopWindow=config.comboWindow;
+            combopWindow = config.comboWindow;
             attackRange = config.attackRange;
             attackDamage = config.attackDamage;
             _anim = GetComponent<Animator>();
-            _dash = GetComponent<PlayerDash>();
         }
 
-        private void Update()
-        {
-            //w6弃用
-            //if (_dead) return;//死亡不攻击
-
-            //if (_dash != null && _dash.IsDashing) return;//冲刺不攻击
-
-            //if (InputService.Instance.AttackPressedThisFrame)//按下攻击
-            //{
-            //    if (InLocomotion())//待机或跑步
-            //    {
-            //        StartCombo();//开始连段
-            //    }
-            //    else if (_cancombo && _comboIndex < config.attackDamage.Length - 1 && ComboWindowOpen()) 
-            //    {
-            //        _comboIndex++;//下一连段
-            //        _cancombo = false;//关闭连击等判定帧
-            //        _lastAttackTime = Time.time;
-            //        _anim.SetTrigger("Attack");
-            //    }
-            //}
-        }
-        public void StartCombo()//开始攻击,复用给FSM,私有改公有
+        /// <summary>开始连段第 1 段。由 PlayerFSM 在进入 Attack 状态时调用。</summary>
+        public void StartCombo()
         {
             _comboIndex = 0;
             _cancombo = false;
-
             _lastAttackTime = Time.time;
-            //_anim.SetTrigger("Attack");w6
         }
-        public void TryNextCombo()   // 原连段分支
+
+        /// <summary>尝试接下一段。连段窗口内且未超段数才生效。</summary>
+        public void TryNextCombo()
         {
             if (_cancombo && _comboIndex < config.attackDamage.Length - 1 && ComboWindowOpen())
             {
@@ -75,7 +60,8 @@ namespace Game.Gameplay
             }
         }
 
-        private void OnAttackHit()//动画中触发的攻击事件
+        /// <summary>动画关键帧事件（挂在 combo_01_1~4 上）。</summary>
+        private void OnAttackHit()
         {
             if (_dead) return;
             DoMeleeHit(_comboIndex);
@@ -83,12 +69,14 @@ namespace Game.Gameplay
             _lastAttackTime = Time.time;
         }
 
-        private void DoMeleeHit(int combo)//处理受击
+        /// <summary>⚠️ M1.2 待改造：瞬时采样 → 帧驱动的常驻判定体（GDD §8）。</summary>
+        private void DoMeleeHit(int combo)
         {
             float radius = attackRange * (1 + combo * 0.05f);
             Vector3 center = transform.position + transform.forward * (radius * 0.5f);
             Collider[] hits = Physics.OverlapSphere(center, radius);
-            foreach(Collider hit in hits)
+
+            foreach (Collider hit in hits)
             {
                 if (hit.TryGetComponent<IDamageable>(out var target) && !hit.CompareTag("Player"))
                 {
@@ -98,49 +86,25 @@ namespace Game.Gameplay
             }
         }
 
-        private bool InLocomotion()//判断是否待机或跑步（w6弃用）
-        {
-            if (_anim == null) return true;
-            return _anim.GetCurrentAnimatorStateInfo(0).IsName("Locomotion");
-        }
-
-        //询问连段窗口
+        /// <summary>连段窗口是否还开着。</summary>
         private bool ComboWindowOpen() => Time.time < _lastAttackTime + combopWindow;
 
-        public bool IsAttacking()//外部判断连击
+        /// <summary>⚠️ 当前无调用方（原调用方 PlayerHealth.Die 已被注释），待 M1.2 统一死亡链路。</summary>
+        public void OnPlayerDied() => _dead = true;
+
+        /// <summary>攻击动画状态 enter / exit 时由 AttackStateBehaviour 调用（引用计数）。</summary>
+        public void SetAttacking(bool b)
         {
-            if (_anim == null) return false;
-            var st = _anim.GetCurrentAnimatorStateInfo(0);
-            return st.IsName("Attack1") || st.IsName("Attack2") || st.IsName("Attack3") || st.IsName("Attack4");
+            attackCount += b ? 1 : -1;
+            isAttacking = attackCount > 0;
         }
 
-        public void OnPlayerDied() => _dead = true;//死亡时调用
-
-        //绘制攻击范围
+        //在编辑器里可视化攻击范围
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = Color.red;
             Vector3 center = transform.position + transform.forward * config.attackRange;
             Gizmos.DrawWireSphere(center, config.attackRange);
-        }
-
-        //置攻击，动画状态机事件调用
-        public void SetAttacking(bool b)
-        {
-            if (b) attackCount++;
-            else attackCount--;
-
-            if (attackCount == 0) isAttacking = false;
-            else isAttacking = true;
-        }
-
-        //PlayerFSM调用exit
-        public void CancelAttack()
-        {
-            _comboIndex = 0;
-            _cancombo = false;
-            attackCount = 0;
-            isAttacking = false;
         }
     }
 }

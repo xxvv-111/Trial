@@ -1,83 +1,72 @@
-using Game.Core;
 using Game.Data;
 using System;
-using TMPro;
 using UnityEngine;
 
 namespace Game.Gameplay
 {
+    /// <summary>
+    /// 冲刺：位移 + 无敌帧，是主要的闪避手段（GDD §4.4）。
+    /// ⚠️ M1.1 待接入体力 —— 冲刺应消耗体力，走 PlayerEnergy.TrySpend。
+    /// </summary>
     public class PlayerDash : MonoBehaviour
     {
-        //事件
+        /// <summary>冲刺开始。（当前无订阅者，保留作扩展点）</summary>
         public event Action DashStarted;
 
         [SerializeField] private PlayerConfig config;
-        //速度
+
+        //配置副本
         private float dashSpeed;
-        //时间
-        private float dashTimer;
-        //无敌时间
-        private float iFrameTime;
-        //组件
-        // 剩余冲刺时间
-        private float _dashTimer;
         private float dashDelay;
-        //是否冲刺
+        private float dashDuration;
+        private float iFrameDuration;
+
+        //运行时计时
+        private float _dashTimer;//剩余冲刺时间
+        private float _iFrameTimer;//剩余无敌时间
+
         public bool IsDashing => _dashTimer > 0f;
-        //是否无敌
-        public bool IsInvulnerable => iFrameTime > 0f;
-        private Animator _anim;
+        public bool IsInvulnerable => _iFrameTimer > 0f;
 
         private void Awake()
         {
             dashSpeed = config.dashSpeed;
-            dashTimer = config.dashTimer;
-            iFrameTime = config.iFrameTime;
             dashDelay = config.dashDelay;
-            _anim = GetComponent<Animator>();
+            dashDuration = config.dashTimer;
+            iFrameDuration = config.iFrameTime;
+
+            //⚠️ 这里必须初始化为 0。原实现把无敌计时直接初始化成配置值（0.5s），
+            //   而 Update 每帧递减 → 开局会白送玩家 0.5 秒无敌。
+            _dashTimer = 0f;
+            _iFrameTimer = 0f;
         }
 
         private void Update()
         {
-            //冲刺剩余时间
-            _dashTimer -= Time.deltaTime;
-            iFrameTime -= Time.deltaTime;
-            //if (InputService.Instance.DashPressedThisFrame && !IsDashing && CanDashNow())
-            //{
-            //    _dashTimer = dashTimer;
-            //    DashStarted?.Invoke();
-            //    if (_anim != null) _anim.SetTrigger("Dash");
-            //}w6
+            if (_dashTimer > 0f) _dashTimer -= Time.deltaTime;
+            if (_iFrameTimer > 0f) _iFrameTimer -= Time.deltaTime;
         }
 
-        //冲刺
         private void LateUpdate()
         {
-            if (IsDashing && _dashTimer < (dashTimer - dashDelay)) 
+            //起手 dashDelay 之后才开始位移（保留原有的"起手停顿"手感）
+            if (IsDashing && _dashTimer < (dashDuration - dashDelay))
                 transform.position += transform.forward * (dashSpeed * Time.deltaTime);
         }
 
-        //只有待机和跑步才能冲刺
-        private bool CanDashNow()
-        {
-            if (_anim == null) return true;
-            var st = _anim.GetCurrentAnimatorStateInfo(0);
-            return st.IsName("Locomotion");
-        }
-
-        //给 PlayerFSM调用
+        /// <summary>由 PlayerFSM 在进入 Dash 状态时调用。</summary>
         public void BeginDash()
         {
-            _dashTimer = dashTimer;
-            iFrameTime = config.iFrameTime;
+            _dashTimer = dashDuration;
+            _iFrameTimer = iFrameDuration;
             DashStarted?.Invoke();
-            //transform.position = VectorExt.WithY(transform.position,-0.3f);
         }
+
+        /// <summary>由 PlayerFSM 在退出 Dash 状态时调用。</summary>
         public void EndDash()
         {
             _dashTimer = 0f;
-            iFrameTime = 0f;
-            //transform.position = VectorExt.WithY(transform.position, 0);
+            _iFrameTimer = 0f;
         }
     }
 }

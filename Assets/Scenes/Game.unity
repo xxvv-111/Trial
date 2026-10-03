@@ -1438,6 +1438,19 @@ Transform:
   - {fileID: 1738764375}
   m_Father: {fileID: 282088506}
   m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
+--- !u!134 &503760217
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!1 &538591664
 GameObject:
   m_ObjectHideFlags: 0
@@ -1474,6 +1487,19 @@ Transform:
   - {fileID: 1518994120}
   m_Father: {fileID: 1430458964}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!134 &572089490
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!1 &607453871
 GameObject:
   m_ObjectHideFlags: 0
@@ -5449,20 +5475,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 261f191c947ec2846a932276e9e63172, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1945618160
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1945618138}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3f50bcdcf4adb9d4fb45e6c48596241e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _hp: {fileID: 1945618152}
-  _energy: {fileID: 1945618159}
 --- !u!143 &1945618169
 CharacterController:
   m_ObjectHideFlags: 0
@@ -5470,7 +5482,7 @@ CharacterController:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1945618138}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 1962204413}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -5493,6 +5505,19 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 851104169419879404, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
   m_PrefabInstance: {fileID: 141939323024781214}
   m_PrefabAsset: {fileID: 0}
+--- !u!134 &1962204413
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!1 &1971883885
 GameObject:
   m_ObjectHideFlags: 0
@@ -5848,6 +5873,10 @@ PrefabInstance:
       propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3296814564549162587, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
+      propertyPath: m_Material
+      value: 
+      objectReference: {fileID: 503760217}
     - target: {fileID: 5602888503901587331, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
       propertyPath: fx
       value: 
@@ -5859,9 +5888,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 37271344203721046, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1945618158}
-    - targetCorrespondingSourceObject: {fileID: 37271344203721046, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1945618160}
     - targetCorrespondingSourceObject: {fileID: 37271344203721046, guid: 6eec6966627efe24182131ae74f0ae88, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1945618169}
@@ -5918,6 +5944,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Gunner
       objectReference: {fileID: 0}
+    - target: {fileID: 8840732173189932599, guid: 2695a9afae369ae4e9e9252362d752d8, type: 3}
+      propertyPath: m_Material
+      value: 
+      objectReference: {fileID: 572089490}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

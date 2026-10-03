@@ -2,6 +2,16 @@ using UnityEngine;
 
 namespace Game.Gameplay
 {
+    /// <summary>
+    /// 远程敌人（枪手）。
+    ///
+    /// ⚠️ 当前**完全没有状态机**：只有"距离检测 + 转向 + 冷却计时 → 开火"。
+    ///    M3 需要从零搭完整状态机（Idle / Alert / Reposition / Aim / Shoot / Hit / Death），
+    ///    并用 NavMesh 实现"保持距离（kiting）"。
+    ///    ⚠️ 关键：kiting **不能**直接 <c>SetDestination(player.position)</c>，否则弓兵会冲向玩家；
+    ///    必须先由状态机算出"远离玩家的目标点"，再用 NavMesh.SamplePosition 吸附 —— 见
+    ///    Docs/NAVMESH-GUIDE.md §9。
+    /// </summary>
     public class EnemyRanged : MonoBehaviour
     {
         [SerializeField] private GameObject bulletPrefab;//子弹

@@ -1,13 +1,13 @@
-using Game.Core;
 using Game.Data;
 using System;
 using UnityEngine;
 
 namespace Game.Gameplay
 {
+    /// <summary>玩家血量。只负责扣血与广播，死亡判定与状态切换由 PlayerFSM 统一负责。</summary>
     public class PlayerHealth : MonoBehaviour
     {
-        //血量事件，血条订阅
+        //血量变化事件，血条（HPBar）订阅
         public event Action<int, int> OnHpChanged;
 
         [SerializeField] private PlayerConfig _config;
@@ -15,18 +15,12 @@ namespace Game.Gameplay
         public int MaxHp { get; private set; }
         public int CurHp { get; private set; }
 
-        //private Animator _anim;w6
         public bool IsDead => CurHp <= 0;
 
-        //死亡事件
-        public event Action Died;
+        /// <summary>受击无敌时长。读配置，缺配置时回退到 0.8s，避免 NRE。</summary>
+        public float HitInvulnTime => _config != null ? _config.hitInvulnTime : 0.8f;
 
-        private void Awake()
-        {
-            //_anim = GetComponent<Animator>();w6
-        }
-
-        void Start()
+        private void Start()
         {
             MaxHp = _config.maxHp;
             CurHp = MaxHp;
@@ -35,24 +29,10 @@ namespace Game.Gameplay
 
         public void ApplyDamage(int damage)
         {
-            //if (_dead) return;w6
             CurHp = Mathf.Max(0, CurHp - damage);
-            //if (CurHp <= 0) Die();w6
-            //else _anim.SetTrigger("Hit");w6
-            Broadcast();//广播血量变化
+            Broadcast();
         }
 
         private void Broadcast() => OnHpChanged?.Invoke(CurHp, MaxHp);
-
-        //private void Die()w6
-        //{
-        //    _dead = true;
-        //    _anim.SetBool("IsDead", true);
-        //    Died?.Invoke();
-
-        //    GetComponent<PlayerAttack>()?.OnPlayerDied();
-        //    GetComponent<PlayerMotor>().enabled = false;
-        //    GetComponent<PlayerDash>().enabled = false;
-        //}
     }
 }

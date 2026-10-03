@@ -1,10 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System;
-using TMPro;
-using System.Runtime.CompilerServices;
 using Game.Core;
-using System.Threading;
 
 namespace Game.Gameplay
 {
@@ -56,7 +53,7 @@ namespace Game.Gameplay
             _enter[PlayerState.Hit] = () =>
             {
                 _motor.enabled = false;
-                _invulnTimer = 0.8f;//0.8秒无敌
+                _invulnTimer = _health.HitInvulnTime;//受击无敌时长（走配置，见 PlayerConfig.hitInvulnTime）
                 _anim.SetTrigger("Hit");
             };
             _enter[PlayerState.Death] = () =>

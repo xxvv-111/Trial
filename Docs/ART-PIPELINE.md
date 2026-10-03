@@ -129,11 +129,14 @@
    · 缺失动作从 Mixamo 下载（同样 Humanoid，可混用）
                  │
 ④ 缺失动作清单（需补）
-   · 玩家：Jump、Fall、（可选 Land）、特殊攻击 × 武器数
-   · 剑兵：Attack（可用现有 combo）、Hit、Death
-   · 弓兵：Aim、Shoot、Hit、Death
-   · Boss：全部招式动作（工作量最大，见 §7）
+   · 玩家：特殊攻击（剑·插地、长枪·投掷/召回）—— ⚠️ **跳跃已取消，不需要 Jump/Fall/Land**
+   · 剑兵：Idle/Run/Attack/Hit/Death —— ✅ **全部可从 TKD 库复用**（见 ART-ASSETS.md §3.1）
+   · 弓兵：Aim、Shoot —— 🔴 库里没有，需 Mixamo 或手 K（其余可复用）
+   · Boss：全部招式动作（工作量最大，见 §7；⚠️ 招式表未定，量未知）
 ```
+
+> 📘 **要自己手 K 动画的话，见 [`ANIM-GUIDE.md`](ANIM-GUIDE.md)** —— 含本项目 4 条硬约束（Humanoid / 动画事件 / 根位移 / 时长对齐）、三阶段 K 帧流程、导出导入设置、常见坑速查。
+> ⭐ 实测：TKD 库有 **35 个 Humanoid 动作**，其中 `combo_02` 系列与约 20 个 `kick_*` **基本零引用**，可白拿给剑兵用；**真正必须手 K 的只有弓兵 `Aim`/`Shoot` 两个**。
 
 > ✅ **Boss 已定为人形**（见 `GDD.md` §7.1），因此 Boss **同样吃 Humanoid 重定向红利** —— 不存在"非人形骨骼没有动画可用"的问题。
 > Boss 要做出"大体型"的做法是**模型放大 + 动作幅度调整**，而不是重做骨骼。

@@ -1,0 +1,44 @@
+# 行尾策略：源码在仓库内统一存 LF，检出时按平台转换
+* text=auto
+
+# Unity 序列化资产由编辑器负责写盘，禁用行尾转换
+# （否则每次保存都会因 CRLF/LF 差异产生"整文件都被改动"的假 diff）
+*.unity              -text
+*.prefab             -text
+*.asset              -text
+*.meta               -text
+*.mat                -text
+*.controller         -text
+*.overrideController -text
+*.anim               -text
+*.playable           -text
+*.mask               -text
+*.lightmap           -text
+*.physicMaterial     -text
+*.physicsMaterial2D  -text
+*.inputactions       -text
+*.dwlt               -text
+*.exr                -text
+
+# 明确的二进制类型（避免 git 尝试合并/转换）
+*.fbx     binary
+*.FBX     binary
+*.obj     binary
+*.blend   binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.tga     binary
+*.psd     binary
+*.hdr     binary
+*.wav     binary
+*.mp3     binary
+*.ogg     binary
+*.ttf     binary
+*.otf     binary
+*.dll     binary
+*.so      binary
+*.dylib   binary
+*.a       binary
+*.zip     binary
+*.upm     binary

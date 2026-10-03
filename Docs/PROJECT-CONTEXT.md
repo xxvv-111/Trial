@@ -1,0 +1,393 @@
+# 项目上下文 / 交接文档（PROJECT CONTEXT）
+
+> **用途**：这份文档是为了"**上下文长度不足、开启新会话时快速接管整个项目**"而写的。
+> 任何新的 AI 会话或协作者，**读完本文即可理解项目全貌并开始干活**，不需要重新通读全部代码。
+> 配套文档见文末 §11 文档索引。
+>
+> 最后更新：2026-10-03 | 项目阶段：**课程设计改造起步（V1 策划已定，代码尚未开始改造）**
+
+---
+
+## 1. 一句话定位
+
+Unity 6 的 **3D 俯视角近战动作小游戏**（武术/拳击题材），关卡为"三个房间连续清怪 + 最终房"。框架自研，包含状态机、事件总线、对象池、A* 等模块。当前正从"学习项目"改造为**课程设计项目**（参考《哈迪斯》的单层试炼骨架）。
+
+---
+
+## 2. 环境与运行
+
+| 项 | 值 |
+|---|---|
+| 工程路径 | `D:\Unity\Unity Project\CurriculumDesign\Demo-main` |
+| Unity 版本 | **6000.0.83f1**（Unity 6） |
+| 渲染管线 | **URP 17.0.4** |
+| 输入 | **新输入系统 1.19**，`Assets/InputSystem_Actions.inputactions` → 生成 `PlayerControls.cs` |
+| 程序集 | **单一 `Assembly-CSharp`，无 asmdef** |
+| 关键包 | TextMesh Pro、Timeline、AI Navigation、Test Framework、Visual Scripting |
+| 特殊包 | **`com.coplaydev.unity-mcp`**（Unity MCP，装了这个外部 AI 才能直接操作编辑器） |
+| 场景 | `Assets/Scenes/MainMenu.unity`（buildIndex 0）、`Assets/Scenes/Game.unity`（buildIndex 1） |
+| 编译状态 | ✅ 控制台 0 报错 0 警告 |
+| Git 仓库 | ✅ **本地仓库已建**：`Demo-main\.git`（含 `.gitattributes`）；⚠️ **未配远端**（原仓库为 `https://github.com/xxvv-111/Demo.git`） |
+| 当前工作分支 | **`main`**（原仓库分支名为 `CurriculumDesign`） |
+| 分支状态 | ✅ 已有初始提交，**可回退**；⚠️ 未推送到任何远端，**无异地备份** |
+
+**运行**：Unity 打开工程 → 打开 `MainMenu` 场景 → Play（或先 Play 再走开始按钮）。`Game` 场景也可直接 Play。
+
+**注意**：`Assets/_Game/Notes/` 是空目录（仅 `.gitkeep`）；`Assets/_Game/Audio/` 空；`Assets/_Game/Prefabs/UI/` 空。
+
+**AI 接入（MCP）现状（2026-10-03 实测可用）**：ZCode 侧的用户配置 `~/.zcode/cli/config.json` 里声明了 HTTP 类型服务器 `unity` → `http://127.0.0.1:8080/mcp`（`timeoutMs: 60000`）。服务由 Unity 内的 `com.coplaydev.unity-mcp` 包（**v10.0.0**）提供，服务端自报 **`mcp-for-unity-server` v3.4.7**，暴露 **47 个工具**（`manage_gameobject`、`manage_scene`、`manage_script`、`read_console`、`execute_menu_item`、`manage_editor`、`set_active_instance` …）与 19 个资源（`mcpforunity://project/info`、`editor/state`、`instances` …）。
+MCP 侧确认的工程根：`D:/Unity/Unity Project/CurriculumDesign/Demo-main`，实例名 **`Demo-main@890c462facb3146d`**，Unity **6000.0.83f1**，当前场景 `Assets/Scenes/Game.unity`，控制台 0 报错 0 警告。
+
+⚠️ **两个已踩过的坑（下次直接用结论）**
+1. **首次 `tools/list` 约 20 s，之后走缓存近乎瞬发。** 这慢于 ZCode 建立会话时的工具收集窗口，所以**新会话的第一条消息里常常看不到 `mcp__unity__*` 工具**（日志表现为 `mcp.startup.completed` 时 `unity` 仍是 `connecting`、`toolCount` 只算了其它服务器）。ZCode 进程内首次连接把缓存焐热后即恢复正常。
+2. **不指定活动实例时，工具调用会失败**：返回 `{"success":false,"error":"Unity session not available; please retry","reason":"no_unity_session"}`（每次还白等一个 20 s 超时）。原因是服务端有多个 Unity 实例时不再自动路由。
+   → 先调 `set_active_instance(instance="Demo-main@890c462facb3146d")` 即可（本机已设为全局活动实例，故后续调用正常）。可用资源 `mcpforunity://instances` 查看当前连了哪些编辑器。
+
+---
+
+## 3. 目录结构地图
+
+```
+D:\Unity\Unity Project\CurriculumDesign\Demo-main\
+├── Assets\
+│   ├── Scenes\
+│   │   ├── MainMenu.unity          # 开始界面（标题 + 开始/退出）
+│   │   └── Game.unity              # 主关卡（3 房间 + 玩家 + Canvas + GameManager）
+│   ├── Editor\
+│   │   ├── AStarSelfTest.cs        # A* 的编辑器自测（菜单 Tools/A* 自测、自测2：无路）
+│   │   └── FieldInspectorMenu.cs   # 反射打印脚本字段（调试工具）
+│   ├── Settings\                   # URP 配置资产（PC/Mobile RPAsset、Volume Profile）
+│   ├── TextMesh Pro\               # TMP 资源
+│   ├── TKDstyle_AnimSet\           # 第三方武术动画资源包（含多套 .controller 与动画）
+│   ├── InputSystem_Actions.inputactions / PlayerControls.cs
+│   ├── _Game\                      # ★ 游戏主体
+│   │   ├── Art\
+│   │   │   ├── characters\         # Y Bot.fbx（Humanoid 角色）、idleAvatar.asset、combo fbx
+│   │   │   ├── Animations\Player\  # PlayerAC.controller + Idle/Run/Dash/Attack1-4/Hit/Death
+│   │   │   ├── Animations\Enemy\   # EnemyAC.controller（只有 idle + combo_01_1 两状态）
+│   │   │   └── Materials\
+│   │   ├── Audio\                  # ❌ 空
+│   │   ├── Notes\                  # ❌ 空
+│   │   ├── Prefabs\
+│   │   │   ├── Player\Player.prefab
+│   │   │   ├── Enemy\{Boxer, Gunner, Enemy_Slime, Bullet}.prefab
+│   │   │   ├── Effect\ / Fx\        # 打击特效预制体
+│   │   │   └── UI\                 # ❌ 空
+│   │   └── Scripts\                # ★ 全部游戏代码（详见 §5）
+│   └── _Modules\                   # 教学练习脚本（11 个，296 行，与游戏无关）
+└── Docs\                           # ★ 本文档所在（非 Unity 资产，未进 Assets）
+```
+
+---
+
+## 4. 命名空间分层
+
+| 命名空间 | 职责 |
+|---|---|
+| `Game.Core` | 基础设施：事件总线、输入、对象池、工具扩展、接口 |
+| `Game.Data` | ScriptableObject 数值配置 |
+| `Game.Gameplay` | 玩家、敌人、房间、流程管理 |
+| `Game.Gameplay.Enemy` | （仅 `EnemyMeleeAI` 使用，与 `Game.Gameplay` 不一致 ⚠️） |
+| `Game.AI` | A* 算法 |
+| `Game.Fx` / `Fx` | 打击特效（⚠️ `DamagePopup` 在裸 `Fx` 命名空间） |
+| `Game.UI` | HUD 与菜单 |
+
+---
+
+## 5. 类清单与职责（核心参考）
+
+### 5.1 `Game.Core`（基础设施）
+
+| 类 | 职责 / 关键成员 |
+|---|---|
+| `EventCenter` | **静态泛型事件总线**。`Subscribe<T>/Unsubscribe<T>/Publish<T>`，内部 `Dictionary<Type, Delegate>`，**约束 `where T : struct`** |
+| `GameEvents` | 静态事件门面：`PlayerDied`、`BossDied` + `RaisePlayerDied()` / `RaiseBossDied()` |
+| `IDamageable` | 接口，仅 `void TakeDamage(int dmg)`。`PlayerFSM`、`EnemyHealth`、`EnemyMelee`、`Target` 实现 |
+| `InputService` | **单例**，包装新输入系统。暴露 `Move`（已做归一化与死区）、`DashPressedThisFrame`、`AttackPressedThisFrame`。`Awake` 建 `PlayerControls` 并 `Enable()`，`OnDestroy` 里 `Disable()+Dispose()` |
+| `ObjectPool<T>` | **泛型对象池**（`where T : Component`）。构造时按 `prewarm` 预热入 `Stack`；`Get()` / `Release()`。`TotalInstantiated` 计数 |
+| `VectorExt` | 扩展方法：`FlattenY()`（压掉 y）、`WithY(float)` |
+
+### 5.2 `Game.Data`（配置）
+
+| 类 | 字段 |
+|---|---|
+| `PlayerConfig` | `moveSpeed 6`、`dashSpeed 10`、`dashTimer 0.5`、`dashDelay 0.1`、`iFrameTime 0.5`、`maxHp 100`、`maxEnergy 100`、`comboWindow 1`、`attackRange 2.5`、`attackDamage {12,15,10,20}` |
+| `EnemyAIConfig` | `displayName`、`hp 30`、`aggroRange 8`、`attackRange 1`、`moveSpeed 3`、`windupTime 1`、`recoverTime 1.5`、`damage 10`、`prefab`、`hitEffect` |
+| `WeaponConfig` | ⚠️ **未被任何代码引用**，且命名空间误写为 **`Game.Date`**（应为 `Game.Data`）。字段：`weaponName`、`damage`、`attackRange`、`comboInterval` |
+
+资产路径：`Assets/_Game/Scripts/Data/{PlayerConfig,EnemyAIConfig}.asset`（数值与类默认值一致）。
+
+### 5.3 `Game.Gameplay`（玩家）
+
+| 类 | 职责 / 要点 |
+|---|---|
+| `PlayerFSM` | **玩家状态机（核心）**。`Dictionary<PlayerState, Action>` 三张表（`_enter` / `_update` / `_exit`）；`Change(next)` 做 exit→set→enter；`Death` 状态是**终态**（拒绝一切切换）。实现 `IDamageable.TakeDamage`，内部判 `Invulnerable`（`_invulnTimer` 0.8s 或 `Dash.IsInvulnerable`） |
+| `PlayerState` | 枚举：`Idle, Run, Dash, Attack, Hit, Death` |
+| `PlayerMotor` | 移动。读 `InputService.Move` → `CharacterController.Move()`；`Face()` 用 `RotateTowards` 转向；驱动动画混合树参数 `speed`。⚠️ **`enabled=false` 会连重力一起停掉**（见 §9 T1） |
+| `PlayerDash` | 冲刺。`BeginDash()` 设 `_dashTimer` + 无敌帧；`LateUpdate` 里按 `transform.forward * dashSpeed` 位移；`IsDashing` / `IsInvulnerable` 供 FSM 查询 |
+| `PlayerAttack` | 攻击。`StartCombo()` / `TryNextCombo()`（连段）；动画事件 **`OnAttackHit()`** 触发 `DoMeleeHit()` → `Physics.OverlapSphere` 瞬时判定 → 对 `IDamageable` 调 `TakeDamage` 并广播 `OnHit` 事件；`SetAttacking(bool)` 供 `AttackStateBehaviour` 调用 |
+| `PlayerHealth` | 血量。`MaxHp/CurHp`、`OnHpChanged` 事件、`ApplyDamage()`。⚠️ `Died` 事件与 `Die()` **被注释掉了（w6）**，实际未使用 |
+| `PlayerEnergy` | ⚠️ **类名与文件名不一致**（文件 `PlayEnergy.cs`）。`MaxEnergy/CurEnergy`、`OnEnergyChanged`、`TrySpend(float)`。⚠️ **游戏内从未被调用消耗**，唯一调用点是作弊脚本 |
+| `AttackStateBehaviour` | `StateMachineBehaviour`，在攻击动画状态 enter/exit 时调 `PlayerAttack.SetAttacking(true/false)`，**替代每帧轮询** |
+| `AttackFxBridge` | 把 `PlayerAttack.OnHit` 事件桥接到 `HitFxSystem.Play` |
+
+### 5.4 `Game.Gameplay`（敌人）
+
+| 类 | 职责 / 要点 |
+|---|---|
+| `EnemyHealth` | 敌人血量。⚠️ **`Died` 是 static 事件**（`Action<EnemyHealth>`）；`OnEnable` 里**重置血量**；死亡时 `Died?.Invoke(this)` 然后 `SetActive(false)`。实现 `IDamageable` |
+| `EnemyMeleeAI` | 近战敌人 AI。**自带一套 switch 式状态机**：`EState { Idle, Chase, Attack, Hit, Death }`。有受击闪白（`_flashT` + `Renderer.material.color`）与硬直（`_stunT`）。伤害由动画事件 **`TickAttack()`** 触发。⚠️ 动画 `SetTrigger("Attack")` 写在 `Update` 里（每帧触发，隐患）；`OnDeath()`/`FlashRed()`/`KnockBack()` 等部分方法当前未被调用 |
+| `EnemyRanged` | 远程敌人。⚠️ **完全没有状态机**：仅"距离检测 + 转向 + 冷却计时 → `Fire()`"。`Fire()` 实例化 `bulletPrefab` 并调 `Bullet.Launch(velocity, owner)` |
+| `Bullet` | 弹道。`Launch(velocity, owner)`、`lifeTime 3s` 自销毁、`Update` 里按速度位移、`OnTriggerEnter` 命中 `PlayerFSM` 造成伤害（`damage 10`），撞非 trigger 物体销毁；用 `IsChildOf(_owner)` 避免自伤 |
+
+### 5.5 `Game.Gameplay`（房间与流程）
+
+| 类 | 职责 / 要点 |
+|---|---|
+| `RoomController` | 房间。`_entryDoor`、`_prevRoom`（用于校验上一房已清）、`isFinalRoom`、`_enemies[]`、`_hint`。`Start` 里**禁用所有敌人并关门**；`OnPlayerEntered()` 关门 + 提示 + **激活全部敌人并统计 `_alive`**；订阅 `EnemyHealth.Died` 递减，归零 → `FinishClear()`；若 `isFinalRoom` 则 `GameEvents.RaiseBossDied()`。状态：`Started` / `Cleared` |
+| `RoomTrigger` | 触发器。`EMode { OpenEntryDoor, StartFight }`，`OnTriggerEnter` 判 `Player` tag |
+| `DoorController` | 门。`Open()` / `Close()` 只是 `_body.SetActive()` 开关 |
+| `GameManager` | 流程。单例；`Start` 记录 `_startTime` 并隐藏两个面板；订阅 `GameEvents.PlayerDied/BossDied`；`_ended` 防重入；死亡 → 延时 2s 显示 `gameOverPanel`，通关 → 写入 `resultText`（⚠️ 文案拼写 `VICTPRY`）延时 0.5s 显示 `victoryPanel`；`RestartRun()` / `BackToMenu()`。⚠️ **从不设置 `Time.timeScale = 0`** |
+| `CameraFollow` | 相机跟随。SmoothDamp，`_offset (0,20,-15)`。⚠️ 文件名是 `CameraMove.cs`，类名是 `CameraFollow`（不一致） |
+
+### 5.6 `Game.AI`
+
+| 类 | 职责 |
+|---|---|
+| `AStar` | 网格 A*。`Node { X, Y, Walkable, G, F, Parent }`；4 邻域；`FindPath(grid, start, goal)` 返回 `List<Node>` 或 `null`；曼哈顿启发式。⚠️ **仅在编辑器自测中被调用，未接入游戏逻辑** |
+
+### 5.7 `Game.Fx` / `Fx`
+
+| 类 | 职责 |
+|---|---|
+| `HitFxSystem` | 打击特效总控。`Awake` 建两个 `ObjectPool`（`HitSpark` 预热 10、`DamagePopup` 预热 8）；`Play(point, damage)` 弹出火花 + 飘字，并在结束时 `Release` |
+| `HitSpark` | 火花。`Show(pos, onDone)` 面向相机缩放 + 淡出（0.18s 协程） |
+| `DamagePopup` | 伤害飘字。用 **UGUI `Text`**（非 TMP），`Show(text, worldPos, onDone)`，`WorldToScreenPoint` 定位，上飘淡出（0.7s） |
+
+### 5.8 `Game.UI`
+
+| 类 | 职责 |
+|---|---|
+| `HPBar` | 订阅 `PlayerHealth.OnHpChanged`，用 `anchorMin/anchorMax` 拉伸 `_fill` |
+| `ManaBar` | 订阅 `PlayerEnergy.OnEnergyChanged`，同上（**待改为体力条**） |
+| `RoomHintText` | TMP 文本，`Show(msg)` 显示 3s 后清空（协程） |
+| `MainMenu` | `StartGame()` 加载 `Game` 场景 / `QuitGame()` |
+
+### 5.9 `_Game/Scripts/Tools`（⚠️ 遗留，见 §9）
+
+| 类 | 状态 |
+|---|---|
+| `PlayerInput` | ❌ 旧 `Input.GetAxisRaw` 方案，已被 `InputService` 取代，无引用 |
+| `EnemyMelee` | ❌ 旧近战敌人（W7 方案），与 `EnemyMeleeAI` 重复；实现 `IDamageable`，发布 `EnemyDiedEvent` |
+| `EnemyConfig` | ❌ 配套旧配置（`maxHp/moveSpeed/chaseRange`），有 `.asset` |
+| `EnemyDiedEvent` | ❌ 旧事件结构体（被 `EnemyMelee` 与 `EnemyDeathLogger` 使用） |
+| `EnemyDeathLogger` | ❌ 订阅 `EnemyDiedEvent` 打日志的调试器 |
+| `Target` | ❌ 测试靶子（`hp = 10000` 打不死），实现 `IDamageable` |
+| `FieldInspector` | ⚠️ 反射打印字段的工具（被 `Editor/FieldInspectorMenu.cs` 引用，**保留**） |
+| `_DebugCheats_w7` | ⚠️ **调试作弊键，挂在 Player 上**：`J` 扣 10 血、`E` 扣 30 蓝、`K` 秒杀最近敌人。脚本注释自述"周末收口时删除" |
+
+### 5.10 `_Modules`（教学练习，与游戏无关）
+
+`AsyncDemo`、`CoroutineDemoA`、`DashLogger`、`EnemyRow`、`Hero`、`LearnLab`、`LifecyclePrinter`、`PlayerMove`、`PoolLab`、`PoolProbe`、`SerializationProbe` — 共 11 个，296 行。均为单文件教学 Demo，**不在任何场景中**。
+
+### 5.11 `Editor`
+
+| 类 | 职责 |
+|---|---|
+| `AStarSelfTest` | 菜单 `Tools/A* 自测` 与 `Tools/A* 自测2：无路`。两个用例：① 5×5 网格绕障找路并校验不穿墙；② 整列堵死应返回 `null` |
+| `FieldInspectorMenu` | 菜单入口，对选中物体调 `FieldInspector.Dump` |
+
+---
+
+## 6. 运行时链路（读代码时最容易迷路的地方）
+
+### 6.1 场景启动
+
+**MainMenu 场景**：`MainMenuManager`（挂 `MainMenu.cs`）→ 点击 `Button_Start` → `SceneManager.LoadScene("Game")`。
+
+**Game 场景根对象**（13 个）：`Main Camera`(CameraFollow)、`Directional Light`、`Global Volume`、`Ground`、`InputService`、`Canvas`(7 个子物体)、`EventSystem`、`FxSystem`(HitFxSystem)、`Player`、`Room1`、`Room2`、`Room3`、`GameManager`。
+
+**Player 身上的组件**（顺序即场景中的顺序）：
+`Transform, Animator, PlayerMotor, PlayerDash, AttackFxBridge, CapsuleCollider, PlayerAttack, PlayerHealth, PlayerFSM, PlayerEnergy, Rigidbody, _DebugCheatsW7, CharacterController`
+> ⚠️ 注意：**Rigidbody + CapsuleCollider + CharacterController 三套物理组件并存**。
+
+**Canvas 子物体关键词**：`HPBarBack`/`HPFill`、`ManaBarBack`、`ResultText`、`VictoryOverPanel`/`VictoryMsgText`、`GameOverPanel`/`DeathMsgText`、`RestartButton`、`MainMenuButton`、若干 `Text (TMP)`。
+
+### 6.2 战斗事件流
+
+```
+玩家按攻击 → InputService.AttackPressedThisFrame
+   → PlayerFSM.UpdateNeutral 检测到 → Change(Attack)
+   → _enter[Attack]: PlayerAttack.StartCombo() + Animator.SetTrigger("Attack")
+   → 动画播放到关键帧 → Animation Event: PlayerAttack.OnAttackHit()
+   → DoMeleeHit(): Physics.OverlapSphere 采样 → 命中 IDamageable.TakeDamage()
+   → OnHit 事件 → AttackFxBridge → HitFxSystem.Play() → 火花 + 飘字（对象池）
+   → AttackStateBehaviour(OnStateExit) → SetAttacking(false) → FSM 判定攻击结束回 Idle/Run
+```
+
+```
+敌人近战同理：动画关键帧 → Animation Event: EnemyMeleeAI.TickAttack()
+   → 距离校验 + 玩家非无敌 → PlayerFSM.TakeDamage(damage)
+   → PlayerFSM: Change(Hit) 或 Change(Death)（血量≤0）
+```
+
+### 6.3 房间与胜负流
+
+```
+玩家踏入 FightTrigger1 → RoomTrigger.OnTriggerEnter(tag=="Player") → RoomController.OnPlayerEntered()
+   → 关门 + RoomHintText.Show("Clean The Room") + 激活全部敌人（_alive 计数）
+敌人死亡 → EnemyHealth.Die() → Died(this) 静态事件 → RoomController.OnEnemyDied → _alive--
+   → _alive<=0 → FinishClear(): 提示 "Door Open"；(isFinalRoom 时) GameEvents.RaiseBossDied()
+GameEvents.BossDied → GameManager.OnVictory → 写 ResultText + 显示 VictoryOverPanel
+GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPanel
+面板按钮 → RestartRun()（重载当前场景）/ BackToMenu()（加载 MainMenu）
+```
+
+### 6.4 动画事件清单（已确认挂在 clip 上）
+
+| 动画文件 | 事件名 | 接收者 |
+|---|---|---|
+| `Player/combo_01_1~4.anim`、`Elbow Uppercut Combo.anim`、`Upward Thrust.anim` | `OnAttackHit` | `PlayerAttack` |
+| `Enemy/combo_01_1.anim` | `TickAttack` | `EnemyMeleeAI` |
+
+### 6.5 动画状态机现状
+
+- **`PlayerAC.controller`**（参数：`speed`, `Dash`, `Attack`, `Hit`, `IsDead`）
+  状态：`Locomotion`（Blend Tree，按 `speed`）、`Attack1`、`Attack2`、`Attack3`、`Attack4`、`Dash`、`Hit`、`Death`（共 8 个）
+- **`EnemyAC.controller`**（参数：`Attack`）
+  状态：**仅 `idle` + `combo_01_1`**（共 2 个）⚠️
+
+---
+
+## 7. 美术资产现状（对改造很关键）
+
+| 资产 | 路径 | 关键事实 |
+|---|---|---|
+| **Y Bot.fbx** | `_Game/Art/characters/` | 玩家角色模型。**`animationType: 3` = Humanoid** ✅ |
+| **idleAvatar.asset** | 同上 | 独立保存的 **Avatar**（人形骨骼映射） |
+| combo fbx | 同上 | `animationType: 3`（Humanoid） |
+| TKDstyle_AnimSet | `Assets/TKDstyle_AnimSet/` | **第三方**武术动画包（多套 controller + 动画），项目动画的来源 |
+| PlayerAC / EnemyAC | `_Game/Art/Animations/` | 两个 Animator Controller |
+| 敌人预制体 | `_Game/Prefabs/Enemy/` | `Boxer`（拳击手/近战）、`Gunner`（枪手/远程）、`Enemy_Slime`、`Bullet` |
+
+> ✅ **最重要的一条**：现有角色是 **Humanoid** 骨骼。
+> 这意味着**新角色外观（模型）可以复用现有全部动画**（Unity Humanoid 重定向），不必为每个新角色重做动作。这是整个美术方案的技术前提，详见 `ART-PIPELINE.md`。
+
+---
+
+## 8. 约定与风格（改代码时请遵守）
+
+1. **中文注释**，行内注释用 `//` 简短说明意图。
+2. 配置数值一律走 **ScriptableObject**，不硬编码。
+3. 事件优先用 `GameEvents`（静态门面）或 `EventCenter<T>`（类型化总线）。
+4. 复用 `ObjectPool<T>` 而不是频繁 `Instantiate/Destroy`（弹道/特效）。
+5. `InputService` 是输入的**唯一入口**，不要在业务代码里直接读 `Input.*`。
+6. **文件名必须与类名一致**（Unity 对 MonoBehaviour 的硬要求）—— 现有两处违反，见 §9 T9/T10。
+7. 一次性性能敏感代码（每帧）避免 LINQ 分配。
+
+---
+
+## 9. 已知问题清单（改造时优先处理）
+
+> 编号 T1–T10 在 `GDD.md` §13.2 有对应的改造方案，两处编号一致。
+
+| # | 问题 | 位置 | 影响 |
+|---|---|---|---|
+| **T1** | `_motor.enabled = false` 用于"停止移动"，**重力也被停掉** | `PlayerFSM` / `PlayerMotor` | ⚠️ **已降级为低优先级**：跳跃已取消，不再阻塞任何功能（代码仍不优雅） |
+| **T2** | 玩家同时挂 `Rigidbody` + `CapsuleCollider` + `CharacterController` | `Player.prefab` / 场景 Player | 三套物理重复，易互相干扰 |
+| **T3** | 攻击判定是动画事件里的**瞬时 `OverlapSphere` 采样** | `PlayerAttack.DoMeleeHit` | 不满足"关键帧碰撞体"需求，易漏判定 |
+| **T4** | 体力**从未被消耗**（唯一调用点在作弊脚本） | `PlayerEnergy` | 体力条是摆设，新玩法落不了地 |
+| **T5** | `PlayerConfig` 同时存角色数值**与**攻击数值 | `PlayerConfig` / `PlayerAttack` | 武器系统需要按武器分数值，需拆分 |
+| **T6** | 敌人无共用状态机基类（近战 switch 硬编码 / 远程完全没有） | `EnemyMeleeAI` / `EnemyRanged` | 加两种敌人 = 两份重复代码 |
+| **T7** | `EnemyHealth.Died` 是 **static 事件** + 房间常驻订阅 | `EnemyHealth` / `RoomController` | 跨场景重开有泄漏/重复订阅风险 |
+| **T8** | `PlayerHealth.Died` 事件与 `Die()` **被注释掉（w6）**，从未触发 | `PlayerHealth` | 死亡链路不统一，易出隐性 bug |
+| **T9** | 文件名 ≠ 类名：`PlayEnergy.cs` 里是 `PlayerEnergy`；`CameraMove.cs` 里是 `CameraFollow` | 两处 | 违反 Unity 硬要求，属隐患 |
+| **T10** | **调试作弊键留在正式场景**：`_DebugCheatsW7` 挂在 Player 上（J 扣血 / E 扣蓝 / K 秒杀） | `Player` 对象 | 交付物不该带作弊功能 |
+| T11 | 通关文案拼写错误 `VICTPRY!` | `GameManager` | 演示时可见的错别字 |
+| T12 | 面板弹出时**游戏不暂停**（`Time.timeScale` 恒为 1） | `GameManager` | 死亡/通关后玩家仍能动 |
+| T13 | `WeaponConfig` 命名空间误写 `Game.Date`，且零引用 | `Data/WeaponConfig.cs` | 死代码 + 命名不规范 |
+| T14 | `AStar` **未接入游戏逻辑**，仅编辑器自测 | `Game.AI` / `Editor` | ⚠️ **已升级为必做**：敌人要求"视野 + 寻路 + 房间障碍物"，A\* 需真正接入（A\* / NavMesh 二选一待定，见 `GDD.md` §6.5） |
+| T15 | `Tools/` 下 6 个脚本为旧方案死代码（`PlayerInput`、`EnemyMelee`、`EnemyConfig`、`EnemyDiedEvent`、`EnemyDeathLogger`、`Target`） | `Scripts/Tools/` | 概念重复、干扰阅读 |
+| T16 | `_Modules/` 11 个教学脚本混在同一程序集 | `Assets/_Modules/` | 与游戏无关，属学习痕迹 |
+| T17 | `TKDstyle_AnimSet` 为第三方资源包 | `Assets/` | 提交/演示需注意署名与授权 |
+| T18 | 无音频（`Audio/` 空）、无存档、无暂停菜单、无 README、无 Boss 实体 | 多处 | V1 缺口 |
+| T19 | `HitFxSystem` 用 `sparkPrefab`/`popupPrefab`，若未赋值 `Awake` 会 NRE | `HitFxSystem` | 场景里已连线，风险低 |
+| T20 | `RoomHintText` 文本为英文硬编码（"Clean The Room" / "Door Open"） | `RoomController` / `RoomHintText` | 若要中文化需改这里 |
+| **T21** | **敌人受击反应链路断裂**：`EnemyHealth.TakeDamage` 只扣血、**从不通知 AI**；`EnemyMeleeAI` 里的受击反应（`EState.Hit` 硬直 `_stunT = 0.4f`、`KnockBack()` 击退、`FlashRed()` 闪白）**全是死代码** —— 它既没有实现 `IDamageable`，其自己的 `TakeDamage` 也早已被注释掉 | `EnemyHealth` / `EnemyMeleeAI` | ⚠️ 现状：**小怪挨打毫无反应**（连闪白都不触发；玩家侧只能看到打击火花与伤害飘字）。按新决策"**小怪会被打断**"，需要把链路**接通**：`EnemyHealth` 受击时通知 AI → AI 进入 `Hit` 硬直 + 闪白。**这是"接通"而非"删除"**。Boss 侧则要保证不受此逻辑打断 |
+
+---
+
+## 10. 当前进度
+
+### 已完成（可运行）
+
+- ✅ 开始界面（标题 + 开始 + 退出）
+- ✅ 玩家：移动、冲刺（含无敌帧）、4 段连段攻击、受击/死亡、生命条
+- ✅ 3 房间清怪流程（锁门/开门/提示）
+- ✅ 胜利 / 失败结算面板 + 重开 / 回主菜单
+- ✅ 近战敌人 AI（基础五状态）+ 远程敌人（无状态机）
+- ✅ 打击特效（火花 + 伤害飘字，对象池驱动）
+- ✅ A* 实现 + 编辑器自测
+- ✅ 编译零报错零警告
+
+### 未完成（V1 缺口，见 `GDD.md` §3.1）
+
+- ❌ 体力系统接入（当前体力**从未被消耗**）、武器系统与特殊攻击
+- ❌ 攻击判定 hitbox 化（关键帧碰撞体）
+- ❌ 敌人视野判定、寻路（A* 未接入）、房间障碍物
+- ❌ 剑兵 / 弓兵（完整状态机 + 动画状态机）
+- ❌ 真正的 Boss + Boss 血条
+- ❌ 暂停菜单、音频、存档
+- ❌ 关卡编排/HUD 完善、Windows 构建
+- ❌ 报告 / PPT / 演示视频脚本
+
+### 10.1 已确认的设计决策（速查 · 2026-10-03）
+
+> 完整描述见 `GDD.md`，此处仅供快速恢复上下文。
+
+| # | 决策 | 关键影响 |
+|---|---|---|
+| 1 | 参考《哈迪斯》，**只取"单层试炼"骨架** | 范围不膨胀 |
+| 2 | **不做跳跃** | 省掉 Jump/Fall/Land 动画；**T1 物理重构降级为低优先级**；体力表去掉跳跃项 |
+| 3 | **体力不足 → 硬性禁止**该动作（消耗 > 当前体力就不执行） | 所有动作必须走**统一体力检查出口** |
+| 4 | **武器 2 把：剑 + 长枪**，都是**四段**普通攻击 | 现有 `Attack1–4` 动画**可复用** |
+| 5 | **剑·特殊攻击**：点按 → 插地 → **圆形范围伤害** | 点按分支 |
+| 6 | **长枪·特殊攻击**：**点按立即投出**（固定距离、直线）→ 落地插地 → **空手不能普攻**（攻击键改为召回）→ **点按攻击键或特殊攻击键召回**（返程路径伤害） | 新增 `SpearThrow` / `Unarmed` / `SpearRecall` 子状态；**空手时按状态重映射按键语义**（攻击键→召回） |
+| 7 | 敌人需要**视野判定 + 寻路**；房间内**布置障碍物** | 新增视野组件；**T14 升级为必做**（A* / NavMesh 方案待定） |
+| 8 | **Boss 是人形** | 可复用 Humanoid 重定向动画 |
+| 9 | **Boss 招式表暂缓** | 先搭决策框架 + 状态机骨架 |
+| 10 | 音频**两种方式都用**（程序化合成 + 现成素材） | `AudioManager` 用"ID → Clip"查表，便于替换 |
+| 11 | **存档用 JSON**（`persistentDataPath` + `JsonUtility`，带 `version`） | 需处理"文件缺失 / 损坏"；会产生**可见的存档文件** |
+| 12 | **寻路接入自研 A\***（网格烘焙 + 调用 `AStar.FindPath` + 路径平滑） | **T14 升级为必做**；需自建网格与路径平滑 |
+| 13 | **武器开局二选一**（剑 / 长枪），**单局内不切换** | 省掉切换动作与切换 UI |
+| 14 | **长枪细节**：**固定投掷距离**、**直线**飞行、到达终点**插在地上**、召回**与其他攻击同一套 hitbox 判定**、玩家死亡则**长枪留在原地**并直接进结算。**蓄力 / 瞄准 / 指示器 / 瞄准减速已整体取消** | 不再需要"长按三态"输入与指示器 UI；长枪需世界物体表现（飞行 / 插地 / 飞回） |
+| 15 | **受击打断分两档：普通小怪会被打断**（硬直 0.4 s + 闪白，攻击中断）；**Boss 不会**（仅闪白，无硬直条/破防） | ⚠️ 现有代码里小怪的受击反应**链路是断的**（`EnemyHealth` 从不通知 AI），需要**接通**而不是删除（见 **T21**）；Boss 前摇表现必须做足预警 |
+| 16 | 待定：投掷距离与投掷/召回速度的具体数值、命中回体力、敌人失去目标后的搜索行为、敌人互相分离、Boss 招式表、关卡是否美化 | 见 `GDD.md` §15.2 |
+
+---
+
+## 11. 文档索引（阅读顺序）
+
+| 顺序 | 文档 | 用途 |
+|---|---|---|
+| 0 | `Docs/README.md` | 索引与阅读指引 |
+| 1 | **`Docs/PROJECT-CONTEXT.md`**（本文） | **新会话快速接管：项目全貌 + 代码地图 + 坑** |
+| 2 | `Docs/GDD.md` | 游戏策划案（要做什么） |
+| 3 | `Docs/ART-PIPELINE.md` | 美术/音频资源的获取方案与可行性 |
+
+> 交接提示：新会话建议先读本文 §1–§6（定位/环境/目录/类职责/运行链路），需要改动时再读 §9（已知问题）与 `GDD.md` §13（改造评估）。
+
+---
+
+## 12. 变更日志
+
+| 日期 | 变更 |
+|---|---|
+| 2026-10-03 | 创建本文档；完成全项目通读（未改任何代码）；建立 `Docs/` 文档目录，产出 `GDD.md`、`ART-PIPELINE.md`、`README.md` |
+| 2026-10-03 | **记录第一批设计决策**（见 §10.1）：取消跳跃、体力硬性禁止、武器定为剑+长枪及其特殊攻击、敌人要视野+寻路+障碍物、Boss 定为人形、音频两种方式并用。**仍未改动任何游戏代码** |
+| 2026-10-03 | **记录第二批设计决策**（见 §10.1 第 11–15 条）：存档用 JSON、寻路用自研 A\*、武器开局二选一、长枪全部细节（蓄力定距/直线/插地/同判定/瞄准减速/死亡留枪）、敌人受击打断规则。**仍未改动任何游戏代码** |
+| 2026-10-03 | **修正打断规则**：由"敌人一律不打断"改为"**小怪会被打断、Boss 不会**"。连带把 T21 的结论**反转**——从"移除硬直"变为"**接通断裂的受击链路**"（现况是小怪挨打毫无反应）。**仍未改动任何游戏代码** |
+| 2026-10-03 | **简化长枪**：取消蓄力与瞄准，改为**点按瞬间投出、固定距离**；**空手期间攻击键与特殊攻击键都能召回**。连带取消"长按三态输入 / 投掷指示器 UI / 蓄力数值"三项工作，并消掉 3 个待定项。**仍未改动任何游戏代码** |
+| 2026-10-03 | **工程迁移**：从 `D:\Unity\xv\Demo` 迁到 `D:\Unity\Unity Project\CurriculumDesign\Demo-main`。本文档内所有工程路径已改为新位置；**Git 信息栏改写为实际状态**（迁移副本未带 `.git`，当前不是仓库、无版本历史）。**仍未改动任何游戏代码** |
+| 2026-10-03 | **打通 AI 接入（MCP）**：实测 Unity MCP 链路（HTTP `127.0.0.1:8080/mcp`，服务端 v3.4.7，47 工具 / 19 资源），确认 Unity 侧已认到新工程路径与实例 `Demo-main@890c462facb3146d`、控制台 0 报错 0 警告。排掉两个坑并写入 §2：首次 `tools/list` 约 20 s（之后走缓存）、未设活动实例会返回 `no_unity_session`（已用 `set_active_instance` 设为全局活动实例）。**仍未改动任何游戏代码** |
+| 2026-10-03 | **建立本地 Git 仓库**：在 `Demo-main\` 执行 `git init -b main`，新增 `.gitattributes`（Unity 资产禁用行尾转换，避免假 diff），完成初始提交（669 个文件：`Assets` 637 / `ProjectSettings` 25 / `Docs` 4 / `Packages` 2 / `.gitignore`+`.gitattributes`）。`Library`、`Temp`、`Logs`、`UserSettings` 由 `.gitignore` 排除。**未配置远端、未推送**。§2 的 Git 信息栏同步改为实际状态。**仍未改动任何游戏代码** |

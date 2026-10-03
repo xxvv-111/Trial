@@ -640,6 +640,7 @@ MeleeCombo / TeleportDash / SlamAOE / Projectile ──结束──> Cooldown �
 ## 12. 美术与音频资源需求
 
 > **详见 `ART-PIPELINE.md`**（含"能否 AI 生成 / 需要哪些环境支持"的结论与完整清单）。
+> **"到底缺哪些资源"见 `ART-ASSETS.md`**（可勾选清单，含三个阻断项与建议获取顺序）。
 
 快速摘要：
 

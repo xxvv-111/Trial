@@ -103,7 +103,10 @@
 | 武器挂点 | ✅ **自带 `B_Weapon_L` / `B_Weapon_R`**（在双手位置），M2 武器可直接挂 |
 | `Y Bot.fbx` + `idleAvatar.asset` | ⚠️ **已不再使用**（Player.prefab 里的渲染器已移除，保留其骨骼与 `idleAvatar` 资产未删） |
 
-> ⚠️ **`anim/*.psa`（5 个，24 MB）与 `_model/psk/*.psk`（1.7 MB）已被 `.gitignore` 排除**——Unreal 私有格式，**Unity 无法导入**。若要使用 Roskva 自带动作（Idle01 / Talk01-03 / Walk），需经 Blender 插件 `io_scene_psk_psa` 转成 FBX，见 `ANIM-GUIDE.md` §1。
+> ⚠️ **`anim/*.psa`（5 个，24 MB）与 `_model/psk/*.psk`（1.7 MB）已被 `.gitignore` 排除**——Unreal 私有格式，**Unity 无法导入**。
+> ✅ **更新（2026-10-04）**：这些 `.psa` 已经转成了 `_model/fbx/OVR - Roskva_Animated.fbx`，含 **5 段动画**（`Walk` 3.08s / `Idle01` / `Talk01_old` / `Talk02` / `Talk03`）。
+> ⚠️ 但该 FBX 目前是 **`Generic` 且无 Avatar → 动画无法重定向**。已实测其骨骼与玩家模型**命名完全一致**，
+> **把 Rig 改为 `Human` 即可解锁**（方法见 `ARPG-DIRECTION.md` §4.3）。
 
 > 换任何新模型时，**必须确认下面三项**（这是本项目的核心红利，见 §8）：Humanoid 可 Configure、尺寸对齐、朝向为 +Z。
 

@@ -22,7 +22,8 @@ namespace Game.Gameplay
         [Tooltip("相机 Transform。留空则自动取 Camera.main。用于把输入换算成「相对相机」的方向。")]
         [SerializeField] private Transform _camera;
 
-        [SerializeField] private float groundStick = 0.1f;//每帧向下的贴地位移
+        [Tooltip("贴地下压速度（米/秒）。每帧实际下压 = 该值 × deltaTime。\n⚠️ 不要直接写「每帧下压的米数」——那样下压量会随帧率变化，导致角色位置抖动。")]
+        [SerializeField] private float groundStickSpeed = 2f;
         [SerializeField] private float turnSpeed = 720f;//转身速度（度/秒）
 
         private CharacterController _cc;
@@ -50,8 +51,9 @@ namespace Game.Gameplay
             Vector3 dir = CameraRelative(axis);
 
             //移动
+            //⚠️ 贴地下压必须 × deltaTime：写成固定量会让下压距离随帧率变化，角色 Y 坐标抖动
             Vector3 move = dir * (speed * Time.deltaTime);
-            _cc.Move(move + Vector3.down * groundStick);//向下挤压一点保证贴地
+            _cc.Move(move + Vector3.down * (groundStickSpeed * Time.deltaTime));
 
             //朝向：转向移动方向（不是转向相机方向）
             if (hasInput) Face(dir);

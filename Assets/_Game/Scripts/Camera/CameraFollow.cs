@@ -4,16 +4,18 @@ using Game.Core;
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 第三人称**越肩视角**相机：鼠标控制环绕 + 滚轮缩放 + 肩部横移。
+    /// 第三人称跟随相机：**固定俯角、始终看向角色**，鼠标可微调视角、滚轮缩放。
     ///
-    /// 与普通「跟随相机」的关键差别：
-    ///   · 相机**不是看向玩家**，而是与环绕方向**平行**地看出去
-    ///   · 加上 <c>_shoulderOffset</c> 横移后，角色自然落在屏幕一侧 → 这就是越肩构图
+    /// 机位算法（简单且稳定）：
+    ///   焦点 = 角色 + 上抬 <c>_focusHeight</c>（身体中部）
+    ///   视线 = 俯角 <c>_pitch</c> × 水平角 <c>_yaw</c>
+    ///   机位 = 焦点 **沿视线后退** <c>_distance</c>
+    ///   → 因为机位是从焦点沿视线推出来的，**视线必然穿过角色**，
+    ///     所以角色永远在画面中心，不会跑偏、不会出画。
     ///
-    /// 结构：
-    ///   焦点 = 玩家 + 上抬 <c>_heightOffset</c>（肩/头高）
-    ///   机位 = 焦点 + 环绕旋转 × (肩部横移, 0, 后退距离)
-    ///   朝向 = 环绕旋转（**不是** LookAt 焦点 —— LookAt 会退化成"围绕角色的追尾相机"）
+    /// ⚠️ 本版**去掉了越肩横移与防穿墙**：
+    ///    那两处逻辑（尤其每帧 SphereCast）会让机位在「近/远」之间跳变 → **相机抖动**。
+    ///    若之后确实遇到穿墙，再以带阻尼的方式加回，而不是每帧硬切换。
     ///
     /// ⚠️ 视角可旋转后，**移动必须「相对相机」**，见 <see cref="PlayerMotor"/>。
     /// </summary>
@@ -22,49 +24,44 @@ namespace Game.Gameplay
         [Header("目标")]
         [SerializeField] private Transform _target;
 
-        [Tooltip("焦点高度（相对玩家脚底）。越肩视角一般取肩/头高，1.4~1.6。")]
-        [SerializeField] private float _heightOffset = 1.5f;
+        [Tooltip("视线焦点相对角色脚底的高度（看向身体中部，约 1.0）。")]
+        [SerializeField] private float _focusHeight = 1.0f;
 
-        [Header("越肩偏移")]
-        [Tooltip("横向偏移。正值 = 相机在玩家右肩（角色显示在屏幕左侧）；负值 = 左肩；0 = 正后方追尾。")]
-        [SerializeField] private float _shoulderOffset = 0.7f;
+        [Header("机位")]
+        [Tooltip("相机到焦点的距离。")]
+        [SerializeField] private float _distance = 3f;
+        [Tooltip("俯角（度）。越大越俯视。")]
+        [SerializeField] private float _pitch = 40f;
+        [SerializeField] private float _minPitch = 5f;
+        [SerializeField] private float _maxPitch = 80f;
 
-        [Header("视角")]
-        [Tooltip("水平角。")]
-        [SerializeField] private float _yaw = 0f;
-        [Tooltip("俯角。越肩视角一般 10~25；越大越接近俯视。")]
-        [SerializeField] private float _pitch = 18f;
-        [SerializeField] private float _minPitch = -10f;
-        [SerializeField] private float _maxPitch = 70f;
-
-        [Header("距离")]
-        [SerializeField] private float _distance = 3.4f;
+        [Header("缩放")]
         [SerializeField] private float _minDistance = 1.5f;
-        [SerializeField] private float _maxDistance = 12f;
+        [SerializeField] private float _maxDistance = 10f;
         [Tooltip("每格滚轮改变的距离。")]
-        [SerializeField] private float _zoomStep = 0.6f;
+        [SerializeField] private float _zoomStep = 0.5f;
 
         [Header("手感")]
         [Tooltip("鼠标灵敏度（度/像素）。")]
         [SerializeField] private float _lookSensitivity = 0.35f;
-        [Tooltip("位置平滑时间，越小越跟手。0 = 完全硬跟随。")]
-        [SerializeField] private float _smoothTime = 0.06f;
+        [Tooltip("位置平滑时间。设为 0 = 硬跟随，最不容易抖。")]
+        [SerializeField] private float _smoothTime = 0f;
 
-        [Header("防穿墙")]
-        [SerializeField] private bool _collisionCheck = true;
-        [Tooltip("球形探测半径，避免相机贴面穿进墙里。")]
-        [SerializeField] private float _collisionRadius = 0.2f;
-        [Tooltip("撞墙后额外留出的间隙。")]
-        [SerializeField] private float _collisionBuffer = 0.05f;
+        [Header("朝向")]
+        [Tooltip("勾上 = 相机水平角跟随角色面朝方向（始终在角色背后）。鼠标的左右移动会作为「相对偏移」叠加在角色朝向之上。")]
+        [SerializeField] private bool _followTargetYaw = true;
 
         [Header("鼠标指针")]
-        [Tooltip("勾上 = 进入游戏即锁定指针（正式游玩手感）。取消 = 指针自由，便于在编辑器里调试。运行中按 Esc 解锁，点击游戏窗口重新锁定。")]
+        [Tooltip("勾上 = 进入游戏即锁定指针（正式游玩手感）。取消 = 指针自由，便于在编辑器里调试。")]
         [SerializeField] private bool _lockCursorOnStart = false;
 
-        private Vector3 _velocity;//SmoothDamp 用，必须是字段
+        private Vector3 _velocity;//SmoothDamp 用
+        private float _yawOffset;   //鼠标带来的水平偏移（相对角色朝向）
+        private float _pitchOffset; //鼠标带来的俯角偏移
+        private float _scrollDistance;//滚轮带来的距离变化
 
-        /// <summary>当前视角的水平朝向（供其它系统做「相对相机」换算）。</summary>
-        public Quaternion PlanarRotation => Quaternion.Euler(0f, _yaw, 0f);
+        /// <summary>当前水平朝向（供其它系统做「相对相机」换算）。</summary>
+        public Quaternion PlanarRotation => Quaternion.Euler(0f, CurrentYaw(), 0f);
 
         private void Start()
         {
@@ -80,15 +77,17 @@ namespace Game.Gameplay
             if (InputService.Instance != null)
             {
                 Vector2 look = InputService.Instance.LookDelta;
-                _yaw += look.x * _lookSensitivity;
-                _pitch -= look.y * _lookSensitivity;
-                _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+                _yawOffset += look.x * _lookSensitivity;
+
+                //俯角偏移以「目标俯角」为基准浮动，避免基准被鼠标带跑
+                _pitchOffset -= look.y * _lookSensitivity;
+                _pitchOffset = Mathf.Clamp(_pitchOffset, _minPitch - _pitch, _maxPitch - _pitch);
 
                 float scroll = InputService.Instance.ScrollDelta;
                 if (Mathf.Abs(scroll) > 0.01f)
                 {
-                    _distance -= scroll * _zoomStep;
-                    _distance = Mathf.Clamp(_distance, _minDistance, _maxDistance);
+                    _scrollDistance -= scroll * _zoomStep;
+                    _scrollDistance = Mathf.Clamp(_scrollDistance, _minDistance - _distance, _maxDistance - _distance);
                 }
             }
 
@@ -105,55 +104,51 @@ namespace Game.Gameplay
             if (_target == null) return;
 
             Vector3 focus = FocusPoint();
-            Quaternion rot = Quaternion.Euler(_pitch, _yaw, 0f);
-            Vector3 desired = ResolvePosition(focus, rot);
+            Quaternion rot = CurrentRotation();
+            Vector3 desired = focus - rot * Vector3.forward * CurrentDistance();
 
-            //用 Realtime：结算暂停（timeScale = 0）时相机也不应卡死
-            transform.position = Vector3.SmoothDamp(
-                transform.position, desired, ref _velocity, _smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
+            if (_smoothTime <= 0f)
+            {
+                //硬跟随：直接赋值，没有插值残留 → 最稳、最不容易抖
+                transform.position = desired;
+                _velocity = Vector3.zero;
+            }
+            else
+            {
+                transform.position = Vector3.SmoothDamp(
+                    transform.position, desired, ref _velocity,
+                    _smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
+            }
 
-            //关键：朝向 = 环绕旋转本身（不是 LookAt 焦点）
             transform.rotation = rot;
         }
 
-        /// <summary>把相机瞬移到当前应该待的位置（开局调用，避免从旧位置飞过来）。</summary>
+        /// <summary>把相机瞬移到当前应该待的位置（开局调用，避免从场景里的旧位置飞过来）。</summary>
         public void SnapToTarget()
         {
             if (_target == null) return;
 
             Vector3 focus = FocusPoint();
-            Quaternion rot = Quaternion.Euler(_pitch, _yaw, 0f);
+            Quaternion rot = CurrentRotation();
 
-            transform.position = ResolvePosition(focus, rot);
+            transform.position = focus - rot * Vector3.forward * CurrentDistance();
             transform.rotation = rot;
             _velocity = Vector3.zero;
         }
 
-        private Vector3 FocusPoint() => _target.position + Vector3.up * _heightOffset;
+        private Vector3 FocusPoint() => _target.position + Vector3.up * _focusHeight;
 
-        /// <summary>算出机位：焦点 + 环绕旋转 × (肩部横移, 0, 后退)，并按需做防穿墙收缩。</summary>
-        private Vector3 ResolvePosition(Vector3 focus, Quaternion rot)
+        private Quaternion CurrentRotation()
+            => Quaternion.Euler(Mathf.Clamp(_pitch + _pitchOffset, _minPitch, _maxPitch), CurrentYaw(), 0f);
+
+        private float CurrentYaw()
         {
-            Vector3 local = new Vector3(_shoulderOffset, 0f, -_distance);
-            Vector3 desired = focus + rot * local;
-
-            if (!_collisionCheck) return desired;
-
-            //从焦点向机位做球形探测：撞到东西就把相机拉近
-            Vector3 dir = desired - focus;
-            float dist = dir.magnitude;
-            if (dist <= 0.001f) return desired;
-
-            RaycastHit hit;
-            if (Physics.SphereCast(focus, _collisionRadius, dir.normalized, out hit, dist,
-                                   ~0, QueryTriggerInteraction.Ignore))
-            {
-                float safe = Mathf.Max(_minDistance * 0.6f, hit.distance - _collisionBuffer);
-                desired = focus + dir.normalized * safe;
-            }
-
-            return desired;
+            float baseYaw = (_followTargetYaw && _target != null) ? _target.eulerAngles.y : 0f;
+            return baseYaw + _yawOffset;
         }
+
+        private float CurrentDistance()
+            => Mathf.Clamp(_distance + _scrollDistance, _minDistance, _maxDistance);
 
         private void LockCursor(bool locked)
         {

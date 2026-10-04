@@ -176,7 +176,27 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `RoomTrigger` | 触发器。`EMode { OpenEntryDoor, StartFight }`，`OnTriggerEnter` 判 `Player` tag |
 | `DoorController` | 门。`Open()` / `Close()` 只是 `_body.SetActive()` 开关 |
 | `GameManager` | 流程。单例；`Start` 重置 `Time.timeScale = 1` **并恢复输入**、记录 `_startTime`、隐藏两个面板；订阅 `GameEvents.PlayerDied/BossDied`；`_ended` 防重入（**公开为 `HasEnded` 供 `PauseMenu` 判断**）；死亡 → **立刻锁游戏性输入** + 延时 2s 显示 `gameOverPanel`，通关 → 写 `resultText`（`VICTORY! TIME:...s`）+ 延时 0.5s 显示 `victoryPanel`；面板显示时 `Time.timeScale = 0`；`RestartRun()` / `BackToMenu()`（都会先还原 `timeScale`）。⚠️ **`timeScale = 0` 拦不住输入**，故结束时会同时调 `InputService.SetGameplayInputEnabled(false)`（见 §6.4） |
-| `CameraFollow` | 第三人称相机（类名与文件名一致 ✅）。机位算法：焦点 = 角色 + `_focusHeight(1.0)`，机位 = 焦点**沿视线后退** `_distance(3)` → 视线必然穿过角色、**角色永远居中**；固定俯角 `_pitch 40°`、滚轮缩放 1.5~10、`_smoothTime 0`（硬跟随）；⚠️ **`_followTargetYaw` 必须为 false**（相机 yaw 归鼠标，若跟随角色朝向会与"移动相对相机 + 角色转向移动方向"构成**正反馈 → 按 WASD 视角持续旋转**）；开局 `SnapToTarget()` 瞬移到位；`HandleCursor()` 在游戏性输入关闭时**只解锁指针、不锁回**（否则结算/暂停面板点不动）。详见 `ARPG-DIRECTION.md` §4.6 |
+| `CameraFollow` | 第三人称相机（类名与文件名一致 ✅）。机位算法：焦点 = 角色 + `_focusHeight(1.0)`，机位 = 焦点**沿视线后退** `_distance(3)` → 视线必然穿过角色、**角色永远居中**；基准俯角 `_pitch 40°`，**鼠标可上下偏移（含仰视）**；滚轮缩放 1.5~10、`_smoothTime 0`（硬跟随）；⚠️ **`_followTargetYaw` 必须为 false**（相机 yaw 归鼠标，若跟随角色朝向会与"移动相对相机 + 角色转向移动方向"构成**正反馈 → 按 WASD 视角持续旋转**）；开局 `SnapToTarget()` 瞬移到位；`HandleCursor()` 在游戏性输入关闭时**只解锁指针、不锁回**（否则结算/暂停面板点不动）。详见 `ARPG-DIRECTION.md` §4.6 |
+
+> **⚠️ 相机俯角：可仰视 + 动态「地面安全角」（2026-10-05）**
+> 此前 `_minPitch = 5`（正值）把俯角锁死在"永远俯视"，鼠标上推到底卡在 5°。
+> 现在改为：`_minPitch = -60`（负值 = 允许仰视），**真正的下限由地面安全角自动收窄** ——
+>
+> ```
+> 机位高度 = focusY + sin(pitch) × distance ≥ groundY + clearance
+> → pitch ≥ asin((groundY + clearance − focusY) / distance)
+> ```
+>
+> ⚠️ **安全角必须随距离变化**（距离越远允许的仰角越小）：
+> 1.5 m → −27.8°；**3 m → −13.5°**；5 m → −8.1°；10 m → −4.0°。
+> 写死常数会在拉远时穿地。
+>
+> ⚠️ **实现要点：钳制「俯角」而非「机位高度」** ——
+> 钳制机位高度会压缩相机距离、且必须改用 `LookAt` 才能让角色居中；
+> 钳制俯角则保持距离不变，机位仍从焦点沿视线推出 → **角色继续自动居中**（实测点积 = 1.000000）。
+>
+> ⚠️ 地面探测**必须忽略角色自身碰撞体**（否则射线打到自己胶囊体，实测天真写法命中 `Player @ y=1.6`）。
+> ⚠️ 仍未做：防穿墙、极端仰角+最近距离时相机贴脸。
 
 > `PauseMenu` 属 `Game.UI` 命名空间，见 §5.8。
 
@@ -431,7 +451,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 - ✅ **M2.1 WeaponConfig 重做**（`41472f2`）：`WeaponConfig` + 剑/长枪两份资产；伤害/连段窗口/段数/**判定盒尺寸**/体力成本全部接入
 
 **其他并行进展**
-- ✅ 相机改造完成：鼠标控视角 + 固定俯角 40° 后置跟随；**游戏结束后不能转视角**（输入闸门）
+- ✅ 相机改造完成：鼠标控视角 + 后置跟随（基准俯角 40°，**可仰视**）；**游戏结束后不能转视角**（输入闸门）
 - ✅ 玩家模型换为 **Roskva**（Humanoid，**T25 Neck 已修**）；`Equips_NoSword` 无武器网格已接入
 - ✅ `OVR - Roskva_Animated` 改 **Humanoid** → `Walk` / `Idle01` 等 5 段动画**可重定向**（M3 巡逻前提）
 
@@ -524,6 +544,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-05 | **✅ 相机视角可以上抬了（允许仰视 + 动态地面安全角）**（提交 `2ca175f`）。**问题**：鼠标上推到底，视角停在俯角 5° 不能继续上抬。**根因**：`_minPitch = 5`（正值）把俯角锁死在"永远俯视"。它取正值是为防穿地但**过于保守** —— 相机离地 = `focusHeight + sin(pitch) × distance`，焦点 1.0 + 距离 3 时真正贴地临界是 **−19.5°**，即 **5° ~ −19.5° 这 24.5° 本来是安全的，却被整个砍掉**。深层原因：本版相机**故意删掉了防穿地修正**（每帧 SphereCast 会导致机位跳变→抖动），没有碰撞兜底就只能用 `_minPitch` 硬拦，一拦就把"上抬"整个砍掉了。**方案（用户选定）**：新增动态「地面安全角」`asin((groundY + clearance − focusY) / distance)`，并有三个关键设计点 —— ① ⚠️ **钳制「俯角」而非「机位高度」**：钳制高度会压缩相机距离、且必须改用 `LookAt` 才能让角色居中；钳制俯角则保持距离不变、机位仍从焦点沿视线推出 → **角色继续自动居中**（实测点积 = 1.000000）；② ⚠️ **安全角必须随距离变化**（距离越远允许仰角越小）：1.5/3/5/10 m → −27.8°/−13.5°/−8.1°/−4.0°，写死常数会在拉远时穿地；③ ⚠️ **地面探测必须忽略角色自身碰撞体**（实测天真写法命中 `Player @ y=1.6`，会把地面当成 1.6）。**改动**：`_minPitch` 5→**−60**、新增 `_groundY`/`_groundClearance`/`_autoDetectGroundY`、`ResolveGroundY()`/`GroundSafeMinPitch()`/`EffectivePitch()`/`ClampAboveGround()`。**验证**：各距离相机高度恒为 0.300 m **均不穿地** ✓；最低俯角时相机 0.3 m < 焦点 1.0 m → **确实在仰视** ✓；角色仍在画面正中心 ✓。俯角范围 5°~80°（75°）→ **−13.5°~80°（93.5°）**，新增 18.5° 仰视空间。⚠️ 仍未做（用户决定细节优化后议）：防穿墙、极端仰角+最近距离时相机贴脸。 ⚠️ 同步修正文档中 `_followTargetYaw` 误写为 `true`（实测 false）与"固定俯角 40°"的不准确措辞 |
 | 2026-10-05 | **📄 文档整理（本轮无代码改动）**：全文实查后发现并修正多处**过时表述**，使文档与代码一致。① **头部状态**：由"阶段 0 + M1.1"更新为"M1 全部 + M2.1"，并写明下一步。② **§3 目录地图**：角色由 `Y Bot` 改为 **Roskva**（含 Meshes/Materials/_model/_textures/anim 子目录）、新增 `Gameplay/Combat` 与 `Data/Weapons`、Editor 补 `HitboxAnimationValidator.cs`、标明 `_Modules/` 已删除。③ **§5 类清单**：`WeaponConfig` 描述由"未被引用/命名空间 Game.Date"改为 M2.1 的实况；`PlayerAttack`/`PlayerEnergy` 改为判定体与武器驱动的实况（**删除"PlayEnergy.cs 不一致""从未被消耗"等已修好的旧问题描述**）；新增 **`Hitbox` / `HitboxController` / `HitboxTeam`** 三个类；`GameManager`/`CameraFollow` 描述重写（删掉"从不设 timeScale"与过时的 offset）；`ManaBar` → **`EnergyBar`**；Editor 补校验工具。④ **§6.2 战斗事件流**：由旧的"瞬时 `OverlapSphere`"重写为**判定体驱动**的真实链路，并补上「敌人受击反应（T21）」与「暂停/结算输入闸门」两张流程。⑤ **§6.4 动画事件清单**：补上实测时间，并记录重要提醒 —— `Elbow Uppercut Combo` / `Upward Thrust` 也挂了 `OnAttackHit` 但不属 4 段普攻，**M2 做特殊攻击时必须让它们用自己的判定体**。⑥ **§7 美术资产**：由 `Y Bot`/`idleAvatar` 重写为 **Roskva** 系列（含 Equips_NoSword、金发贴图、握持挂点），并写明 Humanoid 映射的正确验证方法（`isValid` 不够，`Neck` 是可选槽位）。⑦ **§10 当前进度**：由"体力从未消耗 / hitbox 未做 / 暂停菜单未做"（全部已完成的旧状态）重写为按阶段分组的真实进度 + 未修遗留问题表。⑧ **§11 文档索引**：由 5 份补全为 **8 份**（此前漏了 `ARPG-DIRECTION` / `ART-ASSETS` / `ANIM-GUIDE`），与 `README.md` 一致。⑨ **T5 标记已消除**（M2.1 完成"角色数值与攻击数值拆分"）；**T11** 补记第二处拼写错误 `VECTORY`；**T18** 标注"无暂停菜单"已不成立。⑩ 同步修正 `README.md`（头部/进度/下一步/最短路径）、`GDD.md`（§2 结束界面与暂停菜单、§4.5、§10.2/§10.3、§11.1、§12 现状表）、`ART-PIPELINE.md`（资源对照表 + 缺失清单）、`ANIM-GUIDE.md`（Humanoid 现状 + Avatar 复用目标）、`ROADMAP.md`（M5.1 体力条、§8.3 Humanoid 现状）。 **校验：9 份文档的表格列数、代码块闭合、内部链接全部通过。** |
 | 2026-10-04 | **✅ M2.1 WeaponConfig 重做完成**（提交 `41472f2`/`1034503`）。⚠️ 文档记的"命名空间误写 Game.Date、零引用"的 `WeaponConfig` **已在阶段 0 清理死代码时删除** → 本次是**从零新建**。① 新增 `Data/WeaponConfig.cs`（`SpecialAttackType` 枚举 + 配置类，字段按 GDD §5.2 全到位，含取值辅助与 OnValidate 校验）。② 新增两把武器资产 `Data/Weapons/`：**剑**伤害 [12,15,10,20]/判定 长2.5~3.1·宽1.5~1.86/特殊插地；**长枪**伤害 [10,12,9,16]/判定 长3.2~3.9·宽1.0~1.2/特殊投掷（体现 §5.3 的手感定位，数值为初值待实测）。③ **全量接入**：`PlayerAttack` 读武器的伤害/连段窗口/段数/**判定盒尺寸**；`PlayerEnergy` 读武器的体力成本（成本表仍集中在本类，保持 M1.1 的统一出口原则）；`Hitbox` 新增 `SetDamage`/`ApplyShape`；`HitboxController` 新增 `GetByName`/`ApplyWeaponShapes`。④ `PlayerConfig` 的 attackRange/attackDamage/attackEnergyCost/specialEnergyCost 降级为兜底。**验证（临时实例，未触碰项目文件）：装配长枪后判定盒由 2.5~3.1 变为 3.2~3.9 且变窄（配置驱动生效）；模拟 4 段命中帧伤害依次同步为 10/12/9/16（各段独立正确）；连段窗口 0.9、段数 4。编译 0 报错 0 警告。** ⚠️ Player 仍未装配武器（装配属 M2.2）。⚠️ **另发现一个工具坑**：在编辑模式修改 `Time.timeScale` 会**持久化污染** `ProjectSettings/TimeManager.asset`（Unity 把 Fixed Timestep 改写成新的有理数格式）——暂停菜单的端到端测试触发了该写入，已 `git checkout` 恢复并验证 Refresh 后不再被改写。 |
 | 2026-10-04 | **✅ M1.3 暂停菜单完成**（提交 `b7add1c`）—— **M1 阶段全部收口**。① 新增 `UI/PauseMenu.cs`：`ESC` 开/关，暂停时**两道闸同时上**（`Time.timeScale = 0` 冻结逻辑 + `InputService.SetGameplayInputEnabled(false)` **让鼠标不能再转视角**），带幂等保护、恢复时还原暂停前的 timeScale。② ⚠️ **`ESC` 必须不受输入闸门影响**：若放进 Player map 会被一起关掉 → **暂停后按 ESC 关不掉菜单**；故 `InputService` 新增 `PausePressedThisFrame`，刻意不走闸门（用旧版 `Input.GetKeyDown`，项目 Active Input Handling = Both 可用，零配置且避免与 UI 的 Cancel 撞车）。③ **`ESC` 职责转移**：`CameraFollow` 原用 ESC 解锁指针，与暂停菜单会打架（按一下做两件事）→ 已移除，ESC 统一归 PauseMenu；相机新增上升沿检测，输入恢复时自动重锁指针。④ `GameManager` 新增 `HasEnded`，避免结算后还能开暂停菜单。⑤ UI 用**复制结算面板**方式搭建（字体/按钮样式/过渡全部继承），组件挂在 **Canvas** 而非面板内（否则 `SetActive(false)` 会连带禁用脚本）。⑥ **顺手修掉第二处拼写错误**：`VictoryMsgText` 原为 `VECTORY !` → `VICTORY !`。**验证：Pause→面板可见/timeScale=0/输入关/LookDelta=0；Resume→全还原；幂等 ✓。未做"音量"（项目无音频，待 M5）。** |

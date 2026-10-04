@@ -3,7 +3,7 @@
 > **这份文档回答：如果我要自己手动 K 动画，该怎么做？**
 > 面向"会一点 Unity、没做过动画"的人，重点是**本项目的硬约束**和**最容易翻车的环节**。
 >
-> 最后更新：2026-10-04
+> 最后更新：2026-10-05
 > 相关：`ART-ASSETS.md`（缺哪些资源）、`ART-PIPELINE.md`（资源从哪来）、`GDD.md` §5.4（动画方案）
 
 ---
@@ -81,14 +81,17 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 
 ### 2.1 ① 必须是 Humanoid ⚠️ 最重要
 
-**你项目的核心红利是"Humanoid 重定向"**——实测 `Animator.isHuman = true`，`Y Bot.fbx` + `idleAvatar.asset` 已配好。
+**你项目的核心红利是"Humanoid 重定向"**——实测 `Animator.isHuman = true`，
+玩家角色 `OVR - Roskva.fbx` 与动画库 `OVR - Roskva_Animated.fbx` **都是 Humanoid** 且骨骼命名一致（54/54）。
 
 - ✅ **保持 Humanoid**：新角色的模型套用现有动画，**动画成本接近 0**
 - ❌ **做成 Generic**：**无法重定向**，每个角色都得单独做一整套动作
 
 🔧 **做法**：做完动画导入 Unity 后，`Rig` 页 → `Animation Type = Humanoid` → 点 `Configure` 确认骨骼映射成功（**能看到绿色的人形骨骼图**才算成）。
 
-> 如果直接用 `Y Bot` 的骨骼 K 动画，天然就是 Humanoid；用别的模型则必须确认能 Configure 成功。
+> ⚠️ **`Configure` 绿图也不代表全映射**：`Neck` 属可选槽位，缺失时 Avatar 仍 `isValid = true`。
+> 必须用 `animator.GetBoneTransform(HumanBodyBones.Neck)` 之类逐个抽查（本项目已踩过，见 **T25 / T26**）。
+> 另：`human[]` 为**空数组**时 Unity 全自动映射；改成**显式列表**后**不会自动补齐未列出的槽位**。
 
 ### 2.2 ② 动画事件不能漏 ⚠️ 最容易忘
 
@@ -213,9 +216,9 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 
 **`Rig` 页**
 - `Animation Type` = **`Humanoid`**
-- `Avatar Definition` = **`Copy From Other Avatar`** → 选 `idleAvatar.asset`
-  （或 `Create From This Model` 新建；**复用现有 Avatar 更省事**）
-- 点 **`Configure`** 确认骨骼映射（**看到绿色人形骨骼图**）
+- `Avatar Definition` = **`Copy From Other Avatar`** → 选 **`OVR - RoskvaAvatar`**
+  （玩家的 Avatar；或 `Create From This Model` 新建；**复用现有 Avatar 更省事**）
+- 点 **`Configure`** 确认骨骼映射（**看到绿色人形骨骼图**；⚠️ 但仍需抽查 `Neck` 等可选槽位，见 §2.1）
 
 **`Animation` 页**
 - `Loop Time`：Idle / Run ✅ 勾；Attack / Hit / Death ❌ 不勾

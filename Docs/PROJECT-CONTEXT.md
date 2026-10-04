@@ -4,7 +4,9 @@
 > 任何新的 AI 会话或协作者，**读完本文即可理解项目全貌并开始干活**，不需要重新通读全部代码。
 > 配套文档见文末 §11 文档索引。
 >
-> 最后更新：2026-10-04 | 项目阶段：**阶段 0 ✅ + M1.1 体力 ✅ 已完成；方向已变更为 ARPG 单场景，相机已改造完成**
+> 最后更新：2026-10-05 | 项目阶段：**阶段 0 ✅ · M1 系统骨架全部 ✅（体力/Hitbox/暂停/文案）· M2.1 武器配置 ✅ · 方向已变更为 ARPG 单场景（相机已改造）**
+>
+> **下一步：M2.2 开局二选一**
 
 ---
 
@@ -60,28 +62,39 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 │   │   └── Game.unity              # 主关卡（3 房间 + 玩家 + Canvas + GameManager）
 │   ├── Editor\
 │   │   ├── AStarSelfTest.cs        # A* 的编辑器自测（菜单 Tools/A* 自测、自测2：无路）
-│   │   └── FieldInspectorMenu.cs   # 反射打印脚本字段（调试工具）
+│   │   ├── FieldInspectorMenu.cs   # 反射打印脚本字段（调试工具）
+│   │   └── HitboxAnimationValidator.cs  # ★ M1.2 新增：校验攻击动画是否挂了判定事件
 │   ├── Settings\                   # URP 配置资产（PC/Mobile RPAsset、Volume Profile）
 │   ├── TextMesh Pro\               # TMP 资源
-│   ├── TKDstyle_AnimSet\           # 第三方武术动画资源包（含多套 .controller 与动画）
-│   ├── InputSystem_Actions.inputactions / PlayerControls.cs
+│   ├── TKDstyle_AnimSet\           # 第三方武术动画资源包（⚠️ 署名要求，见 §9 T17）
+│   ├── InputSystem_Actions.inputactions / PlayerControls.cs（自动生成）
 │   ├── _Game\                      # ★ 游戏主体
 │   │   ├── Art\
-│   │   │   ├── characters\         # Y Bot.fbx（Humanoid 角色）、idleAvatar.asset、combo fbx
-│   │   │   ├── Animations\Player\  # PlayerAC.controller + Idle/Run/Dash/Attack1-4/Hit/Death
+│   │   │   ├── characters\Roskva\  # ★ 玩家角色（UE 素材包接入，**Humanoid**）
+│   │   │   │   ├── _model\fbx\     # OVR - Roskva.fbx（主模型）+ OVR - Roskva_Animated.fbx
+│   │   │   │   │                   #  ⚠️ 后者已改 Human，含 Walk 2.47s / Idle01 等 5 段可重定向动画
+│   │   │   │   ├── _textures\      # 贴图（含 _urp 子目录；Hair_Gold 为金发变体）
+│   │   │   │   ├── Meshes\         # ★ Equips_NoSword.asset（去掉剑的装备网格）
+│   │   │   │   ├── Materials\      # Mat_Roskva_* 材质
+│   │   │   │   └── anim\
+│   │   │   ├── Animations\Player\  # PlayerAC.controller + Idle/Run/Dash/combo_01_1-4/Hit/Death
 │   │   │   ├── Animations\Enemy\   # EnemyAC.controller（只有 idle + combo_01_1 两状态）
 │   │   │   └── Materials\
-│   │   ├── Audio\                  # ❌ 空
+│   │   ├── Audio\                  # ❌ 空（见 §9 T18）
 │   │   ├── Notes\                  # ❌ 空
 │   │   ├── Prefabs\
-│   │   │   ├── Player\Player.prefab
-│   │   │   ├── Enemy\{Boxer, Gunner, Enemy_Slime, Bullet}.prefab
+│   │   │   ├── Player\Player.prefab      # 含 HitboxController + Hitbox_Attack1~4（M1.2）
+│   │   │   ├── Enemy\{Boxer, Gunner, Enemy_Slime, Bullet}.prefab  # Boxer 含 Hitbox_Attack
 │   │   │   ├── Effect\ / Fx\        # 打击特效预制体
 │   │   │   └── UI\                 # ❌ 空
 │   │   └── Scripts\                # ★ 全部游戏代码（详见 §5）
-│   └── _Modules\                   # 教学练习脚本（11 个，296 行，与游戏无关）
+│   │       ├── Core\ Data\ Data\Weapons\ Fx\ AI\ Camera\ Tools\ UI\
+│   │       └── Gameplay\           # 玩家 / Enemy / Room / **Combat**（★ M1.2 新增）
 └── Docs\                           # ★ 本文档所在（非 Unity 资产，未进 Assets）
 ```
+
+> ⚠️ **已清理，勿再引用**：`Assets/_Modules/`（11 个教学脚本，T16）、`Tools/` 下 6 个旧方案脚本（T15）、
+> 旧 `Y Bot.fbx` 角色（已被 Roskva 取代）。
 
 ---
 
@@ -116,13 +129,15 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 
 | 类 | 字段 |
 |---|---|
-| `PlayerConfig` | `moveSpeed 6`、`dashSpeed 10`、`dashTimer 0.5`、`dashDelay 0.1`、`iFrameTime 0.5`、`maxHp 100`、`maxEnergy 100`、`comboWindow 1`、`attackRange 2.5`、`attackDamage {12,15,10,20}` |
-| `EnemyAIConfig` | `displayName`、`hp 30`、`aggroRange 8`、`attackRange 1`、`moveSpeed 3`、`windupTime 1`、`recoverTime 1.5`、`damage 10`、`prefab`、`hitEffect` |
-| `WeaponConfig` | ⚠️ **未被任何代码引用**，且命名空间误写为 **`Game.Date`**（应为 `Game.Data`）。字段：`weaponName`、`damage`、`attackRange`、`comboInterval` |
+| `PlayerConfig` | **只含角色自身属性**（M2.1 起攻击数值已迁出）：移动 `moveSpeed 6`/`dashSpeed 10`/`dashTimer 0.5`/`dashDelay 0.1`/`iFrameTime 0.5`；生存 `maxHp 100`/`hitInvulnTime 0.8`；体力 `maxEnergy 100`/`dashEnergyCost 20`/`energyRegenDelay 0.6`/`energyRegenRate 25`。⚠️ `comboWindow`/`attackRange`/`attackDamage`/`attackEnergyCost`/`specialEnergyCost` 已迁到 `WeaponConfig`，此处仅作**未装配武器时的兜底** |
+| `EnemyAIConfig` | `displayName`、`hp 30`、`aggroRange 8`、`attackRange 1`、`moveSpeed 3`、`windupTime 1`、`recoverTime 1.5`、`damage 10`、`prefab`、`hitEffect`；**受击反应（M1.2 新增）**：`canBeInterrupted true`（⚠️ **Boss 必须设 false**）/`hitStunTime 0.4`/`knockBackDistance 0.4`/`flashTime 0.15` |
+| `WeaponConfig` | **M2.1 新建**（原同名文件已在阶段 0 清理死代码时删除）。标识 `displayName`/`icon`；连段 `comboWindow`/`damage[4]`/`energyCost[4]`；判定盒 `hitboxLength[4]`/`hitboxWidth[4]`/`hitboxHeight`/`hitboxCenterY`；特殊攻击 `specialType`(枚举 `SpecialAttackType`)/`specialDamage`/`specialEnergyCost`/`specialCooldown`/`specialRange`；外观 `modelPrefab`/`modelLocalPosition`/`modelLocalEuler`/`gripBoneName`。附取值辅助 `GetDamage`/`GetEnergyCost`/`GetHitboxSize`/`GetHitboxLocalPosition` |
 
-资产路径：`Assets/_Game/Scripts/Data/{PlayerConfig,EnemyAIConfig}.asset`（数值与类默认值一致）。
+资产路径：
+- `Assets/_Game/Scripts/Data/{PlayerConfig,EnemyAIConfig}.asset`
+- `Assets/_Game/Scripts/Data/Weapons/{Weapon_Sword,Weapon_Spear}.asset`（**M2.1 新增**）
 
-### 5.3 `Game.Gameplay`（玩家）
+### 5.3 `Game.Gameplay`（玩家 + 战斗判定）
 
 | 类 | 职责 / 要点 |
 |---|---|
@@ -130,11 +145,19 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `PlayerState` | 枚举：`Idle, Run, Dash, Attack, Hit, Death` |
 | `PlayerMotor` | 移动。读 `InputService.Move` → `CharacterController.Move()`；`Face()` 用 `RotateTowards` 转向；驱动动画混合树参数 `speed`。⚠️ **`enabled=false` 会连重力一起停掉**（见 §9 T1） |
 | `PlayerDash` | 冲刺。`BeginDash()` 设 `_dashTimer` + 无敌帧；`LateUpdate` 里按 `transform.forward * dashSpeed` 位移；`IsDashing` / `IsInvulnerable` 供 FSM 查询 |
-| `PlayerAttack` | 攻击。`StartCombo()` / `TryNextCombo()`（连段）；动画事件 **`OnAttackHit()`** 触发 `DoMeleeHit()` → `Physics.OverlapSphere` 瞬时判定 → 对 `IDamageable` 调 `TakeDamage` 并广播 `OnHit` 事件；`SetAttacking(bool)` 供 `AttackStateBehaviour` 调用 |
-| `PlayerHealth` | 血量。`MaxHp/CurHp`、`OnHpChanged` 事件、`ApplyDamage()`。⚠️ `Died` 事件与 `Die()` **被注释掉了（w6）**，实际未使用 |
-| `PlayerEnergy` | ⚠️ **类名与文件名不一致**（文件 `PlayEnergy.cs`）。`MaxEnergy/CurEnergy`、`OnEnergyChanged`、`TrySpend(float)`。⚠️ **游戏内从未被调用消耗**，唯一调用点是作弊脚本 |
+| `PlayerAttack` | 普攻与连段。`StartCombo()` / `TryNextCombo()`（连段）；动画事件 **`OnAttackHit()`** 只负责**开启该段判定体**（M1.2 起，不再是瞬时采样）→ 命中结算由 `HitboxController` 统一收口。数值（伤害/连段窗口/段数/判定盒尺寸）读 `WeaponConfig`，未装配时回退 `PlayerConfig`；`SetWeapon()` 供 M2.2 装配；`SyncHitboxDamage()` 在开判定体前写入该段伤害；`CloseAllHitboxes()` 供 FSM 在离开 Attack 时清残留 |
+| `PlayerHealth` | 血量。`MaxHp/CurHp`、`OnHpChanged` 事件、`ApplyDamage()`。⚠️ `Died` 事件与 `Die()` **被注释掉了（w6）**，实际未使用（见 §9 T8） |
+| `PlayerEnergy` | 体力（文件名与类名一致 ✅）。`MaxEnergy/CurEnergy`、`OnEnergyChanged`、`OnSpendFailed`；**唯一消耗出口** `TrySpend(float)` 与 `TrySpendDash()` / `TrySpendAttack(i)` / `TrySpendSpecial(override)`。⚠️ **成本表集中在本类**（M1.1 原则）：普攻与特殊攻击成本读 `WeaponConfig`（`SetWeapon()` 切换），冲刺成本属角色属性留在 `PlayerConfig` |
 | `AttackStateBehaviour` | `StateMachineBehaviour`，在攻击动画状态 enter/exit 时调 `PlayerAttack.SetAttacking(true/false)`，**替代每帧轮询** |
-| `AttackFxBridge` | 把 `PlayerAttack.OnHit` 事件桥接到 `HitFxSystem.Play` |
+| `AttackFxBridge` | 把 **`HitboxController.OnHit`** 桥接到 `HitFxSystem.Play`（M1.2 起订阅源由 `PlayerAttack.OnHit` 改为判定体系统，使所有命中来源走同一条特效通道） |
+
+**战斗判定（`Gameplay/Combat/`，M1.2 新增 —— GDD §8）**
+
+| 类 | 职责 / 要点 |
+|---|---|
+| `Hitbox` | 攻击判定体。Trigger Collider + **必需自带 kinematic `Rigidbody`**（⚠️ 敌人身上没有 RB，否则 `OnTriggerEnter` **永不触发**）；字段：阵营/伤害/可命中层；**「已命中集合」每次 `Activate()` 时清空**（作用域=一次挥砍）；`SetDamage()` / `ApplyShape()` 供武器配置驱动；`OnDrawGizmos` 编辑期半透明常显、运行期随 `HitboxController.ShowGizmos` |
+| `HitboxController` | 判定总管（每角色一个）。自动收集子物体判定体；**按名开关** `EnableHitbox(name, duration)`（支持定时自动关闭，重复开启会先清旧计时）；**`TryProcessHit` 是唯一命中出口**（过滤阵营 → `TakeDamage` → 广播 `OnHit`）；`DisableAllHitboxes()` 清残留；`GetByName()` / `ApplyWeaponShapes()`（⚠️ 按**名字**匹配 `Hitbox_Attack1~4`，不用数组下标）；运行时 **F1** 切换 Gizmos |
+| `HitboxTeam` | 枚举：`Player` / `Enemy`（用于区分表现；过滤主要靠 `Hitbox.TargetLayers`） |
 
 ### 5.4 `Game.Gameplay`（敌人）
 
@@ -152,8 +175,10 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `RoomController` | 房间。`_entryDoor`、`_prevRoom`（用于校验上一房已清）、`isFinalRoom`、`_enemies[]`、`_hint`。`Start` 里**禁用所有敌人并关门**；`OnPlayerEntered()` 关门 + 提示 + **激活全部敌人并统计 `_alive`**；订阅 `EnemyHealth.Died` 递减，归零 → `FinishClear()`；若 `isFinalRoom` 则 `GameEvents.RaiseBossDied()`。状态：`Started` / `Cleared` |
 | `RoomTrigger` | 触发器。`EMode { OpenEntryDoor, StartFight }`，`OnTriggerEnter` 判 `Player` tag |
 | `DoorController` | 门。`Open()` / `Close()` 只是 `_body.SetActive()` 开关 |
-| `GameManager` | 流程。单例；`Start` 记录 `_startTime` 并隐藏两个面板；订阅 `GameEvents.PlayerDied/BossDied`；`_ended` 防重入；死亡 → 延时 2s 显示 `gameOverPanel`，通关 → 写入 `resultText`（⚠️ 文案拼写 `VICTPRY`）延时 0.5s 显示 `victoryPanel`；`RestartRun()` / `BackToMenu()`。⚠️ **从不设置 `Time.timeScale = 0`** |
-| `CameraFollow` | 相机跟随。SmoothDamp，`_offset (0,20,-15)`。⚠️ 文件名是 `CameraMove.cs`，类名是 `CameraFollow`（不一致） |
+| `GameManager` | 流程。单例；`Start` 重置 `Time.timeScale = 1` **并恢复输入**、记录 `_startTime`、隐藏两个面板；订阅 `GameEvents.PlayerDied/BossDied`；`_ended` 防重入（**公开为 `HasEnded` 供 `PauseMenu` 判断**）；死亡 → **立刻锁游戏性输入** + 延时 2s 显示 `gameOverPanel`，通关 → 写 `resultText`（`VICTORY! TIME:...s`）+ 延时 0.5s 显示 `victoryPanel`；面板显示时 `Time.timeScale = 0`；`RestartRun()` / `BackToMenu()`（都会先还原 `timeScale`）。⚠️ **`timeScale = 0` 拦不住输入**，故结束时会同时调 `InputService.SetGameplayInputEnabled(false)`（见 §6.4） |
+| `CameraFollow` | 第三人称相机（类名与文件名一致 ✅）。机位算法：焦点 = 角色 + `_focusHeight(1.0)`，机位 = 焦点**沿视线后退** `_distance(3)` → 视线必然穿过角色、**角色永远居中**；固定俯角 `_pitch 40°`、滚轮缩放 1.5~10、`_smoothTime 0`（硬跟随）；⚠️ **`_followTargetYaw` 必须为 false**（相机 yaw 归鼠标，若跟随角色朝向会与"移动相对相机 + 角色转向移动方向"构成**正反馈 → 按 WASD 视角持续旋转**）；开局 `SnapToTarget()` 瞬移到位；`HandleCursor()` 在游戏性输入关闭时**只解锁指针、不锁回**（否则结算/暂停面板点不动）。详见 `ARPG-DIRECTION.md` §4.6 |
+
+> `PauseMenu` 属 `Game.UI` 命名空间，见 §5.8。
 
 ### 5.6 `Game.AI`
 
@@ -174,9 +199,10 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | 类 | 职责 |
 |---|---|
 | `HPBar` | 订阅 `PlayerHealth.OnHpChanged`，用 `anchorMin/anchorMax` 拉伸 `_fill` |
-| `ManaBar` | 订阅 `PlayerEnergy.OnEnergyChanged`，同上（**待改为体力条**） |
-| `RoomHintText` | TMP 文本，`Show(msg)` 显示 3s 后清空（协程） |
+| `EnergyBar` | 订阅 `PlayerEnergy.OnEnergyChanged`（体力条，原 mana 条改造）。⚠️ 闪烁用 `WaitForSecondsRealtime`（暂停时不能卡在中间态） |
+| `RoomHintText` | TMP 文本，`Show(msg)` 显示 3s 后清空（协程）。⚠️ 文案英文硬编码（见 §9 T20） |
 | `MainMenu` | `StartGame()` 加载 `Game` 场景 / `QuitGame()` |
+| `PauseMenu` | 暂停菜单（**M1.3 新增**）。`ESC` 开/关；暂停时**两道闸同时上**：`Time.timeScale = 0` + `InputService.SetGameplayInputEnabled(false)`；`Resume()` 还原暂停前的 `timeScale` 并恢复输入；幂等；`GameManager.HasEnded` 时忽略 ESC。⚠️ **组件挂在 Canvas 上、不在 PausePanel 内** —— 否则 `SetActive(false)` 会连带禁用脚本，菜单再也打不开。⚠️ `ESC` 由 `InputService.PausePressedThisFrame` 提供且**刻意不受输入闸门影响**（否则暂停后关不掉菜单）。UI 用**复制 `GameOverPanel`** 搭建（字体/按钮样式/过渡自动继承） |
 
 ### 5.9 `_Game/Scripts/Tools`（⚠️ 遗留，见 §9）
 
@@ -201,6 +227,7 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 |---|---|
 | `AStarSelfTest` | 菜单 `Tools/A* 自测` 与 `Tools/A* 自测2：无路`。两个用例：① 5×5 网格绕障找路并校验不穿墙；② 整列堵死应返回 `null` |
 | `FieldInspectorMenu` | 菜单入口，对选中物体调 `FieldInspector.Dump` |
+| `HitboxAnimationValidator` | **M1.2 新增**。菜单 `Tools/Hitbox/校验攻击动画事件`：扫描 `Art/Animations` 下所有剪辑（含 FBX 内嵌、过滤 `__preview__`），列出其动画事件并标记是否含判定事件（`OnAttackHit` / `TickAttack`）。**用途**：判定体靠动画事件开关，**漏挂事件的后果是该招式完全没有伤害且在编辑器里看不出来** |
 
 ---
 
@@ -218,22 +245,50 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 
 **Canvas 子物体关键词**：`HPBarBack`/`HPFill`、`ManaBarBack`、`ResultText`、`VictoryOverPanel`/`VictoryMsgText`、`GameOverPanel`/`DeathMsgText`、`RestartButton`、`MainMenuButton`、若干 `Text (TMP)`。
 
-### 6.2 战斗事件流
+### 6.2 战斗事件流（M1.2 后为**判定体驱动**）
 
+**玩家攻击**
 ```
 玩家按攻击 → InputService.AttackPressedThisFrame
-   → PlayerFSM.UpdateNeutral 检测到 → Change(Attack)
+   → PlayerFSM.UpdateNeutral 检测到 → TryAttack()（先付体力）→ Change(Attack)
    → _enter[Attack]: PlayerAttack.StartCombo() + Animator.SetTrigger("Attack")
-   → 动画播放到关键帧 → Animation Event: PlayerAttack.OnAttackHit()
-   → DoMeleeHit(): Physics.OverlapSphere 采样 → 命中 IDamageable.TakeDamage()
-   → OnHit 事件 → AttackFxBridge → HitFxSystem.Play() → 火花 + 飘字（对象池）
+   → 动画播到关键帧 → Animation Event: PlayerAttack.OnAttackHit()
+       · SyncHitboxDamage() 把**该段伤害**写入判定体
+       · HitboxController.EnableHitbox("Hitbox_Attack{n}", 0.25s)
+   → Hitbox（Trigger + kinematic Rigidbody）在时间窗内真实存在
+   → OnTriggerEnter → HitboxController.TryProcessHit()  ← **唯一命中出口**
+       · 层过滤（碰撞矩阵已保证，代码再挡一层）→ 找 IDamageable → TakeDamage
+       · 广播 HitboxController.OnHit
+   → AttackFxBridge → HitFxSystem.Play() → 火花 + 飘字（对象池）
    → AttackStateBehaviour(OnStateExit) → SetAttacking(false) → FSM 判定攻击结束回 Idle/Run
 ```
 
+**敌人攻击**（与玩家**同规则**，GDD 设计支柱 4）
 ```
-敌人近战同理：动画关键帧 → Animation Event: EnemyMeleeAI.TickAttack()
-   → 距离校验 + 玩家非无敌 → PlayerFSM.TakeDamage(damage)
-   → PlayerFSM: Change(Hit) 或 Change(Death)（血量≤0）
+动画关键帧 → Animation Event: EnemyMeleeAI.TickAttack()
+   → HitboxController.EnableHitbox("Hitbox_Attack", 0.25s)   （敌人判定体 layer=EnemyHitbox，只碰 Player）
+   → 命中 → 同上唯一出口 → PlayerFSM.TakeDamage(damage)（内部判 Invulnerable）
+   → Change(Hit) 或 Change(Death)（血量≤0）
+```
+
+**敌人受击反应（T21，M1.2 接通）**
+```
+EnemyHealth.TakeDamage() → 广播**实例事件** Damaged(自身, 伤害)
+   → EnemyMeleeAI.OnDamaged()
+       · 闪白（所有敌人，用 MaterialPropertyBlock，不产生材质实例）
+       · 若 canBeInterrupted：关判定体（打断攻击）+ 击退 + 进 Hit 硬直
+       · 若 !canBeInterrupted（Boss）：**只闪白**
+   → 血量≤0 → Died（static 事件，见 §9 T7）→ RoomController 计数
+```
+
+**暂停 / 结算时的输入闸门（M1.3）**
+```
+Time.timeScale = 0   ← 冻结逻辑与动画
+   ⚠️ 但**拦不住输入**：Update() 仍每帧跑、Input System 不受 timeScale 影响
+InputService.SetGameplayInputEnabled(false)   ← 这才拦住鼠标转视角
+   · 只 Disable Player action map（UI map 保留，否则菜单点不动）
+   · CameraFollow.HandleCursor() 顺势解锁指针（否则面板点不动）
+   · 例外：ESC 走 PausePressedThisFrame，**刻意不受闸门影响**（否则暂停后关不掉菜单）
 ```
 
 ### 6.3 房间与胜负流
@@ -248,12 +303,24 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 面板按钮 → RestartRun()（重载当前场景）/ BackToMenu()（加载 MainMenu）
 ```
 
-### 6.4 动画事件清单（已确认挂在 clip 上）
+### 6.4 动画事件清单（实测结果，工具：`Tools/Hitbox/校验攻击动画事件`）
 
-| 动画文件 | 事件名 | 接收者 |
-|---|---|---|
-| `Player/combo_01_1~4.anim`、`Elbow Uppercut Combo.anim`、`Upward Thrust.anim` | `OnAttackHit` | `PlayerAttack` |
-| `Enemy/combo_01_1.anim` | `TickAttack` | `EnemyMeleeAI` |
+| 动画文件 | 事件名 | 时间 | 接收者 |
+|---|---|---|---|
+| `Player/combo_01_1.anim` | `OnAttackHit` | 0.33 s | `PlayerAttack` |
+| `Player/combo_01_2.anim` | `OnAttackHit` | 0.23 s | 同上 |
+| `Player/combo_01_3.anim` | `OnAttackHit` | 0.33 s | 同上 |
+| `Player/combo_01_4.anim` | `OnAttackHit` | 0.53 s | 同上 |
+| `Player/Elbow Uppercut Combo.anim` | `OnAttackHit` ×2 | 0.87 / 1.33 s | 同上 ⚠️ |
+| `Player/Upward Thrust.anim` | `OnAttackHit` | 1.00 s | 同上 ⚠️ |
+| `Enemy/combo_01_1.anim` | `TickAttack` | 0.30 s | `EnemyMeleeAI` |
+
+> ⚠️ **M2 重要提醒**：`Elbow Uppercut Combo` 与 `Upward Thrust` **也挂了 `OnAttackHit`**，
+> 但它们**不属于当前 4 段普攻**。若日后切到这些动画（例如 M2 的特殊攻击），
+> 会走到 `PlayerAttack.OnAttackHit` 并按当时的 `_comboIndex` 开启**普攻判定体** ——
+> **M2 做特殊攻击时必须让它们用自己的判定体**，否则会误开普攻判定。
+>
+> 其余动画（`Idle` / `Standard Run` / `Stomach Hit` / `Sword And Shield Death` / `Standing Dive Forward` 等）**无事件**，属正常。
 
 ### 6.5 动画状态机现状
 
@@ -268,15 +335,24 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 资产 | 路径 | 关键事实 |
 |---|---|---|
-| **Y Bot.fbx** | `_Game/Art/characters/` | 玩家角色模型。**`animationType: 3` = Humanoid** ✅ |
-| **idleAvatar.asset** | 同上 | 独立保存的 **Avatar**（人形骨骼映射） |
-| combo fbx | 同上 | `animationType: 3`（Humanoid） |
-| TKDstyle_AnimSet | `Assets/TKDstyle_AnimSet/` | **第三方**武术动画包（多套 controller + 动画），项目动画的来源 |
+| **`OVR - Roskva.fbx`** | `Art/characters/Roskva/_model/fbx/` | **玩家角色主模型**（UE 素材包接入）。`animationType = Human` ✅ / `isHuman` ✅ / 9 个渲染器（Body / Equips / Eyeshadow / Face / Fur / Hair / Hair2 / Lower Body / Upper Body） |
+| **`OVR - Roskva_Animated.fbx`** | 同上 | 角色自带动画。**Rig 已改为 `Human`**（原为 Generic）→ 5 段动画全部 `isHumanMotion`、**骨骼命名与玩家 Avatar 一致 54/54 → 可直接重定向**。⚠️ 但其 Avatar 仍缺 `Neck`（**T26**） |
+| `Equips_NoSword.asset` | `Art/characters/Roskva/Meshes/` | **去掉剑的装备网格**（顶点 4516 / 27 骨骼 / 材质 `Mat_Roskva_Parts`）。玩家预制体已用它覆盖 `Equips` 渲染器 → 为 M2 换武器做准备 |
+| Roskva 贴图与材质 | `Art/characters/Roskva/{_textures,Materials}/` | 含 `_urp` 子目录；`Mat_Roskva_Hair*` 已接入**金发变体**（`T_Roskva_Hair_Gold`，接在 `_BaseMap` 基础色槽，sRGB 正确） |
+| 握持挂点 | Roskva 模型内 | `B_Weapon_L` / `B_Weapon_R`（武器模型挂点，`WeaponConfig.gripBoneName` 默认取 `B_Weapon_R`） |
+| TKDstyle_AnimSet | `Assets/TKDstyle_AnimSet/` | **第三方**武术动画包，项目动画的来源之一（⚠️ 署名要求，见 §9 T17） |
 | PlayerAC / EnemyAC | `_Game/Art/Animations/` | 两个 Animator Controller |
-| 敌人预制体 | `_Game/Prefabs/Enemy/` | `Boxer`（拳击手/近战）、`Gunner`（枪手/远程）、`Enemy_Slime`、`Bullet` |
+| 敌人预制体 | `_Game/Prefabs/Enemy/` | `Boxer`（近战，已含 `Hitbox_Attack`）、`Gunner`（远程）、`Enemy_Slime`、`Bullet` |
 
-> ✅ **最重要的一条**：现有角色是 **Humanoid** 骨骼。
-> 这意味着**新角色外观（模型）可以复用现有全部动画**（Unity Humanoid 重定向），不必为每个新角色重做动作。这是整个美术方案的技术前提，详见 `ART-PIPELINE.md`。
+> ✅ **最重要的一条**：玩家角色与动画 FBX **都是 Humanoid**。
+> 这意味着**新角色外观（模型）可以复用现有全部动画**（Unity Humanoid 重定向），不必为每个新角色重做动作。
+> 这是整个美术方案的技术前提，详见 `ART-PIPELINE.md`。
+>
+> ⚠️ **Humanoid 映射的验证方法**：不要只看 `avatar.isValid` ——
+> **`Neck` 属可选槽位，缺失时 Avatar 仍然 `isValid = true`**（这正是 T25 能悄悄漏掉的原因）。
+> 必须用 `animator.GetBoneTransform(HumanBodyBones.X)` 逐个抽查关键骨骼。
+> 另一个坑：`humanDescription.human[]` 为**空数组**时 Unity 会全自动映射；
+> 一旦改成**显式列表**，Unity **不会自动补齐未列出的槽位**。
 
 ---
 
@@ -302,13 +378,13 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | **T2** | 玩家同时挂 `Rigidbody` + `CapsuleCollider` + `CharacterController` | `Player.prefab` / 场景 Player | 三套物理重复，易互相干扰 |
 | ~~T3~~ | ~~攻击判定是动画事件里的**瞬时 `OverlapSphere` 采样**~~ | ✅ **已修复 2026-10-04（M1.2）**：改为帧驱动的判定体系统（`Hitbox` + `HitboxController`），判定体在关键帧期间**真实存在**；伤害统一走 `HitboxController.TryProcessHit` 唯一出口 | 已消除 |
 | ~~T4~~ | ~~体力**从未被消耗**（唯一调用点在作弊脚本）~~ | ✅ **已修复 2026-10-04（M1.1）**：成本表集中在 `PlayerEnergy`，接入 3 个消耗点（冲刺 / 普攻首段 / 连段后续），体力不足则**硬性拒绝动作**；加了再生与 HUD 闪烁 | 已消除 |
-| **T5** | `PlayerConfig` 同时存角色数值**与**攻击数值 | `PlayerConfig` / `PlayerAttack` | 武器系统需要按武器分数值，需拆分 |
+| ~~T5~~ | ~~`PlayerConfig` 同时存角色数值**与**攻击数值~~ | ✅ **已修复 2026-10-04（M2.1）**：攻击数值（伤害 / 连段窗口 / 段数 / 判定盒尺寸 / 每段体力消耗 / 特殊攻击）全部迁到 `WeaponConfig`；`PlayerConfig` 只保留**角色自身**属性（移动、生命、体力上限与再生），旧字段降级为"未装配武器时的兜底" | 已消除 |
 | **T6** | 敌人无共用状态机基类（近战 switch 硬编码 / 远程完全没有） | `EnemyMeleeAI` / `EnemyRanged` | 加两种敌人 = 两份重复代码 |
 | **T7** | `EnemyHealth.Died` 是 **static 事件** + 房间常驻订阅 | `EnemyHealth` / `RoomController` | 跨场景重开有泄漏/重复订阅风险 |
 | **T8** | `PlayerHealth.Died` 事件与 `Die()` **被注释掉（w6）**，从未触发 | `PlayerHealth` | 死亡链路不统一，易出隐性 bug |
 | ~~T9~~ | ~~文件名 ≠ 类名~~ | ✅ **已修复 2026-10-04**：`PlayEnergy.cs`→`PlayerEnergy.cs`、`CameraMove.cs`→`CameraFollow.cs`、`ManaBar.cs`→`EnergyBar.cs`（类名同步，`git mv` 保 GUID 引用不断） | 已消除 |
 | ~~T10~~ | ~~调试作弊键留在正式场景~~ | ✅ **已修复 2026-10-04**：组件已从 Player 移除，`_DebugCheats_w7.cs` 已删除 | 已消除 |
-| ~~T11~~ | ~~通关文案拼写错误 `VICTPRY!`~~ | ✅ **已修复 2026-10-04**：改为 `VICTORY` | 已消除 |
+| ~~T11~~ | ~~通关文案拼写错误 `VICTPRY!`~~ | ✅ **已修复 2026-10-04**：改为 `VICTORY`。⚠️ **另发现第二处不同的拼写错误**：`VictoryOverPanel/VictoryMsgText` 原为 `VECTORY !`，已在 M1.3 一并改为 `VICTORY !` | 已消除 |
 | ~~T12~~ | ~~面板弹出时游戏不暂停~~ | ✅ **已修复 2026-10-04**：结算时置 `Time.timeScale = 0`，延时改用 `WaitForSecondsRealtime` | 已消除 |
 | ~~T13~~ | ~~`WeaponConfig` 命名空间误写 `Game.Date`~~ | ✅ **已修复 2026-10-04**：文件已删除（M2.1 重建） | 已消除 |
 | T14 | `AStar` **未接入游戏逻辑**，仅编辑器自测 | `Game.AI` / `Editor` | ✅ **已结案（2026-10-04 翻转）**：寻路改用 **Unity 自带 NavMesh**（`com.unity.ai.navigation` 2.0.14 已装）。理由：`AStar.FindPath` **不重置邻居节点的 `G/F/Parent`**，复用同一网格重算会因残留 `Parent` 成环导致 `Reconstruct` **死循环卡死编辑器**——而"每 0.3 s 重算"必须复用网格，**不加 Reset 就不能接入**；且自建网格烘焙/障碍标记/路径平滑/动态避障四件事 NavMesh 已内置。→ `AStar` + `AStarSelfTest` **保留不动**，降级为**报告"路径搜索算法实现"章节的素材**（含两个测试用例）。详见 `NAVMESH-GUIDE.md` |
@@ -320,7 +396,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | T17 | `TKDstyle_AnimSet` 为第三方资源包 | `Assets/` | 提交/演示需注意署名与授权 |
 | ~~T25~~ | ~~Avatar 缺少 `Neck` 映射~~ | ✅ **已修复 2026-10-04**：`human[]` 项数 **54 → 55（完整）**，`Neck -> Bip001-Neck`；端到端抽检 11 个关键骨骼全部解析成功。成因备查：`human[]` 原为空数组（Unity 全自动映射，含 Neck），改为**显式列表**时漏掉 Neck —— **显式列表不会自动补齐未列出的槽位** | 已消除（⚠️ 见 T26） |
 | **T26** | **`OVR - Roskva_Animated` 的 Avatar 仍缺 `Neck`**（`human[]` 54 项），而玩家 Avatar 已是 55 项 | `OVR - Roskva_Animated.fbx` | ⚠️ 两者不一致 → 用 `Walk` / `Idle01` 时**颈部动作不会重定向**（对走路循环影响很小，但迟早会踩）。修法同 T25：Rig → Configure 把 `Neck` 映射到 `Bip001-Neck`。**建议在 M3 接入巡逻动画前补掉** |
-| T18 | 无音频（`Audio/` 空）、无存档、无暂停菜单、无 README、无 Boss 实体 | 多处 | V1 缺口 |
+| T18 | ~~无暂停菜单~~（✅ 已做，M1.3）/ **无音频**（`Audio/` 空）、**无存档**、**Boss 实体未做** | 多处 | V1 缺口：音频与存档待 M5；Boss 待 M4 |
 | T19 | `HitFxSystem` 用 `sparkPrefab`/`popupPrefab`，若未赋值 `Awake` 会 NRE | `HitFxSystem` | 场景里已连线，风险低 |
 | T20 | `RoomHintText` 文本为英文硬编码（"Clean The Room" / "Door Open"） | `RoomController` / `RoomHintText` | 若要中文化需改这里 |
 | ~~T21~~ | ~~敌人受击反应链路断裂~~ | ✅ **已接通 2026-10-04（M1.2）**：`EnemyHealth` 新增**实例事件** `Damaged`（非 static，避免 T7 隐患）；`EnemyMeleeAI` 订阅后实现硬直 + 闪白 + 击退；**闪白改用 `MaterialPropertyBlock`**（原先 `.material.color` 会实例化材质）。按 `EnemyAIConfig.canBeInterrupted` 区分：小怪会打断、**Boss 只闪白**（设 false） | 已消除 |
@@ -331,27 +407,71 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 ### 已完成（可运行）
 
+**原有基础**
 - ✅ 开始界面（标题 + 开始 + 退出）
 - ✅ 玩家：移动、冲刺（含无敌帧）、4 段连段攻击、受击/死亡、生命条
 - ✅ 3 房间清怪流程（锁门/开门/提示）
 - ✅ 胜利 / 失败结算面板 + 重开 / 回主菜单
 - ✅ 近战敌人 AI（基础五状态）+ 远程敌人（无状态机）
 - ✅ 打击特效（火花 + 伤害飘字，对象池驱动）
-- ✅ A* 实现 + 编辑器自测
+- ✅ A\* 实现 + 编辑器自测
 - ✅ 编译零报错零警告
-- ✅ **阶段 0 开工前置（2026-10-04）**：5 个层已建、输入补 `Special` 并删冲突的 `Jump`、`PlayerConfig` 补齐体力与受击无敌字段、调试作弊键移除
-- ✅ **全项目脚本清理与优化（2026-10-04）**：脚本 50 → 37（删除 19 个死代码）；修复 4 个真 bug（T22–T24）；文件名=类名、命名空间统一、多余 using 与 w6/w7 注释死代码清除
+
+**阶段 0 · 开工前置（2026-10-04）**
+- ✅ 5 个层已建、输入补 `Special` 并删冲突的 `Jump`、`PlayerConfig` 补齐体力与受击无敌字段、调试作弊键移除
+- ✅ 全项目脚本清理：脚本 50 → 37（删 19 个死代码）；修 4 个真 bug（T22–T24）
+
+**M1 · 系统骨架（2026-10-04）—— 全部完成**
+- ✅ **M1.1 体力统一出口**（`845fece`）：成本表集中在 `PlayerEnergy`，接入 3 个消耗点（冲刺/普攻首段/连段后续），体力不足**硬性拒绝动作**，含再生与 HUD 闪烁
+- ✅ **M1.2 Hitbox 系统**（`4593136`/`8596c11`/`59ee4e0`/`e5f874d`）：归层 + 碰撞矩阵、`Hitbox` + `HitboxController`、玩家 4 段判定体、敌人判定体、**T3 + T21 结案**、动画事件校验工具
+- ✅ **M1.3 暂停菜单**（`b7add1c`）：`ESC` 开/关、冻结时间 + **锁游戏性输入**（`timeScale` 拦不住鼠标）、继续/重开/回主菜单
+- ✅ **M1.4 修文案**：`VICTPRY`（阶段 0）+ **`VECTORY`**（M1.3，第二处不同的拼写错误）
+
+**M2 · 武器系统（进行中）**
+- ✅ **M2.1 WeaponConfig 重做**（`41472f2`）：`WeaponConfig` + 剑/长枪两份资产；伤害/连段窗口/段数/**判定盒尺寸**/体力成本全部接入
+
+**其他并行进展**
+- ✅ 相机改造完成：鼠标控视角 + 固定俯角 40° 后置跟随；**游戏结束后不能转视角**（输入闸门）
+- ✅ 玩家模型换为 **Roskva**（Humanoid，**T25 Neck 已修**）；`Equips_NoSword` 无武器网格已接入
+- ✅ `OVR - Roskva_Animated` 改 **Humanoid** → `Walk` / `Idle01` 等 5 段动画**可重定向**（M3 巡逻前提）
 
 ### 未完成（V1 缺口，见 `GDD.md` §3.1）
 
-- ❌ 体力系统接入（当前体力**从未被消耗**）、武器系统与特殊攻击
-- ❌ 攻击判定 hitbox 化（关键帧碰撞体）
-- ❌ 敌人视野判定、寻路（A* 未接入）、房间障碍物
-- ❌ 剑兵 / 弓兵（完整状态机 + 动画状态机）
-- ❌ 真正的 Boss + Boss 血条
-- ❌ 暂停菜单、音频、存档
-- ❌ 关卡编排/HUD 完善、Windows 构建
+**M2 剩余**
+- ❌ M2.2 开局二选一（选择 UI + `WeaponManager` 装配）
+- ❌ M2.3 剑·插地（特殊攻击）
+- ❌ M2.4 长枪·投掷与召回 ⭐ 最复杂
+- ❌ 武器**图标**与**模型**（当前用无武器网格跑动作）
+
+**M3 / M3.5**
+- ❌ 敌人视野判定、寻路（**NavMesh 包已装但未烘焙**）、障碍物
+- ❌ 剑兵 / 弓兵完整状态机 + 敌人动画状态机
+- ❌ ARPG 单场景关卡（通路白盒 + 撒 5–10 只小怪）
+
+**M4–M6**
+- ❌ 真正的 Boss + Boss 血条（决策为**留到最后设计**）
+- ❌ 音频（`Audio/` 为空）、存档
+- ❌ HUD 完善、Windows 构建
 - ❌ 报告 / PPT / 演示视频脚本
+
+### 遗留问题（未修，见 §9）
+
+**共 26 项已记录，其中 13 项已消除**（T3 / T4 / T5 / T9–T13 / T15 / T16 / T21 / T22–T25）。
+剩余未修项：
+
+| 编号 | 内容 | 影响 |
+|---|---|---|
+| **T1** | `_motor.enabled = false` 停移动时把贴地也停掉 | 已降级为低优先级（跳跃取消） |
+| **T2** | Player 上 `Rigidbody` + `CharacterController` + `CapsuleCollider` **三者并存** | 物理重复，易互相干扰 |
+| **T6** | 敌人无共用状态机基类（近战 switch 硬编码 / 远程完全没有） | 加两种敌人 = 两份重复代码 → **M3.2 处理** |
+| **T7** | `EnemyHealth.Died` 是 **static 事件** | 跨场景重开有重复订阅风险（`Damaged` 已用实例事件避开） |
+| **T8** | `PlayerHealth.Died` 从未触发，死亡链路不统一 | 易出隐性 bug |
+| **T14** | `AStar` 未接入（已结案：**改用 Unity NavMesh**，见 `NAVMESH-GUIDE.md`） | 无影响（自研 A\* 弃用） |
+| **T17** | `TKDstyle_AnimSet` 为第三方资源包 | 提交/演示需注意署名与授权 |
+| **T19** | `HitFxSystem` 预制体引用未赋值时 `Awake` 会 NRE | 场景里已连线，风险低 |
+| **T20** | `RoomHintText` 文本为英文硬编码 | 若要中文化需改这里 |
+| **T26** | `Roskva_Animated` 的 Avatar **仍缺 `Neck`** | 用其动画时颈部不重定向（**建议 M3 前补**） |
+| **T18** | 音频 / 存档 / Boss 实体 | V1 缺口，分属 M5 / M4 |
 
 ### 10.1 已确认的设计决策（速查 · 2026-10-03）
 
@@ -380,16 +500,23 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 ## 11. 文档索引（阅读顺序）
 
+> ⚠️ 与 `Docs/README.md` 保持一致（`Docs/` 下**共 9 份** Markdown：`README` + 本文 + 下列 7 份）。
+
 | 顺序 | 文档 | 用途 |
 |---|---|---|
-| 0 | `Docs/README.md` | 索引与阅读指引 |
+| 0 | `Docs/README.md` | 索引与阅读指引、**一句话现状** |
 | 1 | **`Docs/PROJECT-CONTEXT.md`**（本文） | **新会话快速接管：项目全貌 + 代码地图 + 坑** |
-| 2 | `Docs/GDD.md` | 游戏策划案（要做什么） |
-| 3 | `Docs/ART-PIPELINE.md` | 美术/音频资源的获取方案与可行性 |
-| 4 | **`Docs/NAVMESH-GUIDE.md`** | **操作手册**：Unity 自带寻路的接入教学（烘焙 / Agent 改造 / 门的动态阻挡 / kiting / 常见坑），做 M3 敌人时必读 |
-| 5 | **`Docs/ROADMAP.md`** | **完成路线图**：阶段 0 + M1–M6 分步计划、每步验收标准、依赖关系、阻塞项、并行美术线 |
+| 2 | `Docs/GDD.md` | 游戏策划案（**要做什么**）。⚠️ 关卡结构部分已被方向变更覆盖 |
+| 3 | **`Docs/ARPG-DIRECTION.md`** | **⚠️ 关卡结构以此为准**：房间制 → ARPG 单场景的 5 项决策 + 相机实现 + 架构约束 |
+| 4 | **`Docs/ROADMAP.md`** | **完成路线图**：阶段 0 + M1–M6 分步计划、每步验收标准、依赖关系、阻塞项 |
+| 5 | `Docs/ART-PIPELINE.md` | 美术/音频资源的**获取方案**与可行性（怎么拿） |
+| 6 | `Docs/ART-ASSETS.md` | 美术资产清单：已有/缺失对照、阻断项、**署名表**（缺什么） |
+| 7 | **`Docs/NAVMESH-GUIDE.md`** | **操作手册**：Unity 自带寻路接入（烘焙 / Agent 改造 / 门阻挡 / kiting / 常见坑），**做 M3 时必读** |
+| 8 | **`Docs/ANIM-GUIDE.md`** | **手 K 动画指南**：4 条硬约束、复用 vs 手 K 的分界、K 帧流程、导出导入设置 |
 
-> 交接提示：新会话建议先读本文 §1–§6（定位/环境/目录/类职责/运行链路），需要改动时再读 §9（已知问题）与 `GDD.md` §13（改造评估）。
+> 交接提示：新会话建议先读本文 §1–§7（定位/环境/目录/类职责/运行链路/美术现状），
+> 需要改动时再读 §9（已知问题）与 §10（当前进度）；**动手前先实查代码** ——
+> 各阶段的"现状"描述容易停在写作时的状态（已多次实测过期）。
 
 ---
 
@@ -397,6 +524,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-05 | **📄 文档整理（本轮无代码改动）**：全文实查后发现并修正多处**过时表述**，使文档与代码一致。① **头部状态**：由"阶段 0 + M1.1"更新为"M1 全部 + M2.1"，并写明下一步。② **§3 目录地图**：角色由 `Y Bot` 改为 **Roskva**（含 Meshes/Materials/_model/_textures/anim 子目录）、新增 `Gameplay/Combat` 与 `Data/Weapons`、Editor 补 `HitboxAnimationValidator.cs`、标明 `_Modules/` 已删除。③ **§5 类清单**：`WeaponConfig` 描述由"未被引用/命名空间 Game.Date"改为 M2.1 的实况；`PlayerAttack`/`PlayerEnergy` 改为判定体与武器驱动的实况（**删除"PlayEnergy.cs 不一致""从未被消耗"等已修好的旧问题描述**）；新增 **`Hitbox` / `HitboxController` / `HitboxTeam`** 三个类；`GameManager`/`CameraFollow` 描述重写（删掉"从不设 timeScale"与过时的 offset）；`ManaBar` → **`EnergyBar`**；Editor 补校验工具。④ **§6.2 战斗事件流**：由旧的"瞬时 `OverlapSphere`"重写为**判定体驱动**的真实链路，并补上「敌人受击反应（T21）」与「暂停/结算输入闸门」两张流程。⑤ **§6.4 动画事件清单**：补上实测时间，并记录重要提醒 —— `Elbow Uppercut Combo` / `Upward Thrust` 也挂了 `OnAttackHit` 但不属 4 段普攻，**M2 做特殊攻击时必须让它们用自己的判定体**。⑥ **§7 美术资产**：由 `Y Bot`/`idleAvatar` 重写为 **Roskva** 系列（含 Equips_NoSword、金发贴图、握持挂点），并写明 Humanoid 映射的正确验证方法（`isValid` 不够，`Neck` 是可选槽位）。⑦ **§10 当前进度**：由"体力从未消耗 / hitbox 未做 / 暂停菜单未做"（全部已完成的旧状态）重写为按阶段分组的真实进度 + 未修遗留问题表。⑧ **§11 文档索引**：由 5 份补全为 **8 份**（此前漏了 `ARPG-DIRECTION` / `ART-ASSETS` / `ANIM-GUIDE`），与 `README.md` 一致。⑨ **T5 标记已消除**（M2.1 完成"角色数值与攻击数值拆分"）；**T11** 补记第二处拼写错误 `VECTORY`；**T18** 标注"无暂停菜单"已不成立。⑩ 同步修正 `README.md`（头部/进度/下一步/最短路径）、`GDD.md`（§2 结束界面与暂停菜单、§4.5、§10.2/§10.3、§11.1、§12 现状表）、`ART-PIPELINE.md`（资源对照表 + 缺失清单）、`ANIM-GUIDE.md`（Humanoid 现状 + Avatar 复用目标）、`ROADMAP.md`（M5.1 体力条、§8.3 Humanoid 现状）。 **校验：9 份文档的表格列数、代码块闭合、内部链接全部通过。** |
 | 2026-10-04 | **✅ M2.1 WeaponConfig 重做完成**（提交 `41472f2`/`1034503`）。⚠️ 文档记的"命名空间误写 Game.Date、零引用"的 `WeaponConfig` **已在阶段 0 清理死代码时删除** → 本次是**从零新建**。① 新增 `Data/WeaponConfig.cs`（`SpecialAttackType` 枚举 + 配置类，字段按 GDD §5.2 全到位，含取值辅助与 OnValidate 校验）。② 新增两把武器资产 `Data/Weapons/`：**剑**伤害 [12,15,10,20]/判定 长2.5~3.1·宽1.5~1.86/特殊插地；**长枪**伤害 [10,12,9,16]/判定 长3.2~3.9·宽1.0~1.2/特殊投掷（体现 §5.3 的手感定位，数值为初值待实测）。③ **全量接入**：`PlayerAttack` 读武器的伤害/连段窗口/段数/**判定盒尺寸**；`PlayerEnergy` 读武器的体力成本（成本表仍集中在本类，保持 M1.1 的统一出口原则）；`Hitbox` 新增 `SetDamage`/`ApplyShape`；`HitboxController` 新增 `GetByName`/`ApplyWeaponShapes`。④ `PlayerConfig` 的 attackRange/attackDamage/attackEnergyCost/specialEnergyCost 降级为兜底。**验证（临时实例，未触碰项目文件）：装配长枪后判定盒由 2.5~3.1 变为 3.2~3.9 且变窄（配置驱动生效）；模拟 4 段命中帧伤害依次同步为 10/12/9/16（各段独立正确）；连段窗口 0.9、段数 4。编译 0 报错 0 警告。** ⚠️ Player 仍未装配武器（装配属 M2.2）。⚠️ **另发现一个工具坑**：在编辑模式修改 `Time.timeScale` 会**持久化污染** `ProjectSettings/TimeManager.asset`（Unity 把 Fixed Timestep 改写成新的有理数格式）——暂停菜单的端到端测试触发了该写入，已 `git checkout` 恢复并验证 Refresh 后不再被改写。 |
 | 2026-10-04 | **✅ M1.3 暂停菜单完成**（提交 `b7add1c`）—— **M1 阶段全部收口**。① 新增 `UI/PauseMenu.cs`：`ESC` 开/关，暂停时**两道闸同时上**（`Time.timeScale = 0` 冻结逻辑 + `InputService.SetGameplayInputEnabled(false)` **让鼠标不能再转视角**），带幂等保护、恢复时还原暂停前的 timeScale。② ⚠️ **`ESC` 必须不受输入闸门影响**：若放进 Player map 会被一起关掉 → **暂停后按 ESC 关不掉菜单**；故 `InputService` 新增 `PausePressedThisFrame`，刻意不走闸门（用旧版 `Input.GetKeyDown`，项目 Active Input Handling = Both 可用，零配置且避免与 UI 的 Cancel 撞车）。③ **`ESC` 职责转移**：`CameraFollow` 原用 ESC 解锁指针，与暂停菜单会打架（按一下做两件事）→ 已移除，ESC 统一归 PauseMenu；相机新增上升沿检测，输入恢复时自动重锁指针。④ `GameManager` 新增 `HasEnded`，避免结算后还能开暂停菜单。⑤ UI 用**复制结算面板**方式搭建（字体/按钮样式/过渡全部继承），组件挂在 **Canvas** 而非面板内（否则 `SetActive(false)` 会连带禁用脚本）。⑥ **顺手修掉第二处拼写错误**：`VictoryMsgText` 原为 `VECTORY !` → `VICTORY !`。**验证：Pause→面板可见/timeScale=0/输入关/LookDelta=0；Resume→全还原；幂等 ✓。未做"音量"（项目无音频，待 M5）。** |
 | 2026-10-04 | **✅ T25 修复 + 动画 FBX 转 Humanoid**（提交 `c3f113f`，为用户在 Unity 中的 Rig 配置）。① **T25 已修**：`OVR - Roskva.fbx` 的 `human[]` 由 54 项补到 **55 项（完整）**，`Neck -> Bip001-Neck`；端到端抽检 11 个关键骨骼全部解析成功。② **重要进展**：`OVR - Roskva_Animated.fbx` 的 Rig 由 Generic 改为 **Human**，5 段动画全部 `isHumanMotion=True`、骨骼命名与玩家 **一致 54/54** → **可直接重定向**，M3「小怪巡逻」所需行走动画（`Walk`）的前提达成。③ 新增遗留 **T26**：`Roskva_Animated` 自己的 Avatar **仍缺 Neck**（54 项），用其动画时颈部不重定向，建议 M3 前补。 |

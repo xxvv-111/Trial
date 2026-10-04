@@ -3,7 +3,7 @@
 > **用途**：从"当前状态"走到"可交付 exe + 报告"的完整分步计划。
 > 每一步都写明 **做什么 / 产出 / 验收标准 / 依赖什么**，按**依赖顺序**排列，不是按愿望排列。
 >
-> 最后更新：2026-10-04 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2.1 ✅ · 方向已变更为 ARPG 单场景（相机已改造）**
+> 最后更新：2026-10-05 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2.1 ✅ · 方向已变更为 ARPG 单场景（相机已改造）**
 > **下一步：M2.2 开局二选一**（武器数据与接入已就绪，只差选择 UI 与装配）
 > 相关文档：`GDD.md`（要做什么）、`PROJECT-CONTEXT.md`（现状与坑）、`NAVMESH-GUIDE.md`（寻路手册）、`ARPG-DIRECTION.md`（**方向变更与决策**）、`ART-PIPELINE.md`（资源方案）
 
@@ -437,7 +437,7 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 | 元素 | 现状（实测） |
 |---|---|
 | 生命条 | ✅ `HPBar` + `HPFill` |
-| 体力条 | ⚠️ 现为 `ManaBar`（M1.1 改色接入） |
+| 体力条 | ✅ **`EnergyBar`**（原 `ManaBar`，M1.1 改名换色并接入消耗/再生） |
 | 房间提示 | ✅ `RoomHintText`（⚠️ 文案英文硬编码 "Clean The Room" / "Door Open"） |
 | **当前武器显示** | ❌ 新增（图标 + 特殊攻击冷却） |
 | **房间进度** | ❌ 新增（"房间 1/3"） |
@@ -508,8 +508,12 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 ### 8.3 关键前提（决定了成本能否压到接近 0）
 
-✅ **现有角色是 Humanoid 骨骼**（实测 `Animator.isHuman = true`，avatar = `Y Bot.fbx`）
+✅ **现有角色是 Humanoid 骨骼**（实测 `Animator.isHuman = true`，avatar = **`OVR - RoskvaAvatar`**）
 → **新角色模型可以复用现有全部动画**（Unity Humanoid 重定向），不必为每个新角色重做动作。
+
+💡 **额外收获**：`OVR - Roskva_Animated.fbx` 的 Rig **已改 Humanoid** → 其 `Walk`（2.47 s）/`Idle01` 等 5 段
+**可直接重定向**，**M3「小怪巡逻」所需的行走动画已有**（原动画库只有跑、没有走）。
+⚠️ 但该 Avatar 仍缺 `Neck`（**T26**），建议 M3 前补。
 
 ⚠️ **真正的瓶颈不是模型，是动画。** 拿到任何新模型，第一件事：**设为 Humanoid 并 Configure**，否则无法复用动画。
 

@@ -5,7 +5,7 @@
 > 📌 **"到底缺哪些资源"已拆分为独立清单：[`ART-ASSETS.md`](ART-ASSETS.md)**（含已有/缺失对照、三个阻断项、建议获取顺序、第三方署名表）。
 > 本文负责"**怎么获取**"，那份负责"**要什么**"，两者配合看。
 >
-> 最后更新：2026-10-04 | 状态：**已部分落地** —— 玩家模型（Roskva）已接入；AI 生成 API Key 仍待配置；敌人外观待提供、Boss 留到最后（见 `ARPG-DIRECTION.md`）
+> 最后更新：2026-10-05 | 状态：**已部分落地** —— 玩家模型（Roskva）已接入；AI 生成 API Key 仍待配置；敌人外观待提供、Boss 留到最后（见 `ARPG-DIRECTION.md`）
 
 ---
 
@@ -27,12 +27,13 @@
 
 | 资源 | 路径 | 可复用性 |
 |---|---|---|
-| **Y Bot.fbx** | `Assets/_Game/Art/characters/` | 玩家模型，**Humanoid** ✅ |
-| **idleAvatar.asset** | 同上 | 独立 Avatar（人形骨骼映射已配好）✅ |
-| combo fbx | 同上 | Humanoid，含动作 |
+| **`OVR - Roskva.fbx`** | `Art/characters/Roskva/_model/fbx/` | **玩家模型（当前）**，**Humanoid** ✅，9 个渲染器 |
+| **`OVR - Roskva_Animated.fbx`** | 同上 | 角色自带动画库。**Rig 已改 `Human`** → `Walk 2.47s` / `Idle01` 等 5 段**可重定向** ✅（⚠️ Avatar 缺 `Neck`，T26） |
+| `Equips_NoSword.asset` | `Art/characters/Roskva/Meshes/` | **无剑版装备网格**（已覆盖玩家预制体的 `Equips`）→ M2 换武器用 |
+| Roskva 贴图 / 材质 | `Art/characters/Roskva/{_textures,Materials}/` | 含金发变体；⚠️ Roskva 为**第三方素材包**，注意署名 |
 | **TKDstyle_AnimSet** | `Assets/TKDstyle_AnimSet/` | 第三方武术动画包（多套 `.controller` + 动画）— 当前项目动画的来源 ⚠️ 注意授权署名 |
-| 敌人预制体 | `Assets/_Game/Prefabs/Enemy/` | `Boxer`、`Gunner`、`Enemy_Slime`、`Bullet` |
-| 玩家动画 | `Art/Animations/Player/` | Idle / Run / Dash / Attack1-4 / Hit / Death（**缺 Jump、Fall、特殊攻击**） |
+| 敌人预制体 | `Assets/_Game/Prefabs/Enemy/` | `Boxer`（含 `Hitbox_Attack`）、`Gunner`、`Enemy_Slime`、`Bullet` |
+| 玩家动画 | `Art/Animations/Player/` | Idle / Run / Dash / combo_01_1-4 / Hit / Death（**缺两个特殊攻击动作**；跳跃已取消故不需要 Jump/Fall） |
 | 敌人动画 | `Art/Animations/Enemy/` | ⚠️ `EnemyAC` **只有 idle + combo_01_1** |
 | 打击特效 | `Prefabs/Fx/`、`Effect/` | 火花 + 伤害飘字（对象池驱动）✅ |
 | 关卡 | `Game.unity` | Cube 拼的白盒（墙 + 地面 + 门） |
@@ -125,7 +126,7 @@
                  │
 ③ 动作 = 复用现有动画（重定向）
    · 把新角色的 Avatar 指到 PlayAC/新 Controller 上
-   · 现有 Idle/Run/Dash/Attack1-4/Hit/Death 直接套用
+   · 现有 Idle/Run/Dash/combo_01_1-4/Hit/Death 直接套用
    · 缺失动作从 Mixamo 下载（同样 Humanoid，可混用）
                  │
 ④ 缺失动作清单（需补）
@@ -203,7 +204,7 @@
 
 | 类别 | 具体需求 | 数量 | 来源建议 | 优先级 |
 |---|---|---|---|---|
-| 玩家 | 模型外观（可换皮） | 1 | Tripo/图生，Humanoid | 🟡 中（现有 Y Bot 可用） |
+| 玩家 | 模型外观（可换皮） | 1 | Tripo/图生，Humanoid | ✅ 已解决（已用 Roskva） |
 | 玩家动画 | ~~Jump、Fall~~ **跳跃已取消，不需要** | 0 | — | ✅ 已消除 |
 | 玩家动画 | 特殊攻击：剑·插地 | 1 | Mixamo / 复用 | 🔴 **高** |
 | 玩家动画 | 特殊攻击：长枪·投掷 / 召回（点按投出，无瞄准动作） | 2 | Mixamo / 复用 | 🔴 **高** |

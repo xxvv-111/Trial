@@ -232,25 +232,31 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 2. **物体必须归层，否则碰撞矩阵形同虚设**
    配矩阵前先把 Player / 敌人 / 墙地面分别移到对应层，否则矩阵配了也没效果。
 
-### M1.3 暂停菜单 + 修复 `timeScale`
+### M1.3 暂停菜单 ⏳ **待做（其中 `timeScale` 与输入锁已在前面完成）**
 
-**问题**：`GameManager` **从不设置 `Time.timeScale = 0`**（实测只在 `RestartRun`/`BackToMenu` 里设为 1）→ 结算面板弹出时游戏仍在跑。
+**原问题**（⚠️ 已部分过时）：曾记录"`GameManager` 从不设置 `Time.timeScale = 0`" ——
+**该问题已在阶段 0 修复**：结算面板显示时会置 0，`RestartRun`/`BackToMenu` 会还原。
 
-**做什么**：
-1. 结算面板显示时 `Time.timeScale = 0`，恢复时还原
-2. 新增暂停菜单（`ESC` → 继续 / 重新开始 / 返回主菜单 / 音量）
+**已完成的前置**（2026-10-04）：
+1. ✅ 结算面板显示时 `Time.timeScale = 0`
+2. ✅ **游戏性输入锁**：`InputService.SetGameplayInputEnabled(false)`
+   —— ⚠️ 这一步是必需的，因为 **`timeScale = 0` 拦不住输入**
+   （`Update()` 仍每帧跑、Input System 不受 timeScale 影响）
+3. ✅ 结算后指针交还 UI（`CameraFollow.HandleCursor`），避免面板点不动
+
+**本步剩下的工作**：
+1. 新增暂停菜单 UI（`ESC` → 继续 / 重新开始 / 返回主菜单 / 音量）
+2. 打开暂停时调用 **同一套** `SetGameplayInputEnabled(false)` + `Time.timeScale = 0`
+   —— ⚠️ **不要另写一套暂停逻辑**，复用已有闸门才能保证"暂停后视角不转、按钮能点"
+3. ⚠️ 注意 `ESC` 键当前被 `CameraFollow` 用作"解锁指针"，做暂停菜单时要协调键位
 
 - **产出**：`PauseMenu` 脚本 + UI
-- **验收**：通关/死亡后玩家**不能继续动**；`ESC` 能暂停与恢复
-- **依赖**：无
+- **验收**：`ESC` 能暂停与恢复；暂停时角色不动、**鼠标不能转视角**、菜单按钮可点击
+- **依赖**：无（输入闸门已就绪）
 
-### M1.4 修文案错别字
+### M1.4 修文案错别字 ✅ **已完成**
 
-`GameManager.cs` 第 63 行实测为：`$"VICTPRY! TIME:{Time.time-_startTime:F2}s"` → 改为 `VICTORY`。
-
-- **产出**：文案修正
-- **验收**：通关面板显示 `VICTORY`
-- **依赖**：无
+`GameManager` 的结算文案实测已是 `VICTORY! TIME:...s`（原 `VICTPRY` 拼写错误已在阶段 0 修正）。
 
 ---
 

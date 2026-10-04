@@ -318,6 +318,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | **T23** | **`EnemyMeleeAI` 每帧 `SetTrigger("Attack")`**（写在 `Update` 里）→ 攻击动画不断被重置 | `EnemyMeleeAI` | ✅ **已修复 2026-10-04**：移到 `SetState`，进入 Attack 时触发一次 |
 | **T24** | 多处 **NRE 风险**：`HitFxSystem`（预制体未连线）、`AttackFxBridge`（fx 未赋值）、`DamagePopup`（无 Text / 无 Camera.main）、`HPBar`/`EnergyBar`（`_fill` 为 null）、`RoomHintText`（`_text`） | 多处 | ✅ **已修复 2026-10-04**：均已补 null 保护（对应 T19） |
 | T17 | `TKDstyle_AnimSet` 为第三方资源包 | `Assets/` | 提交/演示需注意署名与授权 |
+| **T25** | **Avatar 缺少 `Neck` 映射**：`OVR - Roskva.fbx` 的 `humanDescription.human[]` 共 **54 项，唯一缺 `Neck`**（Unity 骨骼槽共 55 个）。模型里 `Bip001-Neck` **存在**，但 `GetBoneTransform(HumanBodyBones.Neck)` 返回 **null** | `OVR - Roskva.fbx` 的 Rig | ⚠️ **颈部不受重定向驱动** → 头部动作可能显得僵。成因：`human[]` 原为空数组（Unity 全自动映射，含 Neck），后被改为**显式列表**时漏掉 Neck —— **显式列表不会自动补齐未列出的槽位**。修法：Rig 页 Configure 把 `Neck` 映射到 `Bip001-Neck`，或清空 `human[]` 让 Unity 重新自动映射 |
 | T18 | 无音频（`Audio/` 空）、无存档、无暂停菜单、无 README、无 Boss 实体 | 多处 | V1 缺口 |
 | T19 | `HitFxSystem` 用 `sparkPrefab`/`popupPrefab`，若未赋值 `Awake` 会 NRE | `HitFxSystem` | 场景里已连线，风险低 |
 | T20 | `RoomHintText` 文本为英文硬编码（"Clean The Room" / "Door Open"） | `RoomController` / `RoomHintText` | 若要中文化需改这里 |
@@ -395,6 +396,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-04 | **✅ 修复「游戏结束后鼠标仍能转视角」**（提交 `cc40e56`）—— 根因是 **`Time.timeScale = 0` 拦不住输入**：`Update()` 在暂停时仍每帧执行，且 Input System 完全不受 timeScale 影响（相机又用 unscaledDeltaTime，照转）。① **在 `InputService` 这道唯一入口加闸**：`GameplayInputEnabled` + `SetGameplayInputEnabled()`，关闭时**只 Disable `Player` action map**（UI map 保留，否则菜单点不动），全部输入访问器加布尔拦截。② `GameManager` 在**结束瞬间**（不等结算面板的 2s 延时）锁输入，`Start` 恢复。③ **顺带修掉连带 bug**：`CameraFollow` 的指针锁定用旧版 `Input.GetMouseButtonDown`（同样不受 timeScale 影响），结算后会把指针锁回去导致**结算面板点不动** → 抽出 `HandleCursor()`，输入关闭时只解锁不锁回。**验证：Player map 可单独关闭且 UI map 不受影响；端到端输入全归零并可恢复；编译 0 报错 0 警告。** |
 | 2026-10-03 | 创建本文档；完成全项目通读（未改任何代码）；建立 `Docs/` 文档目录，产出 `GDD.md`、`ART-PIPELINE.md`、`README.md` |
 | 2026-10-03 | **记录第一批设计决策**（见 §10.1）：取消跳跃、体力硬性禁止、武器定为剑+长枪及其特殊攻击、敌人要视野+寻路+障碍物、Boss 定为人形、音频两种方式并用。**仍未改动任何游戏代码** |
 | 2026-10-03 | **记录第二批设计决策**（见 §10.1 第 11–15 条）：存档用 JSON、寻路用自研 A\*、武器开局二选一、长枪全部细节（蓄力定距/直线/插地/同判定/瞄准减速/死亡留枪）、敌人受击打断规则。**仍未改动任何游戏代码** |

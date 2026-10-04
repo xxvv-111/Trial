@@ -4,17 +4,25 @@ using Game.Core;
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 第三人称跟随相机：**固定俯角、始终看向角色**，鼠标可微调视角、滚轮缩放。
+    /// 第三人称跟随相机：**俯角可仰视、始终看向角色**，鼠标控视角、滚轮缩放。
     ///
     /// 机位算法（简单且稳定）：
     ///   焦点 = 角色 + 上抬 <c>_focusHeight</c>（身体中部）
-    ///   视线 = 俯角 <c>_pitch</c> × 水平角 <c>_yaw</c>
+    ///   视线 = 俯角 × 水平角 <c>_yaw</c>
     ///   机位 = 焦点 **沿视线后退** <c>_distance</c>
     ///   → 因为机位是从焦点沿视线推出来的，**视线必然穿过角色**，
     ///     所以角色永远在画面中心，不会跑偏、不会出画。
     ///
-    /// ⚠️ 本版**去掉了越肩横移与防穿墙**：
-    ///    那两处逻辑（尤其每帧 SphereCast）会让机位在「近/远」之间跳变 → **相机抖动**。
+    /// ⚠️ **地面安全下限（防穿地）**：相机不允许低于 <c>_groundY + _groundClearance</c>。
+    ///    实现方式是**钳制俯角**而不是钳制机位高度 —— 因为钳制高度会压缩相机距离、
+    ///    导致极端角度下相机贴近角色；钳制俯角则保持距离不变，且机位仍从焦点沿视线推出 →
+    ///    **角色继续居中**（钳制高度后就必须改用 LookAt 才能居中）。
+    ///
+    ///    ⚠️ 该下限**随缩放距离变化**：`p_min = -asin((focusY - (groundY + clearance)) / distance)`。
+    ///    距离拉得越远，允许的仰角越小（相机在更远处更容易沉到地面以下）。
+    ///    所以**不要**用一个固定常数当安全下限 —— 拉远必穿地。
+    ///
+    /// ⚠️ 本版仍**不含防穿墙**：那处逻辑（每帧 SphereCast）会让机位在「近/远」之间跳变 → **相机抖动**。
     ///    若之后确实遇到穿墙，再以带阻尼的方式加回，而不是每帧硬切换。
     ///
     /// ⚠️ **水平角不跟随角色朝向**（`_followTargetYaw` 默认 false）。
@@ -36,10 +44,23 @@ namespace Game.Gameplay
         [Header("机位")]
         [Tooltip("相机到焦点的距离。")]
         [SerializeField] private float _distance = 3f;
-        [Tooltip("俯角（度）。越大越俯视。")]
+        [Tooltip("基准俯角（度）。越大越俯视。鼠标在此基准上下偏移。")]
         [SerializeField] private float _pitch = 40f;
-        [SerializeField] private float _minPitch = 5f;
+        [Tooltip("俯角下限（度）。**负值 = 允许仰视**（相机低于焦点往上看）。\n" +
+                 "⚠️ 仅作「设计上限」；真正的物理下限由「地面安全角」自动收窄（见 _groundClearance）。")]
+        [SerializeField] private float _minPitch = -60f;
         [SerializeField] private float _maxPitch = 80f;
+
+        [Header("地面钳制（防穿地）")]
+        [Tooltip("地面高度。相机不会被允许低于「地面 + 离地余量」。")]
+        [SerializeField] private float _groundY = 0f;
+
+        [Tooltip("相机离地面的最小余量（米）。太小会让近裁剪面切进地面。")]
+        [SerializeField] private float _groundClearance = 0.3f;
+
+        [Tooltip("开局自动探测地面高度（从角色向下打射线，忽略角色自身）。\n" +
+                 "探测失败则回落到 _groundY。若关卡有高低落差，建议关掉并手动指定。")]
+        [SerializeField] private bool _autoDetectGroundY = true;
 
         [Header("缩放")]
         [SerializeField] private float _minDistance = 1.5f;
@@ -81,6 +102,8 @@ namespace Game.Gameplay
         {
             if (_lockCursorOnStart) LockCursor(true);
 
+            ResolveGroundY();
+
             //开局把水平角对齐到角色朝向：满足「一开始和角色面朝一个方向」
             //（注意是**一次性对齐**，之后不再跟随 —— 持续跟随会导致 WASD 时视角旋转）
             if (_alignYawToTargetOnStart && _target != null)
@@ -89,6 +112,32 @@ namespace Game.Gameplay
             //开局直接把相机摆到正确机位：
             //否则会从场景里存的旧位置「飞」过来，看起来就像「初始位置不对」。
             SnapToTarget();
+        }
+
+        /// <summary>
+        /// 探测角色脚下的地面高度。
+        /// ⚠️ 必须**忽略角色自身**的碰撞体 —— 否则射线打到自己的胶囊体，
+        ///    会把"地面"当成角色脚底所在的层（实测踩过：射线命中 Player @ y=1.6）。
+        /// </summary>
+        private void ResolveGroundY()
+        {
+            if (!_autoDetectGroundY || _target == null) return;
+
+            Vector3 origin = _target.position + Vector3.up * 2f;
+            RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 50f, ~0, QueryTriggerInteraction.Ignore);
+
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < hits.Length; i++)
+            {
+                if (hits[i].collider == null) continue;
+                if (hits[i].collider.transform.IsChildOf(_target)) continue;//跳过角色自身
+                if (hits[i].distance < nearest) nearest = hits[i].distance;
+            }
+
+            if (!float.IsPositiveInfinity(nearest))
+                _groundY = (origin + Vector3.down * nearest).y;
+            else
+                Debug.LogWarning("[CameraFollow] 向下探测地面失败，沿用 _groundY = " + _groundY + "。", this);
         }
 
         private void Update()
@@ -160,6 +209,8 @@ namespace Game.Gameplay
             Quaternion rot = CurrentRotation();
             Vector3 desired = focus - rot * Vector3.forward * CurrentDistance();
 
+            desired = ClampAboveGround(desired);
+
             if (_smoothTime <= 0f)
             {
                 //硬跟随：直接赋值，没有插值残留 → 最稳、最不容易抖
@@ -173,10 +224,14 @@ namespace Game.Gameplay
                     _smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
             }
 
+            //⚠️ 朝向仍用 rot（而非 LookAt）—— 因为机位是从焦点沿视线推出来的，
+            //   视线必然穿过焦点，角色自动居中。仅在「安全网」兜底时才略有偏差。
             transform.rotation = rot;
         }
 
-        /// <summary>把相机瞬移到当前应该待的位置（开局调用，避免从场景里的旧位置飞过来）。</summary>
+        /// <summary>
+        /// 把相机瞬移到当前应该待的位置（开局调用，避免从场景里的旧位置飞过来）。
+        /// </summary>
         public void SnapToTarget()
         {
             if (_target == null) return;
@@ -184,15 +239,64 @@ namespace Game.Gameplay
             Vector3 focus = FocusPoint();
             Quaternion rot = CurrentRotation();
 
-            transform.position = focus - rot * Vector3.forward * CurrentDistance();
+            transform.position = ClampAboveGround(focus - rot * Vector3.forward * CurrentDistance());
             transform.rotation = rot;
             _velocity = Vector3.zero;
         }
 
+        /// <summary>相机允许的最低高度（地面 + 离地余量）。</summary>
+        private float MinCameraY { get { return _groundY + _groundClearance; } }
+
+        /// <summary>
+        /// 安全网：机位若低于地面则抬到最低高度。
+        ///
+        /// ⚠️ 正常情况下**不会触发** —— 因为 <see cref="CurrentRotation"/> 已经把俯角
+        ///    限制在「地面安全角」以内。这里只是兜底（例如角色被抬到很高的落差边缘、
+        ///    或探测到的地面高度不准）。一旦触发，相机与焦点的距离会被压缩，
+        ///    此时角色可能略微偏离画面中心。
+        /// </summary>
+        private Vector3 ClampAboveGround(Vector3 pos)
+        {
+            if (pos.y < MinCameraY) pos.y = MinCameraY;
+            return pos;
+        }
+
         private Vector3 FocusPoint() => _target.position + Vector3.up * _focusHeight;
 
+        /// <summary>
+        /// 实际俯角 = 鼠标值先受 <c>[_minPitch, _maxPitch]</c> 约束，
+        /// 再受「地面安全角」约束（取其更保守者）。
+        /// </summary>
+        private float EffectivePitch()
+        {
+            float p = Mathf.Clamp(_pitch + _pitchOffset, _minPitch, _maxPitch);
+            return Mathf.Max(p, GroundSafeMinPitch());
+        }
+
+        /// <summary>
+        /// 「地面安全角」：在这个俯角下，相机正好落在最低允许高度上。
+        ///
+        /// 推导：机位高度 = focusY + sin(pitch) × distance ≥ groundY + clearance
+        ///   → sin(pitch) ≥ (groundY + clearance − focusY) / distance
+        ///   → pitch ≥ asin(...)   （结果为负 = 允许仰视）
+        ///
+        /// ⚠️ **该值随距离变化**：距离越远，允许的仰角越小。
+        ///    所以安全下限不能用固定常数 —— 滚轮拉远后固定常数必穿地。
+        /// </summary>
+        private float GroundSafeMinPitch()
+        {
+            if (_target == null) return -90f;
+
+            float d = Mathf.Max(0.05f, CurrentDistance());
+            float focusY = _target.position.y + _focusHeight;
+
+            float needSin = (MinCameraY - focusY) / d;
+            return Mathf.Asin(Mathf.Clamp(needSin, -1f, 1f)) * Mathf.Rad2Deg;
+        }
+
+        /// <summary>相机朝向：由「有效俯角」+ 水平角构成（无翻滚）。</summary>
         private Quaternion CurrentRotation()
-            => Quaternion.Euler(Mathf.Clamp(_pitch + _pitchOffset, _minPitch, _maxPitch), CurrentYaw(), 0f);
+            => Quaternion.Euler(EffectivePitch(), CurrentYaw(), 0f);
 
         private float CurrentYaw()
         {

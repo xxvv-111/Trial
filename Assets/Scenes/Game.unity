@@ -1067,8 +1067,11 @@ MonoBehaviour:
   _focusHeight: 1
   _distance: 3
   _pitch: 40
-  _minPitch: 5
+  _minPitch: -60
   _maxPitch: 80
+  _groundY: 0
+  _groundClearance: 0.3
+  _autoDetectGroundY: 1
   _minDistance: 1.5
   _maxDistance: 10
   _zoomStep: 0.5

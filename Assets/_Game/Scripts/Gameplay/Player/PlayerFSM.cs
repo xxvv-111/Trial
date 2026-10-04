@@ -99,6 +99,12 @@ namespace Game.Gameplay
             {
                 _dash.EndDash();
             };
+
+            //离开攻击状态时清掉残留判定体（收招或被受击打断都要清）
+            _exit[PlayerState.Attack] = () =>
+            {
+                _attack.CloseAllHitboxes();
+            };
         }
 
         private void Start()

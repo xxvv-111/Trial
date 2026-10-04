@@ -1,33 +1,38 @@
-using Game.Core;
 using Game.Data;
-using System;
 using UnityEngine;
 
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 普攻与连段（4 段）。伤害由动画关键帧事件 <c>OnAttackHit</c> 触发。
-    /// ⚠️ M1.2 待改造：把 <see cref="DoMeleeHit"/> 的瞬时 OverlapSphere 采样
-    /// 换成帧驱动的 Hitbox 系统（GDD §8）。
+    /// 普攻与连段（4 段）。
+    ///
+    /// **判定方式（GDD §8）**：动画关键帧事件 <c>OnAttackHit</c> 挂在本类上，
+    /// 事件只负责**开启对应段落的判定体**；真正的命中结算由
+    /// <see cref="HitboxController"/> 统一收口（过滤 → 扣血 → 播特效）。
+    ///
+    /// ⚠️ 与旧实现的区别：旧版是"事件里瞬时 `OverlapSphere` 采样一次"（**漏帧即丢判定**）；
+    ///    现在是"判定体在一段时间窗内**真实存在**"。
     /// </summary>
     public class PlayerAttack : MonoBehaviour
     {
         [SerializeField] private PlayerConfig config;
 
-        /// <summary>(命中点, 伤害)。AttackFxBridge 订阅后转给 HitFxSystem。</summary>
-        public event Action<Vector3, int> OnHit;
+        [Tooltip("判定体开启后持续多久自动关闭（秒）。\n" +
+                 "⚠️ 动画上目前只有「命中帧」一个事件，所以用时长收敛判定窗口。\n" +
+                 "若要精确控制，可在动画末尾再挂一个事件调用 HitboxController.DisableHitbox。")]
+        [SerializeField] private float _hitboxActiveTime = 0.25f;
 
         private float combopWindow;//连段窗口期
-        private float attackRange;//判定距离
         private int[] attackDamage;//伤害
 
         private Animator _anim;
         private PlayerEnergy _energy;
+        private HitboxController _hitboxes;
 
         private int _comboIndex;//连击段数
         private float _lastAttackTime = -99f;//上次攻击时间
         private bool _cancombo;//是否可接下一段
-        private bool _dead;//是否死亡（⚠️ 当前无调用方，死亡链路待 M1.2 统一，见 T8）
+        private bool _dead;//是否死亡（⚠️ 当前无调用方，死亡链路待统一，见 T8）
 
         public bool isAttacking;//是否处于攻击状态（由 AttackStateBehaviour 驱动）
 
@@ -36,10 +41,10 @@ namespace Game.Gameplay
         private void Awake()
         {
             combopWindow = config.comboWindow;
-            attackRange = config.attackRange;
             attackDamage = config.attackDamage;
             _anim = GetComponent<Animator>();
             _energy = GetComponent<PlayerEnergy>();
+            _hitboxes = GetComponent<HitboxController>();
         }
 
         /// <summary>
@@ -74,37 +79,33 @@ namespace Game.Gameplay
             _anim.SetTrigger("Attack");
         }
 
-        /// <summary>动画关键帧事件（挂在 combo_01_1~4 上）。</summary>
+        /// <summary>
+        /// 动画关键帧事件（挂在 combo_01_1~4 上）。
+        /// 这是"判定开启帧"——GDD §8 要求判定体在**关键动作帧**期间存在。
+        /// </summary>
         private void OnAttackHit()
         {
             if (_dead) return;
-            DoMeleeHit(_comboIndex);
+
+            if (_hitboxes != null)
+                _hitboxes.EnableHitbox(CurrentHitboxName(), _hitboxActiveTime);
+
             _cancombo = true;
             _lastAttackTime = Time.time;
         }
 
-        /// <summary>⚠️ M1.2 待改造：瞬时采样 → 帧驱动的常驻判定体（GDD §8）。</summary>
-        private void DoMeleeHit(int combo)
+        /// <summary>本段对应的判定体名（判定体挂在 Player 预制体下，名为 Hitbox_Attack1~4）。</summary>
+        private string CurrentHitboxName()
         {
-            float radius = attackRange * (1 + combo * 0.05f);
-            Vector3 center = transform.position + transform.forward * (radius * 0.5f);
-            Collider[] hits = Physics.OverlapSphere(center, radius);
-
-            foreach (Collider hit in hits)
-            {
-                if (hit.TryGetComponent<IDamageable>(out var target) && !hit.CompareTag("Player"))
-                {
-                    target.TakeDamage(attackDamage[combo]);
-                    OnHit?.Invoke(hit.ClosestPoint(center), attackDamage[combo]);
-                }
-            }
+            int i = Mathf.Clamp(_comboIndex, 0, 3) + 1;
+            return "Hitbox_Attack" + i;
         }
 
         /// <summary>连段窗口是否还开着。</summary>
-        private bool ComboWindowOpen() => Time.time < _lastAttackTime + combopWindow;
+        private bool ComboWindowOpen() { return Time.time < _lastAttackTime + combopWindow; }
 
-        /// <summary>⚠️ 当前无调用方（原调用方 PlayerHealth.Die 已被注释），待 M1.2 统一死亡链路。</summary>
-        public void OnPlayerDied() => _dead = true;
+        /// <summary>⚠️ 当前无调用方（原调用方 PlayerHealth.Die 已被注释），待统一死亡链路（T8）。</summary>
+        public void OnPlayerDied() { _dead = true; }
 
         /// <summary>攻击动画状态 enter / exit 时由 AttackStateBehaviour 调用（引用计数）。</summary>
         public void SetAttacking(bool b)
@@ -113,12 +114,10 @@ namespace Game.Gameplay
             isAttacking = attackCount > 0;
         }
 
-        //在编辑器里可视化攻击范围
-        private void OnDrawGizmosSelected()
+        /// <summary>供 PlayerFSM 在离开 Attack 状态时调用：收招/被中断时清掉残留判定。</summary>
+        public void CloseAllHitboxes()
         {
-            Gizmos.color = Color.red;
-            Vector3 center = transform.position + transform.forward * config.attackRange;
-            Gizmos.DrawWireSphere(center, config.attackRange);
+            if (_hitboxes != null) _hitboxes.DisableAllHitboxes();
         }
     }
 }

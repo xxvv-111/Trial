@@ -604,6 +604,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   config: {fileID: 11400000, guid: 9e4010b6f3bb1d84482aadeefddb38ba, type: 2}
+  _hitboxActiveTime: 0.25
   isAttacking: 0
 --- !u!114 &3985067619847737086
 MonoBehaviour:
@@ -718,6 +719,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: RoskvaModel
       objectReference: {fileID: 0}
+    - target: {fileID: 1492799238806561092, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: 445a98901b1139c45951afc59b1f8f45, type: 2}
     m_RemovedComponents:
     - {fileID: 5866666021909216657, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
     m_RemovedGameObjects: []

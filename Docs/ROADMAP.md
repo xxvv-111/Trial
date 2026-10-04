@@ -205,8 +205,27 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
   - 玩家打小怪 → **小怪有闪白 + 硬直**（T21 接通）
   - 敌人打玩家 → 伤害正常
   - 长枪去程/返程能各自命中一次（为 M2.4 铺垫）
-- **依赖**：0.2（层）
+- **依赖**：0.2（层）—— ⚠️ **但 0.2 只"建了层"，下面两件事必须在本步补完**
 - ⚠️ **风险**：改造触碰核心手感。**改前先 git 提交**，改完对比手感
+
+#### ⚠️ 开工前置：实证状态（2026-10-04 核对）
+
+| 项 | 实测 |
+|---|---|
+| **6 个层** | ✅ **已建**：`Player(8)` / `Enemy(6)` / `PlayerHitbox(9)` / `EnemyHitbox(10)` / `Projectile(11)` / `Environment(12)` |
+| **物体归层** | ❌ **一个都没归** —— 550 个物体全在 `Default`，20 个在 `UI`。Player / Enemy / Environment 层是**空的** |
+| **碰撞矩阵** | ❌ **全开**（任意两层都"碰撞"）—— 没按 §8 矩阵要点配置 |
+| **敌人物理组件** | ⚠️ **只有 `CapsuleCollider`，没有 `Rigidbody`、没有 `CharacterController`** |
+| **玩家物理组件** | ⚠️ `Rigidbody(kinematic)` + `CharacterController` + `CapsuleCollider` **三者并存**（T2） |
+
+**两条必须先解决的前提**：
+
+1. **判定体必须自带 `kinematic Rigidbody`** ⚠️
+   原因：`OnTriggerEnter` 需要**至少一方有 Rigidbody**，而**敌人身上没有**。
+   判定体自带 kinematic RB 是最小改动方案（kinematic 不参与物理模拟，不影响角色移动）。
+   *（备选是给每个敌人加 RB，但改动大且可能影响敌人行为。）*
+2. **物体必须归层，否则碰撞矩阵形同虚设**
+   配矩阵前先把 Player / 敌人 / 墙地面分别移到对应层，否则矩阵配了也没效果。
 
 ### M1.3 暂停菜单 + 修复 `timeScale`
 

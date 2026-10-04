@@ -17,6 +17,12 @@ namespace Game.Gameplay
     ///    那两处逻辑（尤其每帧 SphereCast）会让机位在「近/远」之间跳变 → **相机抖动**。
     ///    若之后确实遇到穿墙，再以带阻尼的方式加回，而不是每帧硬切换。
     ///
+    /// ⚠️ **水平角不跟随角色朝向**（`_followTargetYaw` 默认 false）。
+    ///    原因：工程里「移动方向相对相机」+「角色转向移动方向」已构成两环，
+    ///    若相机再跟随角色朝向，就形成**正反馈**：按 A → 角色左转 → 相机左转 →
+    ///    「左边」又变了 → 角色继续转 …… 结果按 WASD 时**视角持续旋转**。
+    ///    正确分工：**相机 yaw 归鼠标，角色朝向归移动方向**，两者互不驱动。
+    ///
     /// ⚠️ 视角可旋转后，**移动必须「相对相机」**，见 <see cref="PlayerMotor"/>。
     /// </summary>
     public class CameraFollow : MonoBehaviour
@@ -48,15 +54,22 @@ namespace Game.Gameplay
         [SerializeField] private float _smoothTime = 0f;
 
         [Header("朝向")]
-        [Tooltip("勾上 = 相机水平角跟随角色面朝方向（始终在角色背后）。鼠标的左右移动会作为「相对偏移」叠加在角色朝向之上。")]
-        [SerializeField] private bool _followTargetYaw = true;
+        [Tooltip("⚠️ 慎用：勾上 = 相机水平角**跟随角色朝向**。\n" +
+                 "但这与「移动相对相机」+「角色转向移动方向」构成**正反馈循环**，\n" +
+                 "会导致按 WASD 时视角持续旋转（螺旋）。\n" +
+                 "默认关闭：相机水平角由鼠标控制，角色转向移动方向 —— 这是稳定且标准的三方。\n" +
+                 "只有在角色**不转向移动方向**时才建议开启。")]
+        [SerializeField] private bool _followTargetYaw = false;
+
+        [Tooltip("开局把相机的水平角对齐到角色当前朝向（满足「一开始和角色面朝一个方向」，但不会持续跟随）。")]
+        [SerializeField] private bool _alignYawToTargetOnStart = true;
 
         [Header("鼠标指针")]
         [Tooltip("勾上 = 进入游戏即锁定指针（正式游玩手感）。取消 = 指针自由，便于在编辑器里调试。")]
         [SerializeField] private bool _lockCursorOnStart = false;
 
         private Vector3 _velocity;//SmoothDamp 用
-        private float _yawOffset;   //鼠标带来的水平偏移（相对角色朝向）
+        private float _yaw;//相机水平角（鼠标控制）
         private float _pitchOffset; //鼠标带来的俯角偏移
         private float _scrollDistance;//滚轮带来的距离变化
 
@@ -66,6 +79,11 @@ namespace Game.Gameplay
         private void Start()
         {
             if (_lockCursorOnStart) LockCursor(true);
+
+            //开局把水平角对齐到角色朝向：满足「一开始和角色面朝一个方向」
+            //（注意是**一次性对齐**，之后不再跟随 —— 持续跟随会导致 WASD 时视角旋转）
+            if (_alignYawToTargetOnStart && _target != null)
+                _yaw = _target.eulerAngles.y;
 
             //开局直接把相机摆到正确机位：
             //否则会从场景里存的旧位置「飞」过来，看起来就像「初始位置不对」。
@@ -77,7 +95,7 @@ namespace Game.Gameplay
             if (InputService.Instance != null)
             {
                 Vector2 look = InputService.Instance.LookDelta;
-                _yawOffset += look.x * _lookSensitivity;
+                _yaw += look.x * _lookSensitivity;
 
                 //俯角偏移以「目标俯角」为基准浮动，避免基准被鼠标带跑
                 _pitchOffset -= look.y * _lookSensitivity;
@@ -143,8 +161,10 @@ namespace Game.Gameplay
 
         private float CurrentYaw()
         {
-            float baseYaw = (_followTargetYaw && _target != null) ? _target.eulerAngles.y : 0f;
-            return baseYaw + _yawOffset;
+            //⚠️ 默认走 _yaw（鼠标控制）—— 不跟随角色。
+            //   跟随角色会与「移动相对相机 + 角色转向移动方向」构成正反馈 → WASD 时视角持续旋转。
+            if (_followTargetYaw && _target != null) return _target.eulerAngles.y;
+            return _yaw;
         }
 
         private float CurrentDistance()

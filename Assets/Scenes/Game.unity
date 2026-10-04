@@ -3001,7 +3001,8 @@ MonoBehaviour:
   _zoomStep: 0.5
   _lookSensitivity: 0.35
   _smoothTime: 0
-  _followTargetYaw: 1
+  _followTargetYaw: 0
+  _alignYawToTargetOnStart: 1
   _lockCursorOnStart: 0
 --- !u!1001 &340844472
 PrefabInstance:

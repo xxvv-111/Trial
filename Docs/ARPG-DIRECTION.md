@@ -126,12 +126,20 @@
 
 ⚠️ **但目前用不了**：该 FBX 的 Rig 是 **`Generic` 且没有 Avatar** → **动画无法重定向**。
 
-✅ **已验证可以修**：这个 FBX 与玩家用的 `OVR - Roskva.fbx` **共享同一套骨骼命名**
-（实测 16 个关键人形骨骼 `Bip001-Pelvis` / `Spine` / `Neck` / `Head` / 四肢 **全部一致**），
-所以**只要在 Inspector 的 Rig 页把它也设为 `Human`，就能拿到 Avatar 并让这些动画可被复用**。
-（操作：选中 FBX → Rig → Animation Type = Human → Apply）
+✅ **已完成（2026-10-04）**：该 FBX 的 Rig 已改为 **`Human`**，生成 Avatar「OVR - Roskva_AnimatedAvatar」。
+实测 `isHuman = True`、`isValid = True`、**5 段动画全部 `isHumanMotion = True`**，
+且骨骼命名与玩家 Avatar **一致 54/54** → **可直接重定向**。
 
-> 💡 这意味着 **ARPG 的"巡逻小怪"不需要额外找走行动画**——直接用这段 `Walk` 重定向到敌人网格即可。
+| 动画 | 时长（重导出后） | 对 ARPG 的价值 |
+|---|---|---|
+| **`Walk`** | **2.47 s** | ⭐ **巡逻怪正好需要**（原动画库里只有跑，没有走） |
+| `Idle01` | 37.33 s | 长待机素材 |
+| `Talk01_old` / `Talk02` / `Talk03` | 29.3 / 33.3 / 37.3 s | 对话用，本项目用不上 |
+
+> 💡 **ARPG 的"巡逻小怪"不需要额外找走行动画** —— 直接用这段 `Walk` 重定向到敌人网格即可。
+> ⚠️ 但有个遗留不一致需先补（**T26**）：`Roskva_Animated` 自己的 Avatar **仍缺 `Neck`**
+> （`human[]` 54 项，玩家 Avatar 已是 55 项）→ 用该动画时**颈部不会重定向**。
+> 修法：Rig → Configure 把 `Neck` 映射到 `Bip001-Neck`。建议 M3 接入巡逻动画前补掉。
 
 ### 4.6 相机 ✅ **已实现**（2026-10-04，当前为「简化后置版」）
 

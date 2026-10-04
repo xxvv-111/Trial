@@ -3,8 +3,8 @@
 > **用途**：从"当前状态"走到"可交付 exe + 报告"的完整分步计划。
 > 每一步都写明 **做什么 / 产出 / 验收标准 / 依赖什么**，按**依赖顺序**排列，不是按愿望排列。
 >
-> 最后更新：2026-10-04 | 状态：**阶段 0 ✅ · M1.1 ✅ · M1.2 ✅ · M1.4 ✅ · 方向已变更为 ARPG 单场景（相机已改造）**
-> **下一步：M1.3 暂停菜单**（M1 只剩这一项）
+> 最后更新：2026-10-04 | 状态：**阶段 0 ✅ · M1 全部完成 ✅（M1.1/M1.2/M1.3/M1.4）· 方向已变更为 ARPG 单场景（相机已改造）**
+> **下一步：M2 武器系统**（建议从 M2.1 `WeaponConfig` 重做开始）
 > 相关文档：`GDD.md`（要做什么）、`PROJECT-CONTEXT.md`（现状与坑）、`NAVMESH-GUIDE.md`（寻路手册）、`ARPG-DIRECTION.md`（**方向变更与决策**）、`ART-PIPELINE.md`（资源方案）
 
 ---
@@ -14,11 +14,11 @@
 ```
 阶段 0  开工前置 ✅ 已完成（2026-10-04）── 建层 / 补输入 / 补配置 / 清死代码（脚本 50→37）
    │
-   ├─► M1  系统骨架（2–3 天）  ── 体力 / Hitbox / 暂停        ◄── 最关键，后面全靠它
-   │        ├─ M1.1 体力统一出口 ✅ 已完成（845fece）
-   │        ├─ M1.2 Hitbox 系统     ✅ 已完成（4593136 / 8596c11 / 59ee4e0 / e5f874d）T3+T21 结案
-   │        ├─ M1.3 暂停菜单        ⏳ **下一步**（输入闸门与 timeScale 已就绪，只剩 PauseMenu UI）
-   │        └─ M1.4 修文案         ✅ 已完成（VICTPRY 已在阶段 0 修正）
+   ├─► M1  系统骨架 ✅ **全部完成**               ◄── 后面全靠它
+   │        ├─ M1.1 体力统一出口 ✅ 845fece
+   │        ├─ M1.2 Hitbox 系统     ✅ 4593136 / 8596c11 / 59ee4e0 / e5f874d（T3+T21 结案）
+   │        ├─ M1.3 暂停菜单        ✅ b7add1c（ESC 开关 + 冻结时间 + 锁输入）
+   │        └─ M1.4 修文案         ✅ （VICTPRY 阶段 0 修；VECTORY 在 M1.3 修）
    │        │
    │        ├─► M2  武器（2–3 天）── 剑·插地 / 长枪·投掷召回
    │        │
@@ -234,31 +234,33 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 2. **物体必须归层，否则碰撞矩阵形同虚设**
    配矩阵前先把 Player / 敌人 / 墙地面分别移到对应层，否则矩阵配了也没效果。
 
-### M1.3 暂停菜单 ⏳ **待做（其中 `timeScale` 与输入锁已在前面完成）**
+### M1.3 暂停菜单 ✅ **已完成（2026-10-04，提交 `b7add1c`）**
 
-**原问题**（⚠️ 已部分过时）：曾记录"`GameManager` 从不设置 `Time.timeScale = 0`" ——
-**该问题已在阶段 0 修复**：结算面板显示时会置 0，`RestartRun`/`BackToMenu` 会还原。
+**原问题**（已过时）：曾记录"`GameManager` 从不设置 `Time.timeScale = 0`" ——
+**该问题已在阶段 0 修复**。
 
-**已完成的前置**（2026-10-04）：
-1. ✅ 结算面板显示时 `Time.timeScale = 0`
-2. ✅ **游戏性输入锁**：`InputService.SetGameplayInputEnabled(false)`
-   —— ⚠️ 这一步是必需的，因为 **`timeScale = 0` 拦不住输入**
-   （`Update()` 仍每帧跑、Input System 不受 timeScale 影响）
-3. ✅ 结算后指针交还 UI（`CameraFollow.HandleCursor`），避免面板点不动
+**交付终态**：`PauseMenu` 脚本 + 场景 UI（`PausePanel`，复制结算面板搭建、风格一致）。
 
-**本步剩下的工作**：
-1. 新增暂停菜单 UI（`ESC` → 继续 / 重新开始 / 返回主菜单 / 音量）
-2. 打开暂停时调用 **同一套** `SetGameplayInputEnabled(false)` + `Time.timeScale = 0`
-   —— ⚠️ **不要另写一套暂停逻辑**，复用已有闸门才能保证"暂停后视角不转、按钮能点"
-3. ⚠️ 注意 `ESC` 键当前被 `CameraFollow` 用作"解锁指针"，做暂停菜单时要协调键位
+| 项 | 实现 |
+|---|---|
+| 开关 | `ESC`（`InputService.PausePressedThisFrame`） |
+| 冻结 | `Time.timeScale = 0`（恢复时还原暂停前的值） |
+| **锁输入** | `InputService.SetGameplayInputEnabled(false)` —— ⚠️ **必需**，`timeScale` 拦不住鼠标 |
+| `ESC` 不受闸门影响 | ⚠️ 若放进 Player map，暂停后按 ESC **关不掉菜单** |
+| `ESC` 职责转移 | 从 `CameraFollow` **移除** ESC 监听（原用于解锁指针），避免与暂停菜单打架 |
+| 指针 | 暂停时相机自动解锁指针；恢复时上升沿检测自动重锁 |
+| 按钮 | 继续（`PauseMenu.Resume`）/ 重新开始 / 返回主菜单 |
+| 结算后保护 | `GameManager.HasEnded` → 结算后按 ESC 不再打开暂停菜单 |
 
-- **产出**：`PauseMenu` 脚本 + UI
-- **验收**：`ESC` 能暂停与恢复；暂停时角色不动、**鼠标不能转视角**、菜单按钮可点击
-- **依赖**：无（输入闸门已就绪）
+⚠️ **未做"音量"**：项目目前**完全没有音频**（T18），加了也无处可调，待 M5 加音频时一并补。
+
+**验收实测**：`Pause()` → 面板可见 / `timeScale=0` / 输入关 / `LookDelta=0`（鼠标不再转视角）✓
+`Resume()` → 全部还原 ✓ 幂等 ✓ **⚠️ 需进 Play 实测 ESC 与三个按钮。**
 
 ### M1.4 修文案错别字 ✅ **已完成**
 
-`GameManager` 的结算文案实测已是 `VICTORY! TIME:...s`（原 `VICTPRY` 拼写错误已在阶段 0 修正）。
+`GameManager` 的结算文案实测已是 `VICTORY! TIME:...s`（原 `VICTPRY` 已在阶段 0 修正）。
+另：`VictoryOverPanel/VictoryMsgText` 原为 **`VECTORY !`**（**第二处不同的拼写错误**）已在 M1.3 一并修正。
 
 ---
 

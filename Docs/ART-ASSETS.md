@@ -12,7 +12,7 @@
 
 | 类别 | 已有 | 缺口 | 紧急度 |
 |---|---|---|---|
-| 玩家模型 | ✅ 1（Y Bot，Humanoid） | 0（可选换皮） | 🟢 |
+| 玩家模型 | ✅ 1（**Roskva**，Humanoid，自带武器挂点） | 0 | 🟢 |
 | 玩家动画 | ✅ 11 个剪辑（9 在用 + **2 个闲置可复用**） | **1–3** | 🔴 |
 | **武器模型** | ❌ **0** | **2**（剑、长枪） | 🟡 |
 | **敌人模型** | ⚠️ **0 个能看的**（见 §3） | **2–3** | 🔴 **最高** |
@@ -78,14 +78,20 @@
 
 ## 2. 玩家侧
 
-### 2.1 模型 ✅ 已有，无需采购
+### 2.1 模型 ✅ 已换成 Roskva（2026-10-04）
 
 | 资产 | 现状 |
 |---|---|
-| `Y Bot.fbx` | ✅ **Humanoid**（实测 `isHuman: true`） |
-| `idleAvatar.asset` | ✅ 独立 Avatar，人形骨骼映射已配好 |
+| **`OVR - Roskva.fbx`** | ✅ **当前玩家模型**。UE 素材包接入，含 9 个 SkinnedMeshRenderer（Body / Upper Body / Lower Body / Face / Eyeshadow / Hair / Hair2 / Fur / Equips）+ 6 个 URP 材质 |
+| 骨骼 | ✅ **Humanoid**（`animationType: 3`，Avatar「OVR - RoskvaAvatar」，`isHuman=True`、54/54 骨骼槽全映射）。3ds Max Biped 命名 `Bip001-*` |
+| 尺寸 | ✅ 高 **1.853**、脚底 y≈0 → **无需缩放** |
+| 朝向 | ✅ 面朝 **+Z**（标准）→ **无需旋转** |
+| 武器挂点 | ✅ **自带 `B_Weapon_L` / `B_Weapon_R`**（在双手位置），M2 武器可直接挂 |
+| `Y Bot.fbx` + `idleAvatar.asset` | ⚠️ **已不再使用**（Player.prefab 里的渲染器已移除，保留其骨骼与 `idleAvatar` 资产未删） |
 
-→ 可以直接用。**换皮是纯可选项**（想要更贴合"武术/试炼"题材的外观才需要）。
+> ⚠️ **`anim/*.psa`（5 个，24 MB）与 `_model/psk/*.psk`（1.7 MB）已被 `.gitignore` 排除**——Unreal 私有格式，**Unity 无法导入**。若要使用 Roskva 自带动作（Idle01 / Talk01-03 / Walk），需经 Blender 插件 `io_scene_psk_psa` 转成 FBX，见 `ANIM-GUIDE.md` §1。
+
+> 换任何新模型时，**必须确认下面三项**（这是本项目的核心红利，见 §8）：Humanoid 可 Configure、尺寸对齐、朝向为 +Z。
 
 ### 2.2 动画 —— 已有 11 个剪辑，其中 **2 个闲置可复用** ⭐
 
@@ -230,7 +236,7 @@
 
 | 资产 | 数量 / 状态 |
 |---|---|
-| 玩家模型 + Avatar | ✅ Humanoid，可直接用 |
+| 玩家模型 + Avatar | ✅ **Roskva**（Humanoid，54/54 骨骼槽，自带武器挂点）+ 6 个 URP 材质 |
 | 玩家动画剪辑 | ✅ **11 个**（9 在用 + 2 个闲置可复用） |
 | `PlayerAC.controller` | ✅ 8 个状态已配好 |
 | 敌人预制体 | ✅ 3 个（`Boxer` / `Gunner` / `Enemy_Slime`）——**骨架在，缺外观** |
@@ -245,11 +251,18 @@
 
 ## 8. 一条决定成本的关键前提
 
-> ✅ **现有角色是 Humanoid 骨骼**（实测 `Animator.isHuman = true`，avatar = `Y Bot.fbx`）
+> ✅ **现有角色是 Humanoid 骨骼**（玩家侧 Roskva：实测 `Animator.isHuman = true`，Avatar「OVR - RoskvaAvatar」，54/54 骨骼槽全映射）
 
 这意味着：**任何新的 Humanoid 模型都能复用现有全部动画**（Unity Humanoid 重定向），**不必为每个新角色重做动作**。这是把美术成本压到最低的核心前提。
 
-⚠️ **拿到任何新模型的第一件事：在 Rig 页设为 Humanoid 并 Configure**，确认能生成 Avatar。**否则无法复用动画**——这是最容易踩的坑。
+⚠️ **拿到任何新模型的第一件事：在 Rig 页设为 `Human` 并确认能生成 Avatar**，然后核对这两项：
+1. **尺寸**——脚底是否在 y≈0、身高是否在 1.8 左右（否则要调缩放）
+2. **朝向**——是否面朝 +Z（否则要转 180°）
+
+**本次 Roskva 接入实测三项均通过**（Humanoid 54/54、高 1.853 脚底 y≈0、面朝 +Z），所以**没有任何额外的缩放/旋转/材质重建工作**。
+
+> 📘 完整的 UE 素材包接入流程见技能 `ue-pack-to-unity-urp`：先取证（查材质贴图是否真空）→ 摸清遮罩通道语义 → 建 URP/Lit 材质 → remap。
+> ⚠️ Roskva 的 `_urp/*_Mask.png` **通道语义已符合 URP**（实测 R=Metallic、A=Smoothness 均有变化，非扁平值），因此**未重建材质**。
 
 **动画来源优先级**（`ART-PIPELINE.md` §5.2）：
 
@@ -293,8 +306,9 @@
 
 | 资源 | 来源 | 备注 |
 |---|---|---|
+| **`OVR - Roskva`**（角色模型 + 贴图 + 6 材质） | UE 素材包（含 `NPC_Roskva.psk` / `.psa` 原始文件） | ⚠️ **需核对授权条款与署名要求**；`.psa`/`.psk` 已排除出版本控制 |
 | `TKDstyle_AnimSet` | 第三方武术动画包（139 FBX + 11 controller） | ⚠️ **需核对授权条款与署名要求** |
-| `Y Bot.fbx` | Unity / Mixamo 系人形模型 | 核对来源 |
+| `Y Bot.fbx` | Unity / Mixamo 系人形模型 | ⚠️ **已不再使用**（渲染器已移除），但资产仍在，署名表保留 |
 | Unity 内建资源 | 球体网格等 | 无需署名 |
 
 🔧 **后续每引入一个资源都要补进这张表**（Tripo/Meshy 生成物、Sketchfab 下载、Mixamo 动画、免费音效库各自的条款都不同）。

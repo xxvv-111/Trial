@@ -85,6 +85,36 @@ namespace Game.Gameplay
             _col.enabled = false;
         }
 
+        /// <summary>设置本次伤害（换武器 / 连段切换时由 PlayerAttack 同步）。</summary>
+        public void SetDamage(int damage)
+        {
+            _damage = damage;
+        }
+
+        /// <summary>
+        /// 由**武器配置**驱动判定盒的尺寸与位置（M2.1）。
+        ///
+        /// 这样"每把武器的每段判定范围"就是一个配置值，
+        /// 不必为每把武器在预制体上各摆一套判定体。
+        ///
+        /// <paramref name="localPos"/> 一般传 <c>(0, 中心高度, 长度/2)</c> ——
+        /// 让判定盒覆盖「身前 0 ~ 长度」这一段（与 M1.2 的手工摆放一致）。
+        /// </summary>
+        public void ApplyShape(Vector3 size, Vector3 localPos)
+        {
+            if (_col == null) _col = GetComponent<Collider>();
+
+            BoxCollider box = _col as BoxCollider;
+            if (box == null)
+            {
+                Debug.LogWarning("[Hitbox] 仅 BoxCollider 支持 ApplyShape：" + name, this);
+                return;
+            }
+
+            box.size = size;
+            transform.localPosition = localPos;
+        }
+
         private void OnTriggerEnter(Collider other)
         {
             if (_col == null || !_col.enabled) return;

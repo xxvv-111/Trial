@@ -131,6 +131,34 @@ namespace Game.Gameplay
             return null;
         }
 
+        /// <summary>按名取判定体（供外部按名配置尺寸等）。找不到返回 null。</summary>
+        public Hitbox GetByName(string hitboxName)
+        {
+            return Find(hitboxName);
+        }
+
+        /// <summary>
+        /// 把武器配置的判定盒尺寸应用到对应判定体（M2.1）。
+        ///
+        /// 命名约定：第 i 段（0 基）对应名为 <paramref name="namePrefix"/> + (i+1) 的物体，
+        /// 例如 <c>Hitbox_Attack1~4</c>。
+        ///
+        /// ⚠️ **按名字匹配而非数组下标** —— `GetComponentsInChildren` 的返回顺序不保证稳定，
+        ///    用下标会把段数配错。
+        /// </summary>
+        public void ApplyWeaponShapes(Game.Data.WeaponConfig weapon, string namePrefix)
+        {
+            if (weapon == null) return;
+
+            int n = weapon.ComboLength;
+            for (int i = 0; i < n; i++)
+            {
+                Hitbox hb = Find(namePrefix + (i + 1));
+                if (hb == null) continue;
+                hb.ApplyShape(weapon.GetHitboxSize(i), weapon.GetHitboxLocalPosition(i));
+            }
+        }
+
         // ==================== 命中收口（唯一出口） ====================
 
         /// <summary>

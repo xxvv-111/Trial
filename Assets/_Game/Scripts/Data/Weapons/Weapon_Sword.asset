@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1655b50bfd8fed479828de0a187cc19, type: 3}
+  m_Name: Weapon_Sword
+  m_EditorClassIdentifier: 
+  displayName: "\u5251"
+  icon: {fileID: 0}
+  comboWindow: 1
+  damage: 0c0000000f0000000a00000014000000
+  energyCost: 080000000a0000000c0000000f000000
+  hitboxLength:
+  - 2.5
+  - 2.7
+  - 2.9
+  - 3.1
+  hitboxWidth:
+  - 1.5
+  - 1.62
+  - 1.74
+  - 1.86
+  hitboxHeight: 1.6
+  hitboxCenterY: 1
+  specialType: 1
+  specialDamage: 30
+  specialEnergyCost: 30
+  specialCooldown: 3
+  specialRange: 3.5
+  modelPrefab: {fileID: 0}
+  modelLocalPosition: {x: 0, y: 0, z: 0}
+  modelLocalEuler: {x: 0, y: 0, z: 0}
+  gripBoneName: B_Weapon_R

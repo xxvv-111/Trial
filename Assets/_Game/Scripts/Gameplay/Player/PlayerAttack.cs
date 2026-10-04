@@ -15,15 +15,22 @@ namespace Game.Gameplay
     /// </summary>
     public class PlayerAttack : MonoBehaviour
     {
+        [Tooltip("角色配置：仅在未装配武器时作为兜底。伤害/连段窗口等**已迁到 WeaponConfig**。")]
         [SerializeField] private PlayerConfig config;
+
+        [Tooltip("当前武器（M2.1）。由 M2.2 的 WeaponManager 装配；为空时回退到 PlayerConfig 的旧字段。")]
+        [SerializeField] private WeaponConfig _weapon;
 
         [Tooltip("判定体开启后持续多久自动关闭（秒）。\n" +
                  "⚠️ 动画上目前只有「命中帧」一个事件，所以用时长收敛判定窗口。\n" +
                  "若要精确控制，可在动画末尾再挂一个事件调用 HitboxController.DisableHitbox。")]
         [SerializeField] private float _hitboxActiveTime = 0.25f;
 
+        /// <summary>判定体命名前缀：第 i 段（0 基）对应 <c>Hitbox_Attack{i+1}</c>。</summary>
+        private const string HitboxNamePrefix = "Hitbox_Attack";
+
         private float combopWindow;//连段窗口期
-        private int[] attackDamage;//伤害
+        private int comboLength;//本武器普攻段数
 
         private Animator _anim;
         private PlayerEnergy _energy;
@@ -36,15 +43,55 @@ namespace Game.Gameplay
 
         public bool isAttacking;//是否处于攻击状态（由 AttackStateBehaviour 驱动）
 
+        /// <summary>当前武器（可能为 null = 未装配）。</summary>
+        public WeaponConfig Weapon { get { return _weapon; } }
+
         private int attackCount;//驱动 isAttacking 的引用计数
 
         private void Awake()
         {
-            combopWindow = config.comboWindow;
-            attackDamage = config.attackDamage;
             _anim = GetComponent<Animator>();
             _energy = GetComponent<PlayerEnergy>();
             _hitboxes = GetComponent<HitboxController>();
+
+            ResolveWeaponData();
+        }
+
+        /// <summary>
+        /// 解析武器数值。**武器优先，PlayerConfig 兜底** ——
+        /// 这样 M2.1 不会破坏"尚未装配武器"时的可玩性，M2.2 装上武器后自动切换。
+        /// </summary>
+        private void ResolveWeaponData()
+        {
+            if (_weapon != null)
+            {
+                combopWindow = _weapon.comboWindow;
+                comboLength = Mathf.Max(1, _weapon.ComboLength);
+
+                //把武器配置的判定盒尺寸应用到对应判定体（按名字匹配）
+                if (_hitboxes != null) _hitboxes.ApplyWeaponShapes(_weapon, HitboxNamePrefix);
+                return;
+            }
+
+            //兜底：沿用 PlayerConfig（旧行为），段数按判定体数量推断
+            combopWindow = config != null ? config.comboWindow : 1f;
+            comboLength = (config != null && config.attackDamage != null && config.attackDamage.Length > 0)
+                ? config.attackDamage.Length : 4;
+        }
+
+        /// <summary>换武器（M2.2 用）。重新解析数值并刷新判定盒尺寸。</summary>
+        public void SetWeapon(WeaponConfig weapon)
+        {
+            _weapon = weapon;
+            ResolveWeaponData();
+        }
+
+        /// <summary>某一段（0 基）的伤害。武器优先、PlayerConfig 兜底。</summary>
+        private int DamageAt(int comboIndex)
+        {
+            if (_weapon != null) return _weapon.GetDamage(comboIndex);
+            if (config == null || config.attackDamage == null || config.attackDamage.Length == 0) return 0;
+            return config.attackDamage[Mathf.Clamp(comboIndex, 0, config.attackDamage.Length - 1)];
         }
 
         /// <summary>
@@ -65,7 +112,7 @@ namespace Game.Gameplay
         /// </summary>
         public void TryNextCombo()
         {
-            if (!_cancombo || _comboIndex >= config.attackDamage.Length - 1 || !ComboWindowOpen())
+            if (!_cancombo || _comboIndex >= comboLength - 1 || !ComboWindowOpen())
                 return;
 
             int next = _comboIndex + 1;
@@ -87,6 +134,10 @@ namespace Game.Gameplay
         {
             if (_dead) return;
 
+            //命中判定体由 HitboxController 负责；伤害值在 M2.1 已改由武器配置提供。
+            //⚠️ 判定体的 _damage 是预制体上的序列化值 —— 换武器后需要同步（见 SyncHitboxDamage）。
+            SyncHitboxDamage();
+
             if (_hitboxes != null)
                 _hitboxes.EnableHitbox(CurrentHitboxName(), _hitboxActiveTime);
 
@@ -94,11 +145,25 @@ namespace Game.Gameplay
             _lastAttackTime = Time.time;
         }
 
+        /// <summary>
+        /// 把当前武器的伤害同步到判定体上（M2.1）。
+        ///
+        /// 为什么需要：判定体的伤害存在它自己的序列化字段里（M1.2 的设计），
+        /// 而换武器会改变伤害 —— 两者必须保持一致，否则"换了武器伤害没变"。
+        /// </summary>
+        private void SyncHitboxDamage()
+        {
+            if (_weapon == null || _hitboxes == null) return;
+
+            Hitbox hb = _hitboxes.GetByName(CurrentHitboxName());
+            if (hb != null) hb.SetDamage(_weapon.GetDamage(_comboIndex));
+        }
+
         /// <summary>本段对应的判定体名（判定体挂在 Player 预制体下，名为 Hitbox_Attack1~4）。</summary>
         private string CurrentHitboxName()
         {
-            int i = Mathf.Clamp(_comboIndex, 0, 3) + 1;
-            return "Hitbox_Attack" + i;
+            int i = Mathf.Clamp(_comboIndex, 0, Mathf.Max(0, comboLength - 1)) + 1;
+            return HitboxNamePrefix + i;
         }
 
         /// <summary>连段窗口是否还开着。</summary>

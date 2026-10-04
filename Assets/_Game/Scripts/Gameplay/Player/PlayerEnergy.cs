@@ -23,11 +23,21 @@ namespace Game.Gameplay
 
         [SerializeField] private PlayerConfig _config;
 
+        [Tooltip("当前武器（M2.1）。为空时回退到 PlayerConfig 的旧字段。\n" +
+                 "⚠️ 成本表仍然**集中在本类**（统一出口原则）——其它组件只调 TrySpend*，不必自己持有武器。")]
+        [SerializeField] private WeaponConfig _weapon;
+
         public float MaxEnergy { get; private set; }
         public float CurEnergy { get; private set; }
 
         private float _regenDelayTimer;//距离开始回复还剩多久
         private float _lastBroadcast = -1f;
+
+        /// <summary>换武器（M2.2 用）。成本表随之切换。</summary>
+        public void SetWeapon(WeaponConfig weapon)
+        {
+            _weapon = weapon;
+        }
 
         private void Start()
         {
@@ -78,9 +88,18 @@ namespace Game.Gameplay
         /// <summary>
         /// 尝试支付第 <paramref name="comboIndex"/> 段普攻（0 基）。
         /// 不足则返回 false —— 该段**不可接续**（前一段正常播完，见 GDD §4.8 连段细则）。
+        ///
+        /// ⚠️ M2.1 起成本改由**武器配置**提供（每把武器各段的体力消耗可不同）。
         /// </summary>
         public bool TrySpendAttack(int comboIndex)
         {
+            if (_weapon != null)
+            {
+                if (_weapon.energyCost == null || _weapon.energyCost.Length == 0) return true;
+                return TrySpend(_weapon.GetEnergyCost(comboIndex));
+            }
+
+            //兜底：沿用 PlayerConfig
             var costs = _config.attackEnergyCost;
             if (costs == null || costs.Length == 0) return true;//未配置则视为免费
 
@@ -89,11 +108,17 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 尝试支付一次特殊攻击。<paramref name="overrideCost"/> ≥ 0 时用武器自己的覆盖值
-        /// （GDD §4.8：特殊攻击消耗 30，武器可覆盖该值）。
+        /// 尝试支付一次特殊攻击。<paramref name="overrideCost"/> ≥ 0 时用调用方给的覆盖值，
+        /// 否则**武器配置优先**（GDD §4.8：默认 30，武器可覆盖该值）。
         /// </summary>
         public bool TrySpendSpecial(float overrideCost = -1f)
-            => TrySpend(overrideCost >= 0f ? overrideCost : _config.specialEnergyCost);
+        {
+            if (overrideCost >= 0f) return TrySpend(overrideCost);
+
+            if (_weapon != null) return TrySpend(_weapon.specialEnergyCost);
+
+            return TrySpend(_config.specialEnergyCost);
+        }
 
         private void Broadcast(bool force = false)
         {

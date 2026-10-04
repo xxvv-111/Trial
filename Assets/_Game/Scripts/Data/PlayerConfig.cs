@@ -19,14 +19,18 @@ namespace Game.Data
 
         [Header("战斗")]
         public float comboWindow = 1f;//连击窗口
+        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig —— 本字段仅在**未装配武器**时作兜底。")]
         public float attackRange = 2.5f;//判定中心离自己多远
+        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.damage —— 本字段仅在**未装配武器**时作兜底。")]
         public int[] attackDamage = { 12, 15, 10, 20 };//4 段普攻伤害
 
         [Header("体力")]
         public float maxEnergy = 100f;
         public float dashEnergyCost = 20f;//冲刺消耗
-        public int[] attackEnergyCost = { 8, 10, 12, 15 };//4 段普攻消耗（⚠️ 数值待实测校准）
-        public float specialEnergyCost = 30f;//特殊攻击消耗（各武器可覆盖）
+        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.energyCost —— 本字段仅在**未装配武器**时作兜底。")]
+        public int[] attackEnergyCost = { 8, 10, 12, 15 };//4 段普攻消耗
+        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.specialEnergyCost —— 本字段仅在**未装配武器**时作兜底。")]
+        public float specialEnergyCost = 30f;//特殊攻击消耗
         public float energyRegenDelay = 0.6f;//停止消耗后多久开始回复
         public float energyRegenRate = 25f;//每秒回复量
     }

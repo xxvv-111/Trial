@@ -691,7 +691,7 @@ MeleeCombo / TeleportDash / SlamAOE / Projectile ──结束──> Cooldown �
 |---|---|---|---|
 | T1 | `PlayerMotor` 用 `enabled = false` 来"停止移动"，**重力也被一起停掉** | ⚠️ **已降级**：原为"加跳跃前必须先修"，跳跃取消后不再阻塞任何功能 | 拆分"移动抑制"与"重力常驻"两件事（低优先级，可随时插空做） |
 | T2 | 玩家身上**同时有** `Rigidbody` + `CapsuleCollider` + `CharacterController` | 物理方案重复，易互相干扰 | 二选一（建议纯 `CharacterController`）；低优先级 |
-| T3 | 攻击判定是动画事件里的**瞬时 `OverlapSphere` 采样** | 无法满足"关键帧碰撞体"需求；漏帧即丢判定 | 改为 `HitboxController` + 常驻 Trigger（§8） |
+| ~~T3~~ | ~~攻击判定是动画事件里的**瞬时 `OverlapSphere` 采样**~~ | ✅ **已修复 2026-10-04（M1.2）**：改为 `Hitbox` + `HitboxController` 的常驻判定体（§8） | 已消除 |
 | ~~T4~~ | ~~体力**从未被消耗**~~ | ✅ **已修复 2026-10-04（M1.1）**：成本表集中在 `PlayerEnergy`，3 个消耗点已接入，体力不足硬性拒绝动作 | 已消除 |
 | T5 | `PlayerConfig` 同时存放"角色数值"与"攻击数值" | 武器系统需要按武器区分攻击数值 | 拆出 `WeaponConfig`，`PlayerAttack` 读"当前武器" |
 | T6 | 敌人没有共用状态机基类（近战硬编码 switch、远程完全没有） | 加两种敌人 = 两份重复代码 | 抽 `EnemyStateMachine` 基类，与玩家 FSM 同风格 |

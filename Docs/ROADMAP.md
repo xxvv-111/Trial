@@ -184,9 +184,14 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 - **依赖**：0.4（配置字段）✅
 - ⚠️ **这是 T4 的结案点** ✅ 已结案
 
-### M1.2 Hitbox 系统改造 ⭐⭐ **最高风险**
+### M1.2 Hitbox 系统改造 ⭐⭐ ✅ **已完成（2026-10-04，提交 `4593136` / `8596c11` / `59ee4e0` / `e5f874d`）**
 
-**问题**：`PlayerAttack.DoMeleeHit()`（第 86–99 行）是**动画事件里的瞬时 `Physics.OverlapSphere` 采样** —— 漏帧即丢判定，不满足需求。
+> **交付终态**：判定体 + 控制器 + 玩家/敌人双侧接入 + T21 接通 + 校验工具。
+> **验收实测**：动画事件校验显示 `combo_01_1~4` 各有 `OnAttackHit`、敌人 `combo_01_1` 有 `TickAttack` ✓；
+> 碰撞矩阵 11 项关系全部符合预期 ✓；编译 0 报错 0 警告。
+> ⚠️ **运行时手感（能否打中、判定范围/硬直时长是否合适）仍需进 Play 实测调参。**
+
+**原始问题**：`PlayerAttack.DoMeleeHit()` 是**动画事件里的瞬时 `Physics.OverlapSphere` 采样** —— 漏帧即丢判定，不满足需求。
 
 **做什么**：
 1. 新建 `Hitbox`（挂角色子物体）：

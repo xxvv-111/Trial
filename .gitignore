@@ -41,3 +41,12 @@ Thumbs.db
 # 本地保留即可；克隆仓库后需自行放回，才能打开 TKD 自带的演示场景与 controller。
 /Assets/TKDstyle_AnimSet/
 /Assets/TKDstyle_AnimSet.meta
+
+# ===== 引擎私有格式（Unity 读不了，不进仓库）=====
+# Roskva 角色包里的 .psa（动画）/ .psk（模型）是 Unreal 格式，Unity 无法导入，
+# 共约 26 MB。游戏实际使用 TKD 的 Humanoid 动画（重定向到 Roskva），故可安全排除。
+# 本地保留即可；若日后要用 Roskva 自带动作，需经 Blender 插件转成 FBX。
+*.psa
+*.psa.meta
+*.psk
+*.psk.meta

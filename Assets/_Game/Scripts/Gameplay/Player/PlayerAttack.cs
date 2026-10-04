@@ -22,6 +22,7 @@ namespace Game.Gameplay
         private int[] attackDamage;//伤害
 
         private Animator _anim;
+        private PlayerEnergy _energy;
 
         private int _comboIndex;//连击段数
         private float _lastAttackTime = -99f;//上次攻击时间
@@ -38,9 +39,14 @@ namespace Game.Gameplay
             attackRange = config.attackRange;
             attackDamage = config.attackDamage;
             _anim = GetComponent<Animator>();
+            _energy = GetComponent<PlayerEnergy>();
         }
 
-        /// <summary>开始连段第 1 段。由 PlayerFSM 在进入 Attack 状态时调用。</summary>
+        /// <summary>
+        /// 开始连段第 1 段。由 PlayerFSM 在进入 Attack 状态时调用。
+        /// ⚠️ 第 1 段的体力消耗由 **PlayerFSM 在切换状态前**扣除（见 PlayerFSM.TryAttack），
+        ///    本方法只管重置连段计数。
+        /// </summary>
         public void StartCombo()
         {
             _comboIndex = 0;
@@ -48,16 +54,24 @@ namespace Game.Gameplay
             _lastAttackTime = Time.time;
         }
 
-        /// <summary>尝试接下一段。连段窗口内且未超段数才生效。</summary>
+        /// <summary>
+        /// 尝试接下一段。连段窗口内且未超段数才生效。
+        /// ⚠️ 体力不足则该段**不接续**（前一段正常播完）—— GDD §4.8 连段细则。
+        /// </summary>
         public void TryNextCombo()
         {
-            if (_cancombo && _comboIndex < config.attackDamage.Length - 1 && ComboWindowOpen())
-            {
-                _comboIndex++;
-                _cancombo = false;
-                _lastAttackTime = Time.time;
-                _anim.SetTrigger("Attack");
-            }
+            if (!_cancombo || _comboIndex >= config.attackDamage.Length - 1 || !ComboWindowOpen())
+                return;
+
+            int next = _comboIndex + 1;
+
+            //体力不足 → 放弃接续（PlayerEnergy 会触发 OnSpendFailed 供 HUD 报警）
+            if (_energy != null && !_energy.TrySpendAttack(next)) return;
+
+            _comboIndex = next;
+            _cancombo = false;
+            _lastAttackTime = Time.time;
+            _anim.SetTrigger("Attack");
         }
 
         /// <summary>动画关键帧事件（挂在 combo_01_1~4 上）。</summary>

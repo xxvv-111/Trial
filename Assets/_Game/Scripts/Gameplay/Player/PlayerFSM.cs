@@ -5,7 +5,8 @@ using Game.Core;
 
 namespace Game.Gameplay
 {
-    public class PlayerFSM : MonoBehaviour,IDamageable
+    /// <summary>玩家状态机（三字典驱动）。加状态只需加表项。</summary>
+    public class PlayerFSM : MonoBehaviour, IDamageable
     {
         //当前状态
         public PlayerState State { get; private set; } = PlayerState.Idle;
@@ -20,6 +21,7 @@ namespace Game.Gameplay
         private PlayerDash _dash;
         private PlayerAttack _attack;
         private PlayerHealth _health;
+        private PlayerEnergy _energy;
         private Animator _anim;
         private float _invulnTimer;//受击无敌时间
 
@@ -33,6 +35,7 @@ namespace Game.Gameplay
             _dash = GetComponent<PlayerDash>();
             _attack = GetComponent<PlayerAttack>();
             _health = GetComponent<PlayerHealth>();
+            _energy = GetComponent<PlayerEnergy>();
             _anim = GetComponent<Animator>();
 
             //进场enter
@@ -75,12 +78,16 @@ namespace Game.Gameplay
             };
             _update[PlayerState.Attack] = () =>
             {
-                if (InputService.Instance.AttackPressedThisFrame)//连段
+                //连段（体力检查在 PlayerAttack 内部，不足则该段不接续）
+                if (InputService.Instance.AttackPressedThisFrame)
                     _attack.TryNextCombo();
+
                 if (IsAttackAnimOver())
                     Change(HasMoveInput() ? PlayerState.Run : PlayerState.Idle);
-                if (InputService.Instance.DashPressedThisFrame && !_dash.IsDashing)
-                    Change(PlayerState.Dash);
+
+                //攻击中可取消接冲刺；体力不足则保持攻击（TryDash 会拒绝）
+                if (InputService.Instance.DashPressedThisFrame)
+                    TryDash();
             };
             _update[PlayerState.Hit] = () =>
             {
@@ -107,22 +114,38 @@ namespace Game.Gameplay
         //待机跑步状态
         private void UpdateNeutral()
         {
-            if (InputService.Instance.DashPressedThisFrame && !_dash.IsDashing)
-            {
-                Change(PlayerState.Dash);
-                return;
-            }
-            if(InputService.Instance.AttackPressedThisFrame)
-            {
-                Change(PlayerState.Attack);
-                return;
-            }
+            //冲刺 / 攻击都是"收费动作"：付得起体力才切状态
+            if (InputService.Instance.DashPressedThisFrame && TryDash()) return;
+            if (InputService.Instance.AttackPressedThisFrame && TryAttack()) return;
+
             if (HasMoveInput() && State != PlayerState.Run)
             {
                 Change(PlayerState.Run);
             }
             else if (!HasMoveInput() && State != PlayerState.Idle)
                 Change(PlayerState.Idle);
+        }
+
+        /// <summary>
+        /// 尝试冲刺：**先付体力，付得起才切状态**（GDD §4.8：消耗 > 当前体力则不执行）。
+        /// 体力不足时 PlayerEnergy 会触发 OnSpendFailed 供 HUD 报警。
+        /// </summary>
+        private bool TryDash()
+        {
+            if (_dash.IsDashing) return false;
+            if (!_energy.TrySpendDash()) return false;
+
+            Change(PlayerState.Dash);
+            return true;
+        }
+
+        /// <summary>尝试起手普攻（第 1 段）。同样先付体力。</summary>
+        private bool TryAttack()
+        {
+            if (!_energy.TrySpendAttack(0)) return false;
+
+            Change(PlayerState.Attack);
+            return true;
         }
 
         //换状态
@@ -138,7 +161,7 @@ namespace Game.Gameplay
         //是否有移动输入
         private bool HasMoveInput() => InputService.Instance.Move.sqrMagnitude > 0.01f;
 
-        //是否有攻击输入
+        //攻击动画是否播完
         private bool IsAttackAnimOver() => !_attack.isAttacking;
 
         public void TakeDamage(int dmg)

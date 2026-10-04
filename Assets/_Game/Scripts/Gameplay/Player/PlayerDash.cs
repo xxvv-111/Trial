@@ -6,7 +6,8 @@ namespace Game.Gameplay
 {
     /// <summary>
     /// 冲刺：位移 + 无敌帧，是主要的闪避手段（GDD §4.4）。
-    /// ⚠️ M1.1 待接入体力 —— 冲刺应消耗体力，走 PlayerEnergy.TrySpend。
+    /// 体力消耗由 <see cref="PlayerFSM"/> 在决策点统一扣除（见 PlayerFSM.TryDash），
+    /// 本类只负责位移与无敌计时。
     /// </summary>
     public class PlayerDash : MonoBehaviour
     {

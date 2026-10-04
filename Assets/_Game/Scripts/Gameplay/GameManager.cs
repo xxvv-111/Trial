@@ -27,6 +27,9 @@ namespace Game.Gameplay
         private float _startTime;//开始时间
         private bool _ended;//结束标志
 
+        /// <summary>本局是否已结算（死亡 / 通关）。暂停菜单据此避免在结算后再打开。</summary>
+        public bool HasEnded { get { return _ended; } }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)

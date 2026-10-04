@@ -87,6 +87,22 @@ namespace Game.Core
             get { return GameplayInputEnabled && _controls.Player.Special.triggered; }
         }
 
+        /// <summary>
+        /// 暂停键（ESC）本帧是否按下。
+        ///
+        /// ⚠️ **刻意不受 <see cref="GameplayInputEnabled"/> 影响** ——
+        ///    暂停菜单必须能在"游戏性输入已关闭"的状态下被打开与关闭，
+        ///    若走 Player action map 则会被闸门一起关掉，导致**暂停后按 ESC 关不掉菜单**。
+        ///
+        /// 实现上直接用旧版 `Input.GetKeyDown`（项目 Active Input Handling = Both，可用），
+        /// 好处是零配置：不必往 `.inputactions` 里加会跟 UI 的 Cancel 撞车的映射。
+        /// 仍然留在本类里，保持"输入只从 InputService 出去"的约定。
+        /// </summary>
+        public bool PausePressedThisFrame
+        {
+            get { return Input.GetKeyDown(KeyCode.Escape); }
+        }
+
         private void OnDestroy()
         {
             if (_controls != null)

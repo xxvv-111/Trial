@@ -72,6 +72,7 @@ namespace Game.Gameplay
         private float _yaw;//相机水平角（鼠标控制）
         private float _pitchOffset; //鼠标带来的俯角偏移
         private float _scrollDistance;//滚轮带来的距离变化
+        private bool _wasGameplayActive = true;//检测「输入从关闭→开启」的上升沿，用于恢复指针锁定
 
         /// <summary>当前水平朝向（供其它系统做「相对相机」换算）。</summary>
         public Quaternion PlanarRotation => Quaternion.Euler(0f, CurrentYaw(), 0f);
@@ -117,10 +118,13 @@ namespace Game.Gameplay
         /// <summary>
         /// 鼠标指针管理。
         ///
-        /// ⚠️ **结算 / 暂停后必须把指针还给 UI**，否则会出现两个问题：
-        ///   1. 指针仍被锁住 → 结算面板的按钮**点不动**
-        ///   2. ⚠️ 这里用的是旧版 `Input.GetMouseButtonDown`，**不受 timeScale 影响** ——
-        ///      若不拦住，结算后点击会**把刚刚解锁的指针重新锁回去**
+        /// ⚠️ **游戏性输入关闭（结算 / 暂停）时必须把指针还给 UI**，否则：
+        ///   1. 指针仍被锁住 → 结算/暂停面板的按钮**点不动**
+        ///   2. 这里用的是旧版 `Input.GetMouseButtonDown`，**不受 timeScale 影响** ——
+        ///      若不拦住，点一下会**把刚解锁的指针重新锁回去**
+        ///
+        /// ⚠️ **ESC 已不在此处理** —— 交给 <see cref="UI.PauseMenu"/> 统一负责。
+        ///    否则按 ESC 会同时"解锁指针"和"开关暂停菜单"，两套逻辑互相打架。
         /// </summary>
         private void HandleCursor()
         {
@@ -129,17 +133,23 @@ namespace Game.Gameplay
 
             if (!gameplayActive)
             {
-                //游戏结束/暂停：交出指针控制权，只解锁、不再锁回
+                //结算 / 暂停：交出指针控制权，只解锁、不再锁回
                 if (Cursor.lockState == CursorLockMode.Locked) LockCursor(false);
+                _wasGameplayActive = false;
                 return;
             }
 
-            //Esc 解锁指针、点击重新锁定（仅在开启锁定时生效）
-            if (_lockCursorOnStart)
+            //从「关闭」回到「开启」（例如暂停菜单点了继续）→ 重新锁定指针
+            if (!_wasGameplayActive)
             {
-                if (Input.GetKeyDown(KeyCode.Escape)) LockCursor(false);
-                if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) LockCursor(true);
+                _wasGameplayActive = true;
+                if (_lockCursorOnStart) LockCursor(true);
             }
+
+            //点击游戏窗口 → 重新锁定（仅在开启锁定时生效）
+            if (_lockCursorOnStart && Input.GetMouseButtonDown(0)
+                && Cursor.lockState != CursorLockMode.Locked)
+                LockCursor(true);
         }
 
         private void LateUpdate()

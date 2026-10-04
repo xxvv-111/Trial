@@ -31,6 +31,12 @@ namespace Game.Core
             }
         }
 
+        /// <summary>视角输入（鼠标移动 / 右摇杆）。由相机读取，用于旋转视角。</summary>
+        public Vector2 LookDelta => _controls.Player.Look.ReadValue<Vector2>();
+
+        /// <summary>滚轮输入（y 分量用于缩放）。</summary>
+        public float ScrollDelta => _controls.Player.Scroll.ReadValue<Vector2>().y;
+
         public bool DashPressedThisFrame => _controls.Player.Dash.triggered;
         public bool AttackPressedThisFrame => _controls.Player.Attack.triggered;
 

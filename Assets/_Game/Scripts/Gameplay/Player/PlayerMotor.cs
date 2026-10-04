@@ -5,8 +5,12 @@ using UnityEngine;
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 玩家移动：读输入 → CharacterController 移动 → 驱动动画混合树。
-    /// ⚠️ 已知问题（T1）：PlayerFSM 用 <c>_motor.enabled = false</c> 来"停止移动"，
+    /// 玩家移动：读输入 → **按相机朝向换算方向** → CharacterController 移动 → 驱动动画混合树。
+    ///
+    /// ⚠️ **移动是「相对相机」的**（W = 屏幕上方）。相机现在可被鼠标旋转，
+    ///    若用世界轴会变成「转视角后按 W 往斜里走」，手感直接崩。
+    ///
+    /// ⚠️ 已知问题（T1）：PlayerFSM 用 <c>_motor.enabled = false</c> 来停止移动，
     ///    这会把本脚本一起停掉，连贴地位移也停了（跳跃已取消，故降为低优先级）。
     /// ⚠️ 已知问题（T2）：玩家身上同时有 Rigidbody + CapsuleCollider + CharacterController，
     ///    建议只保留 CharacterController。
@@ -15,7 +19,11 @@ namespace Game.Gameplay
     {
         [SerializeField] private PlayerConfig config;
 
+        [Tooltip("相机 Transform。留空则自动取 Camera.main。用于把输入换算成「相对相机」的方向。")]
+        [SerializeField] private Transform _camera;
+
         [SerializeField] private float groundStick = 0.1f;//每帧向下的贴地位移
+        [SerializeField] private float turnSpeed = 720f;//转身速度（度/秒）
 
         private CharacterController _cc;
         private Animator _anim;
@@ -28,32 +36,65 @@ namespace Game.Gameplay
             _cc = GetComponent<CharacterController>();
         }
 
+        private void Start()
+        {
+            if (_camera == null && Camera.main != null)
+                _camera = Camera.main.transform;
+        }
+
         private void Update()
         {
             Vector2 axis = InputService.Instance.Move;
-            Vector3 move = new Vector3(axis.x, 0f, axis.y) * (speed * Time.deltaTime);
+            bool hasInput = axis.sqrMagnitude > 0.01f;
 
-            Face(axis);
+            Vector3 dir = CameraRelative(axis);
 
-            //向下挤压一点保证贴地（俯视角无跳跃，不需要真正的重力模拟）
-            _cc.Move(move + Vector3.down * groundStick);
+            //移动
+            Vector3 move = dir * (speed * Time.deltaTime);
+            _cc.Move(move + Vector3.down * groundStick);//向下挤压一点保证贴地
+
+            //朝向：转向移动方向（不是转向相机方向）
+            if (hasInput) Face(dir);
 
             //驱动动画混合树
-            float target = axis.sqrMagnitude > 0.01f ? speed : 0f;
+            float target = hasInput ? speed : 0f;
             _anim.SetFloat("speed", target, 0.15f, Time.deltaTime);
         }
 
-        /// <summary>把输入方向转成朝向（俯视固定镜头下，屏幕方向即世界轴）。</summary>
-        private void Face(Vector2 a)
+        /// <summary>
+        /// 把输入(Vector2)换算成世界方向：**以相机为参照系**。
+        /// axis.y = 前/后（屏幕上下），axis.x = 左/右（屏幕左右）。
+        /// </summary>
+        private Vector3 CameraRelative(Vector2 axis)
         {
-            if (a.sqrMagnitude <= 0.01f) return;//没输入就保持当前朝向
+            if (axis.sqrMagnitude <= 0.01f) return Vector3.zero;
 
-            Vector3 moveDir = new Vector3(a.x, 0f, a.y);
-            Quaternion target = Quaternion.LookRotation(moveDir);
+            Vector3 fwd = Vector3.forward;
+            Vector3 right = Vector3.right;
 
-            //限速转向，避免瞬间扭头
+            if (_camera != null)
+            {
+                //相机前向投影到水平面 —— 这就是「屏幕上方」在世界里的方向
+                fwd = _camera.forward;
+                fwd.y = 0f;
+                fwd = fwd.sqrMagnitude > 0.001f ? fwd.normalized : Vector3.forward;
+
+                right = _camera.right;
+                right.y = 0f;
+                right = right.sqrMagnitude > 0.001f ? right.normalized : Vector3.right;
+            }
+
+            return (fwd * axis.y + right * axis.x).normalized;
+        }
+
+        /// <summary>朝移动方向限速转身。</summary>
+        private void Face(Vector3 dir)
+        {
+            if (dir.sqrMagnitude <= 0.001f) return;
+
+            Quaternion target = Quaternion.LookRotation(dir);
             transform.rotation = Quaternion.RotateTowards(
-                transform.rotation, target, 720f * Time.deltaTime);
+                transform.rotation, target, turnSpeed * Time.deltaTime);
         }
     }
 }

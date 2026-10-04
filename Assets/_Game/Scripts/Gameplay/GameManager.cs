@@ -7,7 +7,13 @@ namespace Game.Gameplay
 {
     /// <summary>
     /// 流程管理：订阅玩家死亡 / Boss 阵亡，弹出对应的结算面板。
-    /// ⚠️ 结算面板显示时必须把 <c>Time.timeScale</c> 置 0，否则玩家在结算后仍能操作（原实现漏了这一步）。
+    ///
+    /// ⚠️ 结束时要**同时**做两件事，缺一不可：
+    ///   1. **锁游戏性输入**（<see cref="InputService.SetGameplayInputEnabled"/>）——
+    ///      这才是真正拦住"鼠标还能转视角"的一步
+    ///   2. **暂停时间**（<c>Time.timeScale = 0</c>）—— 让角色动画与逻辑停下
+    ///   只做第 2 步是不够的：`Update()` 在 timeScale = 0 时仍每帧执行，
+    ///   且 Input System 的鼠标输入完全不受 timeScale 影响。
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -34,6 +40,7 @@ namespace Game.Gameplay
         private void Start()
         {
             Time.timeScale = 1f;//防止上一次结算留下的 0 残留
+            SetGameplayInput(true);//防止上一次结算留下的输入锁残留
             _startTime = Time.time;
             _ended = false;
             gameOverPanel.SetActive(false);
@@ -56,6 +63,8 @@ namespace Game.Gameplay
         {
             if (_ended) return;
             _ended = true;
+
+            SetGameplayInput(false);//立刻交出控制权，不等结算面板
             StartCoroutine(ShowPanelLater(gameOverPanel, 2f));
         }
 
@@ -63,6 +72,8 @@ namespace Game.Gameplay
         {
             if (_ended) return;
             _ended = true;
+
+            SetGameplayInput(false);
 
             if (resultText != null)
                 resultText.text = $"VICTORY! TIME:{Time.time - _startTime:F2}s";
@@ -78,6 +89,13 @@ namespace Game.Gameplay
 
             if (panel != null) panel.SetActive(true);
             Time.timeScale = 0f;//暂停：结算之后玩家不应再能操作
+        }
+
+        /// <summary>统一开关游戏性输入（InputService 可能比本类晚/早初始化，故做空判）。</summary>
+        private void SetGameplayInput(bool on)
+        {
+            if (InputService.Instance != null)
+                InputService.Instance.SetGameplayInputEnabled(on);
         }
 
         public void RestartRun()

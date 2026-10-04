@@ -94,6 +94,8 @@ namespace Game.Gameplay
         {
             if (InputService.Instance != null)
             {
+                //⚠️ LookDelta 在 InputService 里已被 GameplayInputEnabled 闸住 ——
+                //   游戏结束/暂停后这里拿到的是 zero，视角不会继续转。
                 Vector2 look = InputService.Instance.LookDelta;
                 _yaw += look.x * _lookSensitivity;
 
@@ -107,6 +109,29 @@ namespace Game.Gameplay
                     _scrollDistance -= scroll * _zoomStep;
                     _scrollDistance = Mathf.Clamp(_scrollDistance, _minDistance - _distance, _maxDistance - _distance);
                 }
+            }
+
+            HandleCursor();
+        }
+
+        /// <summary>
+        /// 鼠标指针管理。
+        ///
+        /// ⚠️ **结算 / 暂停后必须把指针还给 UI**，否则会出现两个问题：
+        ///   1. 指针仍被锁住 → 结算面板的按钮**点不动**
+        ///   2. ⚠️ 这里用的是旧版 `Input.GetMouseButtonDown`，**不受 timeScale 影响** ——
+        ///      若不拦住，结算后点击会**把刚刚解锁的指针重新锁回去**
+        /// </summary>
+        private void HandleCursor()
+        {
+            bool gameplayActive = (InputService.Instance == null)
+                               || InputService.Instance.GameplayInputEnabled;
+
+            if (!gameplayActive)
+            {
+                //游戏结束/暂停：交出指针控制权，只解锁、不再锁回
+                if (Cursor.lockState == CursorLockMode.Locked) LockCursor(false);
+                return;
             }
 
             //Esc 解锁指针、点击重新锁定（仅在开启锁定时生效）

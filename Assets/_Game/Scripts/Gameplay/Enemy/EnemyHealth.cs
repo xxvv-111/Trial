@@ -20,10 +20,23 @@ namespace Game.Gameplay
     {
         public static event Action<EnemyHealth> Died;
 
+        /// <summary>
+        /// 受击（扣血前广播，便于 AI 立刻反应）。参数 = (自身, 本次伤害)。
+        ///
+        /// ⚠️ 与 <see cref="Died"/> 不同，这是**实例事件** —— 订阅/退订与自身绑定，
+        ///    不会出现"跨场景重开重复订阅"的问题（T7 的隐患只存在于 static 事件）。
+        ///
+        /// 这就是 **T21** 的接通点：此前 <c>TakeDamage</c> 只扣血、从不通知 AI，
+        /// 导致小怪挨打毫无反应（连闪白都没有）。
+        /// </summary>
+        public event Action<EnemyHealth, int> Damaged;
+
         [SerializeField] private EnemyAIConfig _config;
 
         public int MaxHp { get; private set; }
         public int CurHp { get; private set; }
+
+        public bool IsDead { get { return CurHp <= 0; } }
 
         private void OnEnable()
         {
@@ -34,13 +47,20 @@ namespace Game.Gameplay
 
         public void TakeDamage(int damage)
         {
+            if (CurHp <= 0) return;//已死 → 忽略后续伤害（判定体可能还开着）
+
             CurHp -= damage;
+            if (CurHp < 0) CurHp = 0;
+
+            //先通知受击（AI 要立刻进入硬直/闪白），再判断死亡
+            if (Damaged != null) Damaged(this, damage);
+
             if (CurHp <= 0) Die();
         }
 
         private void Die()
         {
-            Died?.Invoke(this);
+            if (Died != null) Died(this);
             gameObject.SetActive(false);
         }
     }

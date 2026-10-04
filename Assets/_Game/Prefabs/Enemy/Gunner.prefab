@@ -43,6 +43,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Gunner
       objectReference: {fileID: 0}
+    - target: {fileID: 100124, guid: 2f65e2cb2b713d142abcc86d39cca1bc, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 400124, guid: 2f65e2cb2b713d142abcc86d39cca1bc, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

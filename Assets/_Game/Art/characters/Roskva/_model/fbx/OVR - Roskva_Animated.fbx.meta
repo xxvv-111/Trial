@@ -27,6 +27,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: NPC_Roskva_re_hair_low_mat
+    second: {fileID: 2100000, guid: 365c410e1fdf19e4e8431f4c6476afdc, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: NPC_Roskva_re_part_mat
     second: {fileID: 2100000, guid: b464e1cc47f172e4994ca974cb9eda40, type: 2}
   materials:

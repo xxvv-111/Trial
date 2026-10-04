@@ -4,40 +4,58 @@ using Game.Core;
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 第三人称跟随相机：**鼠标控制视角（环绕）+ 滚轮缩放**。
+    /// 第三人称**越肩视角**相机：鼠标控制环绕 + 滚轮缩放 + 肩部横移。
+    ///
+    /// 与普通「跟随相机」的关键差别：
+    ///   · 相机**不是看向玩家**，而是与环绕方向**平行**地看出去
+    ///   · 加上 <c>_shoulderOffset</c> 横移后，角色自然落在屏幕一侧 → 这就是越肩构图
     ///
     /// 结构：
-    ///   · <c>_yaw</c> / <c>_pitch</c> 决定机位方向（球面环绕），<c>_distance</c> 决定远近
-    ///   · 机位 = 焦点 + 旋转 × 后退 × 距离，再平滑趋近（避免抖动）
-    ///   · 焦点 = 玩家位置 + <c>_heightOffset</c>（抬起一点，看向上半身而非脚底）
+    ///   焦点 = 玩家 + 上抬 <c>_heightOffset</c>（肩/头高）
+    ///   机位 = 焦点 + 环绕旋转 × (肩部横移, 0, 后退距离)
+    ///   朝向 = 环绕旋转（**不是** LookAt 焦点 —— LookAt 会退化成"围绕角色的追尾相机"）
     ///
-    /// 平滑只在**位置**上做（<c>SmoothDamp</c>）—— 角度是即时响应的，位置跟随自然就柔顺，
-    /// 无需再对角度做二次平滑（那样只会变钝）。
-    ///
-    /// ⚠️ 视角可旋转后，**移动必须改成「相对相机」**，否则按 W 会朝世界 +Z 走而不是屏幕上方 ——
-    ///    见 <see cref="PlayerMotor"/>。
+    /// ⚠️ 视角可旋转后，**移动必须「相对相机」**，见 <see cref="PlayerMotor"/>。
     /// </summary>
     public class CameraFollow : MonoBehaviour
     {
         [Header("目标")]
         [SerializeField] private Transform _target;
-        [SerializeField] private float _heightOffset = 1.2f;//看向玩家胸口而不是脚底
 
-        [Header("视角（球面环绕）")]
-        [SerializeField] private float _yaw = 0f;          //水平角
-        [SerializeField] private float _pitch = 55f;       //俯角（越大越接近正俯视）
-        [SerializeField] private float _minPitch = 15f;
-        [SerializeField] private float _maxPitch = 85f;
+        [Tooltip("焦点高度（相对玩家脚底）。越肩视角一般取肩/头高，1.4~1.6。")]
+        [SerializeField] private float _heightOffset = 1.5f;
+
+        [Header("越肩偏移")]
+        [Tooltip("横向偏移。正值 = 相机在玩家右肩（角色显示在屏幕左侧）；负值 = 左肩；0 = 正后方追尾。")]
+        [SerializeField] private float _shoulderOffset = 0.7f;
+
+        [Header("视角")]
+        [Tooltip("水平角。")]
+        [SerializeField] private float _yaw = 0f;
+        [Tooltip("俯角。越肩视角一般 10~25；越大越接近俯视。")]
+        [SerializeField] private float _pitch = 18f;
+        [SerializeField] private float _minPitch = -10f;
+        [SerializeField] private float _maxPitch = 70f;
 
         [Header("距离")]
-        [SerializeField] private float _distance = 10f;
-        [SerializeField] private float _minDistance = 4f;
-        [SerializeField] private float _maxDistance = 22f;
-        [SerializeField] private float _zoomStep = 1.2f;   //每格滚轮改变的距离
+        [SerializeField] private float _distance = 4.5f;
+        [SerializeField] private float _minDistance = 1.5f;
+        [SerializeField] private float _maxDistance = 12f;
+        [Tooltip("每格滚轮改变的距离。")]
+        [SerializeField] private float _zoomStep = 0.6f;
 
         [Header("手感")]
-        [SerializeField] private float _lookSensitivity = 0.16f;//鼠标灵敏度（度/像素）
-        [SerializeField] private float _smoothTime = 0.08f;     //位置平滑，越小越跟手
+        [Tooltip("鼠标灵敏度（度/像素）。")]
+        [SerializeField] private float _lookSensitivity = 0.35f;
+        [Tooltip("位置平滑时间，越小越跟手。0 = 完全硬跟随。")]
+        [SerializeField] private float _smoothTime = 0.06f;
+
+        [Header("防穿墙")]
+        [SerializeField] private bool _collisionCheck = true;
+        [Tooltip("球形探测半径，避免相机贴面穿进墙里。")]
+        [SerializeField] private float _collisionRadius = 0.2f;
+        [Tooltip("撞墙后额外留出的间隙。")]
+        [SerializeField] private float _collisionBuffer = 0.05f;
 
         [Header("鼠标指针")]
         [Tooltip("勾上 = 进入游戏即锁定指针（正式游玩手感）。取消 = 指针自由，便于在编辑器里调试。运行中按 Esc 解锁，点击游戏窗口重新锁定。")]
@@ -45,9 +63,16 @@ namespace Game.Gameplay
 
         private Vector3 _velocity;//SmoothDamp 用，必须是字段
 
+        /// <summary>当前视角的水平朝向（供其它系统做「相对相机」换算）。</summary>
+        public Quaternion PlanarRotation => Quaternion.Euler(0f, _yaw, 0f);
+
         private void Start()
         {
             if (_lockCursorOnStart) LockCursor(true);
+
+            //开局直接把相机摆到正确机位：
+            //否则会从场景里存的旧位置「飞」过来，看起来就像「初始位置不对」。
+            SnapToTarget();
         }
 
         private void Update()
@@ -79,16 +104,55 @@ namespace Game.Gameplay
         {
             if (_target == null) return;
 
-            Vector3 focus = _target.position + Vector3.up * _heightOffset;
+            Vector3 focus = FocusPoint();
             Quaternion rot = Quaternion.Euler(_pitch, _yaw, 0f);
-            Vector3 desired = focus + rot * Vector3.back * _distance;
+            Vector3 desired = ResolvePosition(focus, rot);
 
             //用 Realtime：结算暂停（timeScale = 0）时相机也不应卡死
             transform.position = Vector3.SmoothDamp(
                 transform.position, desired, ref _velocity, _smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
 
-            //始终看向焦点（用当前实际机位算，过渡更自然）
-            transform.rotation = Quaternion.LookRotation(focus - transform.position, Vector3.up);
+            //关键：朝向 = 环绕旋转本身（不是 LookAt 焦点）
+            transform.rotation = rot;
+        }
+
+        /// <summary>把相机瞬移到当前应该待的位置（开局调用，避免从旧位置飞过来）。</summary>
+        public void SnapToTarget()
+        {
+            if (_target == null) return;
+
+            Vector3 focus = FocusPoint();
+            Quaternion rot = Quaternion.Euler(_pitch, _yaw, 0f);
+
+            transform.position = ResolvePosition(focus, rot);
+            transform.rotation = rot;
+            _velocity = Vector3.zero;
+        }
+
+        private Vector3 FocusPoint() => _target.position + Vector3.up * _heightOffset;
+
+        /// <summary>算出机位：焦点 + 环绕旋转 × (肩部横移, 0, 后退)，并按需做防穿墙收缩。</summary>
+        private Vector3 ResolvePosition(Vector3 focus, Quaternion rot)
+        {
+            Vector3 local = new Vector3(_shoulderOffset, 0f, -_distance);
+            Vector3 desired = focus + rot * local;
+
+            if (!_collisionCheck) return desired;
+
+            //从焦点向机位做球形探测：撞到东西就把相机拉近
+            Vector3 dir = desired - focus;
+            float dist = dir.magnitude;
+            if (dist <= 0.001f) return desired;
+
+            RaycastHit hit;
+            if (Physics.SphereCast(focus, _collisionRadius, dir.normalized, out hit, dist,
+                                   ~0, QueryTriggerInteraction.Ignore))
+            {
+                float safe = Mathf.Max(_minDistance * 0.6f, hit.distance - _collisionBuffer);
+                desired = focus + dir.normalized * safe;
+            }
+
+            return desired;
         }
 
         private void LockCursor(bool locked)
@@ -96,8 +160,5 @@ namespace Game.Gameplay
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
-
-        /// <summary>当前视角的水平朝向（供其它系统做「相对相机」换算）。</summary>
-        public Quaternion PlanarRotation => Quaternion.Euler(0f, _yaw, 0f);
     }
 }

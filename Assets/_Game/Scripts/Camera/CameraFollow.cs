@@ -38,7 +38,7 @@ namespace Game.Gameplay
         [SerializeField] private float _maxPitch = 70f;
 
         [Header("距离")]
-        [SerializeField] private float _distance = 4.5f;
+        [SerializeField] private float _distance = 3.4f;
         [SerializeField] private float _minDistance = 1.5f;
         [SerializeField] private float _maxDistance = 12f;
         [Tooltip("每格滚轮改变的距离。")]

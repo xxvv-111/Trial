@@ -33,3 +33,11 @@
 .vscode/
 .DS_Store
 Thumbs.db
+
+# ===== 第三方资源包（不进仓库）=====
+# TKDstyle_AnimSet：第三方武术动画包，257 MB（占 Assets 的 92%），另有署名/授权要求。
+# 已确认 TKD 之外无任何资源引用它 —— 游戏实际使用的动画已抽成独立 .anim 文件放在
+# Assets/_Game/Art/Animations/，模型在 Assets/_Game/Art/characters/。故可安全排除。
+# 本地保留即可；克隆仓库后需自行放回，才能打开 TKD 自带的演示场景与 controller。
+/Assets/TKDstyle_AnimSet/
+/Assets/TKDstyle_AnimSet.meta

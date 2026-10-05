@@ -3,8 +3,8 @@
 > **用途**：从"当前状态"走到"可交付 exe + 报告"的完整分步计划。
 > 每一步都写明 **做什么 / 产出 / 验收标准 / 依赖什么**，按**依赖顺序**排列，不是按愿望排列。
 >
-> 最后更新：2026-10-05 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2.1 ✅ · 关卡结构改为「多关卡独立场景」· 武器范围收敛为「只做剑」**
-> **下一步：M2.2 装配剑**（⚠️ 不再是"开局二选一"；长枪与武器切换已移入 §13 额外项目）
+> 最后更新：2026-10-05 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2.1 ✅ · M2.2 ✅ · M2.3 ✅ · M2.4 ✅（M2 收口）· 关卡结构改为「多关卡独立场景」· 武器范围收敛为「只做剑」**
+> **下一步：M3 敌人 + 寻路**（⚠️ `Walk` 动画已就绪；不再是"开局二选一"；长枪与武器切换已移入 §13 额外项目）
 > 相关文档：`GDD.md`（要做什么）、`PROJECT-CONTEXT.md`（现状与坑）、`NAVMESH-GUIDE.md`（寻路手册）、`ARPG-DIRECTION.md`（**方案选型存档：ARPG 单场景未采纳；§4.6 相机仍然生效**）、`ART-PIPELINE.md`（资源方案）
 
 ---
@@ -22,9 +22,9 @@
    │
    ├─► M2  武器（剑）（1–2 天）⚠️ 范围收敛为「只做剑」
    │     ├─ M2.1 WeaponConfig 重做 ✅ 41472f2（配置化 + 全量接入）
-   │     ├─ M2.2 装配剑            ⏳ **下一步**（场景里把 Weapon_Sword 挂给 PlayerAttack）
-   │     ├─ M2.3 剑的模型 + 4 段连段动画接入（🔄 进行中）
-   │     └─ M2.4 剑·插地（特殊攻击）
+   │     ├─ M2.2 装配剑            ✅（Weapon_Sword 已挂 Player1/Player2 的 PlayerAttack + PlayerEnergy）
+   │     ├─ M2.3 剑的模型 + 4 段连段动画接入（✅ 用户已接：`1_atk_sword03`/`2_atk_sword04`/`3_atk_sword05`/`4_atk_sword01`）
+   │     └─ M2.4 特殊攻击 —— **火球 · 远距离 · 命中爆炸** ✅（代码 + 预制体 + Animator 全通；Play 实测扣 30 体力、爆炸扣 30 血）
    │
    ├─► M3  敌人+寻路（3–4 天）── NavMesh / 视野 / 剑兵 / 弓兵 / **巡逻（Walk 动画已就绪）**
    │
@@ -51,7 +51,7 @@
 **关键路径上的三个高风险点**：
 1. **hitbox（M1.2）** —— ✅ **已完成**，风险解除
 2. **Boss（M4）** —— 最重且有未定项（招式表 + 模型均无）；虽已降级为"收尾"，仍需钉死时间预算
-3. **动画资源** —— 已大幅缓解（Roskva 是 Humanoid，54/54 骨骼槽全映射，可复用全部现有动画）；⚠️ **剑的 4 段连段动画 FBX 尚待生成**
+3. **动画资源** —— 已大幅缓解（Roskva 是 Humanoid，**55/55 骨骼槽全映射**，可复用全部现有动画）；✅ **`Walk` 2.47s 已就绪**（来自 `OVR - Roskva_SwordInHand.fbx`，M3 巡逻不再缺料）；⚠️ 该 FBX 的 Avatar 缺 `Neck`（T26）；⚠️ **剑的 4 段连段动画 FBX 尚待生成**
 
 ---
 
@@ -293,7 +293,7 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 | | 伤害 | 判定盒（长 / 宽） | 特殊攻击 |
 |---|---|---|---|
-| **剑** | 12/15/10/20（均衡） | 2.5~3.1 / 1.5~1.86（**中等且宽**） | SwordSlam：伤害 30，半径 3.5 |
+| **剑** | 12/15/10/20（均衡） | 2.5~3.1 / 1.5~1.86（**中等且宽**） | **火球**：伤害 30，**远距离**（🔄 原 SwordSlam 半径 3.5 已作废） |
 | **长枪** | 10/12/9/16（**单段略低**） | 3.2~3.9 / 1.0~1.2（**更长更窄**） | SpearThrow：伤害 20，飞行 6 |
 
 **验收实测**（在临时实例上验证，未触碰预制体与场景）：
@@ -305,51 +305,126 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 - **依赖**：M1.1（体力字段设计）✅、M1.2（判定盒）✅ —— 均已满足
 
-### M2.2 装配剑 ⏳ **下一步**
+### M2.2 装配剑 ✅ **已完成（2026-10-05）**
 
 **决策**：V1 只做剑 → 进入关卡**默认装配剑**，**不做选择 UI**。
 （原"开局二选一"的完整设计保留在 **§13 额外项目**。）
 
-**做什么**：
-1. 在 Level 场景的 Player 上，把 `Weapon_Sword.asset` 拖到 `PlayerAttack` 的 `_weapon` 字段
-   （⚠️ 该字段**目前为空** → 代码走 `PlayerConfig` 的兜底值）
-2. 验证：判定盒从兜底值切换为剑的 `2.5~3.1 / 1.5~1.86`；4 段伤害变为 `12/15/10/20`
+**实际做法**（⚠️ 与本节原计划有一处偏离，见下）：
+把 `Weapon_Sword.asset` 挂到 **`Player1.prefab` / `Player2.prefab` 的 `PlayerAttack._weapon`
+与 `PlayerEnergy._weapon`**（各 2 处），而不是挂在 Level 场景的实例上。
+理由：V1 的语义是"**进关卡默认装配剑**"——这是角色级属性，应当跟着预制体走；
+挂预制体还能自动覆盖场景实例（实测**场景实例 0 条 override 即继承**），
+且不依赖场景、不弄脏场景文件。
 
-- **产出**：玩家真正握着剑（**数据侧**）
-- **验收**：Play 模式下 4 段攻击的判定盒尺寸与伤害，与 `Weapon_Sword.asset` 完全一致
+- **产出**：玩家真正握着剑（**数据侧**）✅
 - **依赖**：M2.1 ✅
 
-### M2.3 剑的模型 + 4 段连段动画接入 🔄 **进行中（用户侧）**
+#### ⚠️ 重要：原「验收标准」在现状下无法区分装与不装
 
-**现状**（实机核对 2026-10-05）：
+实测发现 **`Weapon_Sword` 与 `PlayerConfig` 兜底值几乎逐项相同**：
+
+| 数据 | `Weapon_Sword` | `PlayerConfig` 兜底 | 差异 |
+|---|---|---|---|
+| 4 段伤害 | `[12,15,10,20]` | `attackDamage` `[12,15,10,20]` | ❌ 完全相同 |
+| 4 段体力 | `[8,10,12,15]` | `attackEnergyCost` `[8,10,12,15]` | ❌ 完全相同 |
+| 特殊攻击体力 | 30 | 30 | ❌ 完全相同 |
+| 连段窗口 | 1 | 1 | ❌ 完全相同 |
+| 判定盒尺寸 | 2.5~3.1 / 1.5~1.86 | **无此字段**（尺寸烘在预制体上） | ⚠️ 唯一差异源，但预制体里的既有值**恰好已等于剑的数值** |
+| `specialType/specialDamage/specialRange` | 1 / 30 / 3.5 | **没有** | ⭐ **只存在于武器** |
+
+→ 所以「装完后判定盒变 2.5~3.1、伤害变 12/15/10/20」这套判据**看不出任何变化**。
+（`damage` 与 `energyCost` 在 M2.1 从 `PlayerConfig` 复制到武器时取了同值。）
+
+#### ✅ 改用「换武器探针」做真正的功能验收
+
+把 `Weapon_Spear`（判定盒 `3.2~3.9 / 1.0~1.2`、连段窗口 `0.9`）当探针，
+在 **Play 模式** 调 `PlayerAttack.SetWeapon()`，看判定盒是否真的被改写：
+
+| 步骤 | Weapon | combopWindow | Hitbox_Attack1 | … | Attack4 |
+|---|---|---|---|---|---|
+| ① 进 Play（`Awake` 里 `ResolveWeaponData()`） | **Weapon_Sword** | 1 | (1.50, 1.60, **2.50**) | … | (1.86, 1.60, **3.10**) |
+| ② `SetWeapon(长枪)` | Weapon_Spear | **0.9** | (1.00, 1.60, **3.20**) | … | (1.20, 1.60, **3.90**) |
+| ③ `SetWeapon(剑)` 换回 | Weapon_Sword | 1 | (1.50, 1.60, **2.50**) | … | (1.86, 1.60, **3.10**) |
+
+**②尺寸与窗口都随之变化 → 配置驱动确认生效**；①证明预制体上的 `_weapon` 被 `Awake` 正确解析。
+（`SetWeapon` 只在运行时改，退出 Play 即还原，场景未被写回 —— 实测场景里武器 GUID 出现 0 次。）
+
+#### ⚠️ 遗留陷阱：`_weapon` 有**两份**，且无人同步
+
+`PlayerAttack` 与 `PlayerEnergy` **各有一个独立的 `_weapon` 字段**，
+`SetWeapon()` 也只改自己那一个 —— 实测 ②步只调了 `PlayerAttack.SetWeapon()`，
+`PlayerEnergy._weapon` **仍停留在 Weapon_Sword**。
+→ **将来做武器切换（§13 额外项目）时必须同时调两者**，否则会出现
+"伤害按新武器算、体力按旧武器扣"。目前靠预制体上两处都填好才一致。
+建议后续把 `SetWeapon` 收敛为一个统一入口（如挂在角色上的 `WeaponHolder`）。
+
+#### ⚠️ M2.2 的实际价值（已由 M2.4 验证）
+`specialType` / `specialDamage=30` / `specialEnergyCost=30` / `specialRange`
+**只存在于武器配置里** —— 不装配武器，特殊攻击就没有数据来源。
+所以 M2.2 是 M2.4 的前置。
+⚠️ 下列是**装配当时的旧值，M2.4 已改**：`specialType=1（SwordSlam）` → **`Fireball`**、
+`specialRange=3.5` → **`15`**（`specialDamage` / `specialEnergyCost` 未动，仍 30 / 30）。
+
+### M2.3 剑的模型 + 4 段连段动画接入 ✅ **已完成（2026-10-05，用户接入）**
+
+**结论：4 段连段动画已就位，且走的是比原计划更优的路线。**
 
 | 项 | 状态 |
 |---|---|
-| 剑模型 `Roskva_Sword_R.fbx` | ✅ **已生成**（从 Roskva 模型抠出，握点已按 `B_Weapon_R` 骨骼局部空间对齐） |
-| 挂载工具 `Editor/RoskvaAttachSword.cs` | ✅ 已写好（菜单 `Tools ▸ Roskva ▸ 1. 把剑挂到右手`）；⚠️ **尚未执行** |
-| 挥砍动画 FBX `SwordCombo_Roskva.fbx` | ❌ **不存在** —— 需先在 Blender 跑 `make_sword_combo.py --generate` |
-| 导入工具 `Editor/SwordComboImporter.cs` | ✅ 已写好（提取 `sword_combo_01~04.anim` + 挂 `OnAttackHit`） |
-| `PlayerAC` 的 `Attack1–4` | ⚠️ **仍指向旧的 `combo_01_1~4`**，需改指向新 clip |
+| 剑模型 | ✅ **已就位，且不需要"挂剑"这一步**。`OVR - Roskva_Sword.fbx`（持剑版）自带 `Roskva_Sword_Hand` 网格（717 顶点），**100% 蒙皮到 `Bip001-R-Hand.002`**（`Bip001-R-Hand` 的子级 → 刚性跟随）。实测世界尺寸 **(0.364, 0.264, 1.321)**、中心 y=0.950 → **剑在右手、长约 1.32 m，尺寸正常**。⚠️ 它是**随网格自带骨骼绑定**，并未挂在 `B_Weapon_R` 下 —— 所以"用 `RoskvaAttachSword.cs` 把剑挂到右手"**本来就不需要**。 |
+| **4 段连段动画** | ✅ **已由用户接入**，素材取自工程内已有的 **`Assets/Magical-Knight_Set/Animation/Humanoid/`**（一个 **100+ 动作的完整 Humanoid 动作包**），提取到 `Art/Animations/Player/` 后指给 `PlayerAC`：<br>· `Attack1` → `1_atk_sword03`（1.000 s / 30 帧）<br>· `Attack2` → `2_atk_sword04`（1.200 s / 36 帧）<br>· `Attack3` → `3_atk_sword05`（1.133 s / 34 帧）<br>· `Attack4` → `4_atk_sword01`（1.633 s / 49 帧）<br>四段**各自都挂着 `OnAttackHit`**（0.233 / 0.333 / 0.567 / 0.433 s），全部 `isHumanMotion=True`。 |
+| 附带完成 | ✅ `Locomotion` 换成 `Idle01` + `strafe_run_strafe_front`；✅ `Dash`→`roll_front`、`Hit`→`hit_light_F_body`、`Death`→`dead_01`。<br>👉 **旧 TKD 剪辑（`combo_01_1~4` / `Standing Dive Forward` / `Stomach Hit` / `Sword And Shield Death`）已彻底不再使用**，全部移入 `Art/Animations/Player/old/`。 |
 
-**做什么**：
-① Blender 生成挥砍动画 FBX → ② 菜单 `Tools ▸ Roskva ▸ 3` 导入（提取 `.anim` + 挂判定事件）
-→ ③ 菜单 `Tools ▸ Roskva ▸ 1` 把剑挂到右手 → ④ 把 `PlayerAC` 的 `Attack1–4` 指向新 clip
-→ ⑤ 用 `Tools/Hitbox/校验攻击动画事件` 复核
+> ⚠️ **原计划的"Blender 走 BVH 生成挥砍动画"路线已被放弃**（我实际跑通过整条链路并产出过
+> `SwordCombo_Roskva.fbx` + 4 段 `.anim`，但质量不如 `Magical-Knight_Set` 的手工动画：
+> 我的版本 4 段全部等长 0.967 s，缺节奏差异）。**相关产物与工具已清理**：
+> `Editor/SwordComboImporter.cs`、`SwordCombo_Roskva.fbx`（工程内 + 源目录）均已删除。
+> 若将来仍需该路线，可用 `D:/ArtAssert/tools/sword_combo/make_sword_combo.py --process`
+> 从现有 `sword_combo_01~04.bvh` 重新生成（链路已验证可用）。
 
-⚠️ **判定事件的时机需实测**：`SwordComboImporter` 默认按"动画时长的 50~60%"放置，
-与旧连招的实测值（0.33/0.23/0.33/0.53 s）不同，**必须进 Play 调**。
+- **依赖**：M2.1 ✅、M2.2 ✅
+- **产出**：4 段连段有专用的**持剑**挥砍动画 ✅
 
-- **依赖**：M2.1 ✅
-- **产出**：剑有模型、4 段连段有专用挥砍动画
+### M2.4 特殊攻击 —— **火球 · 远距离** ✅ **已完成（2026-10-05）**
 
-### M2.4 剑 · 插地（特殊攻击）
+**形态（用户补充设定）**：游戏背景允许使用魔法 → 玩家的特殊攻击是**发射一个火球、远距离攻击**，
+**命中后小范围爆炸**。⚠️ 这**取代**了原先的「剑 · 插地（`SwordSlam`，以自身为中心的圆形范围伤害）」设计。
 
-点按 → 角色将剑插入地面 → **以自身为中心的圆形范围伤害**。
+**实现**（全部为本次新增/修改）：
 
-- 新增 `PlayerFSM` 子状态 `SwordSlam`
-- 注意：`PlayerFSM` 是三字典状态机，**加表项即可**（架构红利）
-- **依赖**：M1.2（hitbox）、0.3（Special 输入）
-- 🔧 需动画：1 个（**剑·插地**）
+| 文件 | 改动 |
+|---|---|
+| `Scripts/Gameplay/Player/Fireball.cs` | **新增**。直线飞行 → 命中/到射程就在原地爆炸 → `Physics.OverlapSphere` 对半径内**每个** `IDamageable` 结算一次（**去重**，避免多碰撞体被打多次）→ 自毁。⚠️ **命中伤害与溅射合并成一次 OverlapSphere** —— 爆炸中心就是命中点，直接命中者必然在范围内，这样**天然不重复** |
+| `Scripts/Gameplay/Player/SpecialStateBehaviour.cs` | **新增**。挂在 `Special_Attack` 上，进/出时通知 `PlayerFSM.SetCasting()`（**不复用 `AttackStateBehaviour`**，因为它改的 `PlayerAttack.isAttacking` 被连段逻辑共用，会让语义混） |
+| `Scripts/Gameplay/Player/PlayerState.cs` | 枚举加 `Special` |
+| `Scripts/Gameplay/Player/PlayerFSM.cs` | 加 `Special` 三表项 + `TrySpecial()`（冷却→武器→体力，顺序不可换）+ `SpawnFireball()` + `SetCasting()`；`UpdateNeutral` 与 `Attack` 状态都可接特攻；`Update` 里走冷却计时。⚠️ 回 Idle 的判据用 `_specialAnimStarted && !_casting`，**否则 `SetTrigger` 当帧就会误判"动画已结束"**；另加 3 s 兜底防卡死 |
+| `Scripts/Data/WeaponConfig.cs` | `SpecialAttackType` 加 **`Fireball = 3`**；新增 `specialProjectileSpeed` / `specialExplosionRadius` / `specialCastDelay` / `specialSpawnHeight` / `specialProjectilePrefab` |
+| `Scripts/Data/Weapons/Weapon_Sword.asset` | `specialType` **SwordSlam → Fireball**；`specialRange` **3.5 → 15 m**；弹速 12 m/s、爆炸半径 2 m、出手延迟 0.55 s、出手高度 1.2 m；挂火球预制体。**普攻数据未动** |
+| `Prefabs/Fx/Fireball.prefab` | **新增**。layer `Projectile(11)` + `SphereCollider`(isTrigger, r=0.35) + **kinematic `Rigidbody`**（`OnTriggerEnter` 需要）+ `Fireball` 脚本 + 球体视觉（`Mat_Fireball`，橙色自发光） |
+| `Art/Materials/Mat_Fireball.mat` | **新增**。URP/Lit + Emission |
+| `Art/Animations/Player/PlayerAC.controller` | 加参数 `Special`(Trigger)；**5 条进入转场**（`Locomotion` + `Attack1~4` → `Special_Attack`，`If:Special`）；**1 条转出**（`Special_Attack` → `Locomotion`，exitTime 0.85）；`Special_Attack` 挂 `SpecialStateBehaviour`。⚠️ 原状态是「孤岛」：进出 transition 与 behaviours **都是 0** |
+
+**验收（Play 模式实测）**：
+
+| 判据 | 结果 |
+|---|---|
+| `TrySpecial()` 首次调用 | ✅ 成功；**体力 100 → 70**（扣 30）；冷却 = 3 s |
+| 冷却期内二次调用 | ✅ 返回 false，体力**不再扣** |
+| `SpawnFireball()` | ✅ 生成成功；layer 11 `Projectile`；位置 = 玩家上方 1.2 m + 前方 0.4 m；组件 `Transform/SphereCollider/Rigidbody/Fireball` 齐全 |
+| 爆炸范围伤害 | ✅ `Boxer1` **hp 30 → 0**；死亡触发 `Die()` → `SetActive(false)` |
+| 自身排除 | ✅ 在自己脚下引爆，**玩家 hp 100 → 100 未受伤** |
+
+⚠️ **未验证（受工具限制）**：① **实际按键触发**与**手感**——需你进 Play 按 Q / 右键实试；
+② **火球飞行途中命中**（本次是手动引爆验证的伤害链路）；③ **`Special_Attack` 动画播完自动回 Idle**。
+原因：MCP 无法模拟输入，且**测试时 Unity 窗口未聚焦 → 游戏循环暂停**（`Time.frameCount` 卡在 2），
+所以逐帧行为只能靠手动激活/反射调用来验。
+
+**可调参数**（都集中在 `Weapon_Sword.asset`）：`specialRange` 15 m / `specialProjectileSpeed` 12 m/s /
+`specialExplosionRadius` 2 m / `specialCooldown` 3 s / `specialCastDelay` 0.55 s。
+
+- **依赖**：M1.2（hitbox）✅、阶段 0 的 Special 输入 ✅、M2.2（武器数据）✅
+- **产出**：远距离火球特殊攻击 ✅
 
 ### ~~M2.5 长枪 · 投掷与召回~~ ⏸️ **已移出主线 → §13 额外项目**
 
@@ -540,8 +615,9 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 | 类别 | 缺口 | 优先级 |
 |---|---|---|
-| 玩家动画 | **剑·插地**（1 个） | 🔴 高 |
-| 玩家动画 | **长枪·投掷 / 召回**（2 个） | 🔴 高 |
+| 玩家动画 | ✅ **已齐**：4 段连段 + Locomotion + Dash/Hit/Death + 特殊攻击（`atk_energy01`）—— 2026-10-05 用户已全部接入，另有 `Magical-Knight_Set` 100+ 动作可扩展 | 🟢 低 |
+| 玩家动画 | ~~剑·插地~~（方案已改为**火球**，动画沿用 `atk_energy01`） | ⚪ 作废 |
+| 玩家动画 | **长枪·投掷 / 召回**（2 个）—— 额外项目 | 🟡 中 |
 | 武器模型 | **剑、长枪** 各 1 | 🟡 中 |
 | 剑兵 | 模型 + 5 个动画 | 🔴 高 |
 | 弓兵 | 模型 + 弓 + 6 个动画 | 🔴 高 |
@@ -570,7 +646,7 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 | 课程设计报告 | 含"方案选型"章节（可写：**为什么放弃自研 A\* 改用 NavMesh**）、"算法实现"章节（自研 A\* + 两个测试用例截图）、"数据持久化"章节（JSON 存档）、"测试"章节 |
 | PPT | 含演示截图 |
 | 演示视频 | V1 只有剑 → **无需为武器分段**；建议**按关卡分段演示**（3 关 + Boss），并突出"体力管理"这一差异化点 |
-| 第三方资源清单 | ⚠️ 必交：`TKDstyle_AnimSet` 为第三方资源包，连同 Sketchfab / Mixamo / AI 生成物一并列出（**报告加分项**） |
+| 第三方资源清单 | ⚠️ 必交：**三个动画包** —— `TKDstyle_AnimSet`（257 MB）、**`Magical-Knight_Set`（790 MB，现役连段动画的来源）**、**`Rapier_Anim_Set`（793 MB，未使用）** —— 连同 `OVR - Roskva`（UE 素材包）、Sketchfab / Mixamo / AI 生成物一并列出（**报告加分项**）。⚠️ **三个包都不进 git**（合计约 1.84 GB），**但署名不能省**：见 `ART-ASSETS.md` §10 与 `PROJECT-CONTEXT.md` §2.1 |
 
 ---
 
@@ -609,13 +685,12 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 ## 12. 下一步建议
 
-**当前下一步（按优先级）**：
+**当前下一步（按优先级）**：**M2 已全部收口** ✅（M2.1 配置 / M2.2 装配 / M2.3 连段动画 / M2.4 火球特攻）
 
-1. **M2.3 剑的连段动画**（🔄 进行中，用户侧）：Blender 生成 `SwordCombo_Roskva.fbx`
-   → 菜单 `Tools ▸ Roskva ▸ 3` 导入 → `Tools ▸ Roskva ▸ 1` 挂剑 → 改 `PlayerAC` 的 `Attack1–4`
-2. **M2.2 装配剑**（很快）：场景里把 `Weapon_Sword.asset` 拖给 `PlayerAttack._weapon`
-3. **M3 敌人 + 寻路**：NavMesh 烘焙 → 敌人状态机基类 → 剑兵 / 弓兵
-4. **M3.7 多关卡场景拆分**：⚠️ 建议放在 **M3 之后、M4 之前** —— 那时敌人已成型，拆场景才不白拆
+1. **M3 敌人 + 寻路**：NavMesh 烘焙 → 敌人状态机基类（T6）→ 剑兵 / 弓兵
+   ⚠️ 动手前先**手动实试 M2.4 火球**（按 Q / 右键），并据 `atk_energy01` 的实际出手帧调 `Weapon_Sword.asset` 的 `specialCastDelay`（初值 0.55 s）
+2. **M3.7 多关卡场景拆分**：⚠️ 建议放在 **M3 之后、M4 之前** —— 那时敌人已成型，拆场景才不白拆
+3. **额外项目（§13，时间富余时做）**：长枪投掷召回 / 武器切换 / 剑的额外招式
 
 **工作分工**：
 

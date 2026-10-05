@@ -42,6 +42,18 @@ Thumbs.db
 /Assets/TKDstyle_AnimSet/
 /Assets/TKDstyle_AnimSet.meta
 
+# ===== 第三方动画动作包（不进仓库）=====
+# Magical-Knight_Set（790 MB）与 Rapier_Anim_Set（793 MB）：两个 Humanoid 动作包，
+# 合计约 1.58 GB，远超 GitHub 单文件 100 MB / 仓库 1 GB 的软限制，且属第三方资源（需署名）。
+# 实际情况与 TKDstyle_AnimSet 一致：游戏真正使用的动画已**抽成独立 .anim 文件**
+# 放在 Assets/_Game/Art/Animations/ 下（直接从包内复制出来，**不依赖包内资源** ——
+# 已实测全工程无任何 .prefab/.controller/.anim 引用这两个包的 GUID），
+# 故可安全排除；但**未使用的动作仍留在本地**，克隆仓库后需自行放回才能继续取用新动作。
+/Assets/Magical-Knight_Set/
+/Assets/Magical-Knight_Set.meta
+/Assets/Rapier_Anim_Set/
+/Assets/Rapier_Anim_Set.meta
+
 # ===== 引擎私有格式（Unity 读不了，不进仓库）=====
 # Roskva 角色包里的 .psa（动画）/ .psk（模型）是 Unreal 格式，Unity 无法导入，
 # 共约 26 MB。游戏实际使用 TKD 的 Humanoid 动画（重定向到 Roskva），故可安全排除。

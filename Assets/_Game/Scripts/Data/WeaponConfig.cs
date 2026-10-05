@@ -8,11 +8,17 @@ namespace Game.Data
         /// <summary>未配置特殊攻击。</summary>
         None = 0,
 
-        /// <summary>剑·插地：以自身为中心的圆形范围爆发。</summary>
+        /// <summary>剑·插地：以自身为中心的圆形范围爆发。⚠️ 2026-10-05 已作废（改为 <see cref="Fireball"/>）。</summary>
         SwordSlam = 1,
 
         /// <summary>长枪·投掷与召回：固定距离直线投出 → 落地 → 空手 → 召回（返程伤害）。</summary>
         SpearThrow = 2,
+
+        /// <summary>
+        /// 剑·火球（2026-10-05 改定）：向面朝方向**发射火球、远距离攻击**，命中后**小范围爆炸**。
+        /// 取代原「剑·插地」——游戏背景允许使用魔法。
+        /// </summary>
+        Fireball = 3,
     }
 
     /// <summary>
@@ -70,8 +76,25 @@ namespace Game.Data
         [Tooltip("特殊攻击冷却（秒）。")]
         public float specialCooldown = 3f;
 
-        [Tooltip("剑·插地 = 范围半径；长枪 = 投掷飞行距离。")]
+        [Tooltip("剑·插地 = 范围半径；长枪 = 投掷飞行距离；**火球 = 最大飞行距离（射程）**。")]
         public float specialRange = 6f;
+
+        [Header("特殊攻击 · 火球专用（specialType = Fireball）")]
+        [Tooltip("火球飞行速度（米/秒）。")]
+        public float specialProjectileSpeed = 12f;
+
+        [Tooltip("火球命中后的**爆炸半径**（米）—— 范围内所有敌人都会受伤。")]
+        public float specialExplosionRadius = 2f;
+
+        [Tooltip("施法动画开始后多久**出手**（秒）。用于对齐 animation 里的出手帧。\n" +
+                 "atk_energy01 时长 1.067 s，默认 0.55 s 约在动作过半时。")]
+        public float specialCastDelay = 0.55f;
+
+        [Tooltip("火球的出手高度（米，相对脚底）。1.2 约在胸口，避免打地。")]
+        public float specialSpawnHeight = 1.2f;
+
+        [Tooltip("火球预制体（需挂 Fireball 脚本 + Trigger 碰撞体 + Rigidbody）。")]
+        public GameObject specialProjectilePrefab;
 
         [Header("外观")]
         [Tooltip("武器模型（挂到右手骨骼挂点上）。可为空 —— 先用无武器网格试动作。")]

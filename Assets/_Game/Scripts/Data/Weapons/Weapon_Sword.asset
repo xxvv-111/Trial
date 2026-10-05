@@ -29,11 +29,16 @@ MonoBehaviour:
   - 1.86
   hitboxHeight: 1.6
   hitboxCenterY: 1
-  specialType: 1
+  specialType: 3
   specialDamage: 30
   specialEnergyCost: 30
   specialCooldown: 3
-  specialRange: 3.5
+  specialRange: 15
+  specialProjectileSpeed: 12
+  specialExplosionRadius: 2
+  specialCastDelay: 0.55
+  specialSpawnHeight: 1.2
+  specialProjectilePrefab: {fileID: 5571164078819308326, guid: ebad9718286e856409e5758cfee1fda5, type: 3}
   modelPrefab: {fileID: 0}
   modelLocalPosition: {x: 0, y: 0, z: 0}
   modelLocalEuler: {x: 0, y: 0, z: 0}

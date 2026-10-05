@@ -31,7 +31,9 @@
 | **`OVR - Roskva_Animated.fbx`** | 同上 | 角色自带动画库。**Rig 已改 `Human`** → `Walk 2.47s` / `Idle01` 等 5 段**可重定向** ✅（⚠️ Avatar 缺 `Neck`，T26） |
 | `Equips_NoSword.asset` | `Art/characters/Roskva/Meshes/` | **无剑版装备网格**（已覆盖玩家预制体的 `Equips`）→ M2 换武器用 |
 | Roskva 贴图 / 材质 | `Art/characters/Roskva/{_textures,Materials}/` | 含金发变体；⚠️ Roskva 为**第三方素材包**，注意署名 |
-| **TKDstyle_AnimSet** | `Assets/TKDstyle_AnimSet/` | 第三方武术动画包（多套 `.controller` + 动画）— 当前项目动画的来源 ⚠️ 注意授权署名 |
+| **TKDstyle_AnimSet** | `Assets/TKDstyle_AnimSet/` | 第三方武术动画包（多套 `.controller` + 动画，257 MB）— 项目动画的来源之一 ⚠️ 注意授权署名；❌ **不进 git** |
+| **`Magical-Knight_Set`** | `Assets/Magical-Knight_Set/` | 第三方 Humanoid 动作包（100+ 动作，**790 MB**）— **M2.3 连段动画的来源** ⚠️ 注意授权署名；❌ **不进 git** |
+| **`Rapier_Anim_Set`** | `Assets/Rapier_Anim_Set/` | 第三方 Humanoid 动作包（**793 MB**）— **当前未使用**；❌ **不进 git** |
 | 敌人预制体 | `Assets/_Game/Prefabs/Enemy/` | `Boxer`（含 `Hitbox_Attack`）、`Gunner`、`Enemy_Slime`、`Bullet` |
 | 玩家动画 | `Art/Animations/Player/` | Idle / Run / Dash / combo_01_1-4 / Hit / Death（**缺两个特殊攻击动作**；跳跃已取消故不需要 Jump/Fall） |
 | 敌人动画 | `Art/Animations/Enemy/` | ⚠️ `EnemyAC` **只有 idle + combo_01_1** |

@@ -45,11 +45,11 @@ namespace Game.Gameplay
         [Tooltip("相机到焦点的距离。")]
         [SerializeField] private float _distance = 3f;
         [Tooltip("基准俯角（度）。越大越俯视。鼠标在此基准上下偏移。")]
-        [SerializeField] private float _pitch = 40f;
+        [SerializeField] private float _pitch = 30f;
         [Tooltip("俯角下限（度）。**负值 = 允许仰视**（相机低于焦点往上看）。\n" +
                  "⚠️ 仅作「设计上限」；真正的物理下限由「地面安全角」自动收窄（见 _groundClearance）。")]
         [SerializeField] private float _minPitch = -60f;
-        [SerializeField] private float _maxPitch = 80f;
+        [SerializeField] private float _maxPitch = 60f;
 
         [Header("地面钳制（防穿地）")]
         [Tooltip("地面高度。相机不会被允许低于「地面 + 离地余量」。")]

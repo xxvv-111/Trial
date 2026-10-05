@@ -4,9 +4,9 @@
 > 任何新的 AI 会话或协作者，**读完本文即可理解项目全貌并开始干活**，不需要重新通读全部代码。
 > 配套文档见文末 §11 文档索引。
 >
-> 最后更新：2026-10-05 | 项目阶段：**阶段 0 ✅ · M1 系统骨架全部 ✅（体力/Hitbox/暂停/文案）· M2.1 武器配置 ✅ · 方向已变更为 ARPG 单场景（相机已改造）**
+> 最后更新：2026-10-05 | 项目阶段：**阶段 0 ✅ · M1 系统骨架全部 ✅（体力/Hitbox/暂停/文案）· M2.1 武器配置 ✅ · 关卡结构改为「多关卡独立场景」· 武器范围收敛为「只做剑」**
 >
-> **下一步：M2.2 开局二选一**
+> **下一步：M2.2 装配剑**（⚠️ 不再是"开局二选一"；长枪与武器切换已移入 `ROADMAP.md` §13 额外项目）
 
 ---
 
@@ -14,10 +14,13 @@
 
 Unity 6 的 **3D 近战动作游戏**（武术/暗黑奇幻题材）。框架自研，包含状态机、事件总线、对象池、A\* 等模块。当前正从"学习项目"改造为**课程设计项目**。
 
-> ⚠️ **2026-10-04 起方向变更为 ARPG 单场景**：放弃《哈迪斯》式"三房间清怪"，
-> 改为**一条连续通路直达 Boss、沿途布置小怪**（不封路）。详见 [`ARPG-DIRECTION.md`](ARPG-DIRECTION.md)。
-> 玩家模型已换成 **Roskva**（UE 素材包接入，Humanoid）；相机已改为**鼠标控视角的后置跟随**。
-> **`GDD.md` 中"三房间"相关描述为变更前的原方案**，结构部分以 `ARPG-DIRECTION.md` 为准。
+> ⚠️ **2026-10-05 关卡结构定稿：多关卡独立场景** —— `Level_01` / `Level_02` / `Level_03`
+> 各自一个 `.unity` 场景，逐关清怪推进。详见 [`GDD.md`](GDD.md) §9。
+> （中间曾评估"ARPG 单场景：一条通路直达 Boss、沿途小怪"，**未采纳** ——
+> 评估过程存档在 [`ARPG-DIRECTION.md`](ARPG-DIRECTION.md)，⚠️ **其中 §4.6 相机实现仍然生效**。）
+> 玩家模型已换成 **Roskva**（UE 素材包接入，Humanoid；剑模型与 4 段连段动画正在接入）；
+> 相机为**鼠标控视角的后置跟随**（可仰视、动态地面安全角防穿地）。
+> ⚠️ **武器范围收敛为「只做剑」** —— 第二把武器（长枪）与武器切换为额外项目（`ROADMAP.md` §13）。
 
 ---
 
@@ -59,11 +62,14 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 ├── Assets\
 │   ├── Scenes\
 │   │   ├── MainMenu.unity          # 开始界面（标题 + 开始/退出）
-│   │   └── Game.unity              # 主关卡（3 房间 + 玩家 + Canvas + GameManager）
+│   │   └── Game.unity              # ⚠️ 当前**唯一**游玩场景（3 房间 + 玩家 + Canvas + GameManager）
+│   │                               #  ⚠️ 待拆分为 Level_01/02/03.unity（见 ROADMAP M3.7）
 │   ├── Editor\
 │   │   ├── AStarSelfTest.cs        # A* 的编辑器自测（菜单 Tools/A* 自测、自测2：无路）
 │   │   ├── FieldInspectorMenu.cs   # 反射打印脚本字段（调试工具）
-│   │   └── HitboxAnimationValidator.cs  # ★ M1.2 新增：校验攻击动画是否挂了判定事件
+│   │   ├── HitboxAnimationValidator.cs  # M1.2 新增：校验攻击动画是否挂了判定事件
+│   │   ├── RoskvaAttachSword.cs    # ★ 新增：把剑挂到 Roskva 右手骨骼（菜单 Tools ▸ Roskva ▸ 1）
+│   │   └── SwordComboImporter.cs   # ★ 新增：提取 4 段挥砍动画 + 挂 OnAttackHit（菜单 Tools ▸ Roskva ▸ 3）
 │   ├── Settings\                   # URP 配置资产（PC/Mobile RPAsset、Volume Profile）
 │   ├── TextMesh Pro\               # TMP 资源
 │   ├── TKDstyle_AnimSet\           # 第三方武术动画资源包（⚠️ 署名要求，见 §9 T17）
@@ -73,6 +79,7 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 │   │   │   ├── characters\Roskva\  # ★ 玩家角色（UE 素材包接入，**Humanoid**）
 │   │   │   │   ├── _model\fbx\     # OVR - Roskva.fbx（主模型）+ OVR - Roskva_Animated.fbx
 │   │   │   │   │                   #  ⚠️ 后者已改 Human，含 Walk 2.47s / Idle01 等 5 段可重定向动画
+│   │   │   │   │                   #  ★ Roskva_Sword_R.fbx：从模型抠出的剑（握点已按 B_Weapon_R 局部空间对齐）
 │   │   │   │   ├── _textures\      # 贴图（含 _urp 子目录；Hair_Gold 为金发变体）
 │   │   │   │   ├── Meshes\         # ★ Equips_NoSword.asset（去掉剑的装备网格）
 │   │   │   │   ├── Materials\      # Mat_Roskva_* 材质
@@ -145,7 +152,7 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `PlayerState` | 枚举：`Idle, Run, Dash, Attack, Hit, Death` |
 | `PlayerMotor` | 移动。读 `InputService.Move` → `CharacterController.Move()`；`Face()` 用 `RotateTowards` 转向；驱动动画混合树参数 `speed`。⚠️ **`enabled=false` 会连重力一起停掉**（见 §9 T1） |
 | `PlayerDash` | 冲刺。`BeginDash()` 设 `_dashTimer` + 无敌帧；`LateUpdate` 里按 `transform.forward * dashSpeed` 位移；`IsDashing` / `IsInvulnerable` 供 FSM 查询 |
-| `PlayerAttack` | 普攻与连段。`StartCombo()` / `TryNextCombo()`（连段）；动画事件 **`OnAttackHit()`** 只负责**开启该段判定体**（M1.2 起，不再是瞬时采样）→ 命中结算由 `HitboxController` 统一收口。数值（伤害/连段窗口/段数/判定盒尺寸）读 `WeaponConfig`，未装配时回退 `PlayerConfig`；`SetWeapon()` 供 M2.2 装配；`SyncHitboxDamage()` 在开判定体前写入该段伤害；`CloseAllHitboxes()` 供 FSM 在离开 Attack 时清残留 |
+| `PlayerAttack` | 普攻与连段。`StartCombo()` / `TryNextCombo()`（连段）；动画事件 **`OnAttackHit()`** 只负责**开启该段判定体**（M1.2 起，不再是瞬时采样）→ 命中结算由 `HitboxController` 统一收口。数值（伤害/连段窗口/段数/判定盒尺寸）读 `WeaponConfig`，未装配时回退 `PlayerConfig`；`SetWeapon()` 供装配武器（⚠️ **M2.2 起**；场景里 `_weapon` **目前为空**，走兜底值）；`SyncHitboxDamage()` 在开判定体前写入该段伤害；`CloseAllHitboxes()` 供 FSM 在离开 Attack 时清残留 |
 | `PlayerHealth` | 血量。`MaxHp/CurHp`、`OnHpChanged` 事件、`ApplyDamage()`。⚠️ `Died` 事件与 `Die()` **被注释掉了（w6）**，实际未使用（见 §9 T8） |
 | `PlayerEnergy` | 体力（文件名与类名一致 ✅）。`MaxEnergy/CurEnergy`、`OnEnergyChanged`、`OnSpendFailed`；**唯一消耗出口** `TrySpend(float)` 与 `TrySpendDash()` / `TrySpendAttack(i)` / `TrySpendSpecial(override)`。⚠️ **成本表集中在本类**（M1.1 原则）：普攻与特殊攻击成本读 `WeaponConfig`（`SetWeapon()` 切换），冲刺成本属角色属性留在 `PlayerConfig` |
 | `AttackStateBehaviour` | `StateMachineBehaviour`，在攻击动画状态 enter/exit 时调 `PlayerAttack.SetAttacking(true/false)`，**替代每帧轮询** |
@@ -168,7 +175,11 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `EnemyRanged` | 远程敌人。⚠️ **完全没有状态机**：仅"距离检测 + 转向 + 冷却计时 → `Fire()`"。`Fire()` 实例化 `bulletPrefab` 并调 `Bullet.Launch(velocity, owner)` |
 | `Bullet` | 弹道。`Launch(velocity, owner)`、`lifeTime 3s` 自销毁、`Update` 里按速度位移、`OnTriggerEnter` 命中 `PlayerFSM` 造成伤害（`damage 10`），撞非 trigger 物体销毁；用 `IsChildOf(_owner)` 避免自伤 |
 
-### 5.5 `Game.Gameplay`（房间与流程）
+### 5.5 `Game.Gameplay`（关卡与流程）
+
+> ⚠️ **2026-10-05 结构变更**：关卡由"单场景三房间"改为 **多关卡独立场景**（`Level_01/02/03`）。
+> 下表四个类**机制不变、代码可平移**（每关一个战斗区）；
+> ⚠️ **待新增** `LevelFlow`（关卡索引 / 解锁 / 加载 / 结算）—— 目前**不存在**。
 
 | 类 | 职责 / 要点 |
 |---|---|
@@ -176,7 +187,7 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 | `RoomTrigger` | 触发器。`EMode { OpenEntryDoor, StartFight }`，`OnTriggerEnter` 判 `Player` tag |
 | `DoorController` | 门。`Open()` / `Close()` 只是 `_body.SetActive()` 开关 |
 | `GameManager` | 流程。单例；`Start` 重置 `Time.timeScale = 1` **并恢复输入**、记录 `_startTime`、隐藏两个面板；订阅 `GameEvents.PlayerDied/BossDied`；`_ended` 防重入（**公开为 `HasEnded` 供 `PauseMenu` 判断**）；死亡 → **立刻锁游戏性输入** + 延时 2s 显示 `gameOverPanel`，通关 → 写 `resultText`（`VICTORY! TIME:...s`）+ 延时 0.5s 显示 `victoryPanel`；面板显示时 `Time.timeScale = 0`；`RestartRun()` / `BackToMenu()`（都会先还原 `timeScale`）。⚠️ **`timeScale = 0` 拦不住输入**，故结束时会同时调 `InputService.SetGameplayInputEnabled(false)`（见 §6.4） |
-| `CameraFollow` | 第三人称相机（类名与文件名一致 ✅）。机位算法：焦点 = 角色 + `_focusHeight(1.0)`，机位 = 焦点**沿视线后退** `_distance(3)` → 视线必然穿过角色、**角色永远居中**；基准俯角 `_pitch 40°`，**鼠标可上下偏移（含仰视）**；滚轮缩放 1.5~10、`_smoothTime 0`（硬跟随）；⚠️ **`_followTargetYaw` 必须为 false**（相机 yaw 归鼠标，若跟随角色朝向会与"移动相对相机 + 角色转向移动方向"构成**正反馈 → 按 WASD 视角持续旋转**）；开局 `SnapToTarget()` 瞬移到位；`HandleCursor()` 在游戏性输入关闭时**只解锁指针、不锁回**（否则结算/暂停面板点不动）。详见 `ARPG-DIRECTION.md` §4.6 |
+| `CameraFollow` | 第三人称相机（类名与文件名一致 ✅）。机位算法：焦点 = 角色 + `_focusHeight`（脚本默认 1.0，**场景实际 1.5**），机位 = 焦点**沿视线后退** `_distance(3)` → 视线必然穿过角色、**角色永远居中**；基准俯角 `_pitch`（默认 **30°**；⚠️ 2026-10-05 由 40° 调低），**鼠标可上下偏移（含仰视）**，上限 `_maxPitch`（默认 **60**，由 80 调整）；滚轮缩放 1.5~10、`_smoothTime 0`（硬跟随）；⚠️ **`_followTargetYaw` 必须为 false**（相机 yaw 归鼠标，若跟随角色朝向会与"移动相对相机 + 角色转向移动方向"构成**正反馈 → 按 WASD 视角持续旋转**）；开局 `SnapToTarget()` 瞬移到位；`HandleCursor()` 在游戏性输入关闭时**只解锁指针、不锁回**（否则结算/暂停面板点不动）。详见 `ARPG-DIRECTION.md` §4.6 |
 
 > **⚠️ 相机俯角：可仰视 + 动态「地面安全角」（2026-10-05）**
 > 此前 `_minPitch = 5`（正值）把俯角锁死在"永远俯视"，鼠标上推到底卡在 5°。
@@ -447,26 +458,34 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 - ✅ **M1.3 暂停菜单**（`b7add1c`）：`ESC` 开/关、冻结时间 + **锁游戏性输入**（`timeScale` 拦不住鼠标）、继续/重开/回主菜单
 - ✅ **M1.4 修文案**：`VICTPRY`（阶段 0）+ **`VECTORY`**（M1.3，第二处不同的拼写错误）
 
-**M2 · 武器系统（进行中）**
+**M2 · 武器（剑）（进行中）** ⚠️ 范围收敛为「只做剑」
 - ✅ **M2.1 WeaponConfig 重做**（`41472f2`）：`WeaponConfig` + 剑/长枪两份资产；伤害/连段窗口/段数/**判定盒尺寸**/体力成本全部接入
 
 **其他并行进展**
-- ✅ 相机改造完成：鼠标控视角 + 后置跟随（基准俯角 40°，**可仰视**）；**游戏结束后不能转视角**（输入闸门）
+- ✅ 相机改造完成：鼠标控视角 + 后置跟随（基准俯角 **30°**、**可仰视**、动态地面安全角防穿地）；**游戏结束后不能转视角**（输入闸门）
 - ✅ 玩家模型换为 **Roskva**（Humanoid，**T25 Neck 已修**）；`Equips_NoSword` 无武器网格已接入
 - ✅ `OVR - Roskva_Animated` 改 **Humanoid** → `Walk` / `Idle01` 等 5 段动画**可重定向**（M3 巡逻前提）
 
 ### 未完成（V1 缺口，见 `GDD.md` §3.1）
 
-**M2 剩余**
-- ❌ M2.2 开局二选一（选择 UI + `WeaponManager` 装配）
-- ❌ M2.3 剑·插地（特殊攻击）
-- ❌ M2.4 长枪·投掷与召回 ⭐ 最复杂
-- ❌ 武器**图标**与**模型**（当前用无武器网格跑动作）
+**M2 剩余（只做剑）**
+- ⏳ **M2.2 装配剑**（场景里把 `Weapon_Sword.asset` 拖给 `PlayerAttack._weapon`；⚠️ 该字段**目前为空**，代码走 `PlayerConfig` 兜底值）—— **下一步**
+- 🔄 **M2.3 剑的模型 + 4 段连段动画**（进行中：`Roskva_Sword_R.fbx` ✅ 已生成；`SwordCombo_Roskva.fbx` ❌ **待生成**；两个 Editor 工具 ✅ 已写好）
+- ❌ **M2.4 剑·插地**（特殊攻击）
 
-**M3 / M3.5**
+**额外项目（加分项，非交付必需；完整说明见 `ROADMAP.md` §13）**
+- ⏸️ **M2.5 长枪·投掷与召回**（数据 asset 已就绪，代码与动画未做）
+- ⏸️ 开局二选一 / 武器切换（`PlayerAttack.SetWeapon()` 已就绪）
+- ⏸️ 剑的额外招式（`Elbow Uppercut Combo` / `Upward Thrust` —— 动画已存在但**未接入**）
+
+**关卡（结构变更新增）**
+- ❌ **多关卡场景**：`Level_01/02/03` **尚未拆分**（目前只有 `Game.unity`，3 个房间全在里面）
+- ❌ **`LevelFlow`**（关卡索引 / 解锁 / 加载 / 结算）未做
+- ❌ 选关界面未做；HUD 关卡进度未做
+
+**M3**
 - ❌ 敌人视野判定、寻路（**NavMesh 包已装但未烘焙**）、障碍物
 - ❌ 剑兵 / 弓兵完整状态机 + 敌人动画状态机
-- ❌ ARPG 单场景关卡（通路白盒 + 撒 5–10 只小怪）
 
 **M4–M6**
 - ❌ 真正的 Boss + Boss 血条（决策为**留到最后设计**）
@@ -502,17 +521,17 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 1 | 参考《哈迪斯》，**只取"单层试炼"骨架** | 范围不膨胀 |
 | 2 | **不做跳跃** | 省掉 Jump/Fall/Land 动画；**T1 物理重构降级为低优先级**；体力表去掉跳跃项 |
 | 3 | **体力不足 → 硬性禁止**该动作（消耗 > 当前体力就不执行） | 所有动作必须走**统一体力检查出口** |
-| 4 | **武器 2 把：剑 + 长枪**，都是**四段**普通攻击 | 现有 `Attack1–4` 动画**可复用** |
+| 4 | **武器 2 把：剑 + 长枪**，都是**四段**普通攻击（⚠️ **V1 只做剑**，见第 13 条） | 现有 `Attack1–4` 动画**可复用**；⚠️ 剑现有专用连段动画（正在接入） |
 | 5 | **剑·特殊攻击**：点按 → 插地 → **圆形范围伤害** | 点按分支 |
-| 6 | **长枪·特殊攻击**：**点按立即投出**（固定距离、直线）→ 落地插地 → **空手不能普攻**（攻击键改为召回）→ **点按攻击键或特殊攻击键召回**（返程路径伤害） | 新增 `SpearThrow` / `Unarmed` / `SpearRecall` 子状态；**空手时按状态重映射按键语义**（攻击键→召回） |
-| 7 | 敌人需要**视野判定 + 寻路**；房间内**布置障碍物** | 新增视野组件；**T14 升级为必做**（A* / NavMesh 方案待定） |
+| 6 | ⏸️ **长枪·特殊攻击（额外项目）**：**点按立即投出**（固定距离、直线）→ 落地插地 → **空手不能普攻**（攻击键改为召回）→ **点按攻击键或特殊攻击键召回**（返程路径伤害） | 新增 `SpearThrow` / `Unarmed` / `SpearRecall` 子状态；**空手时按状态重映射按键语义**（攻击键→召回） |
+| 7 | 敌人需要**视野判定 + 寻路**；**关卡内**布置障碍物 | 新增视野组件；**T14 升级为必做**（A* / NavMesh 方案待定） |
 | 8 | **Boss 是人形** | 可复用 Humanoid 重定向动画 |
 | 9 | **Boss 招式表暂缓** | 先搭决策框架 + 状态机骨架 |
 | 10 | 音频**两种方式都用**（程序化合成 + 现成素材） | `AudioManager` 用"ID → Clip"查表，便于替换 |
 | 11 | **存档用 JSON**（`persistentDataPath` + `JsonUtility`，带 `version`） | 需处理"文件缺失 / 损坏"；会产生**可见的存档文件** |
 | 12 | **寻路改用 Unity 自带 NavMesh** ⚠️（2026-10-04 翻转；原为"接入自研 A\*"） | **T14 结案**；不再需要自建网格与路径平滑；`AStar` 降级为报告素材。新增工作：房间内摆障碍物 + 烘焙 + 门的 `NavMeshObstacle`(carving)。操作手册见 `NAVMESH-GUIDE.md` |
-| 13 | **武器开局二选一**（剑 / 长枪），**单局内不切换** | 省掉切换动作与切换 UI |
-| 14 | **长枪细节**：**固定投掷距离**、**直线**飞行、到达终点**插在地上**、召回**与其他攻击同一套 hitbox 判定**、玩家死亡则**长枪留在原地**并直接进结算。**蓄力 / 瞄准 / 指示器 / 瞄准减速已整体取消** | 不再需要"长按三态"输入与指示器 UI；长枪需世界物体表现（飞行 / 插地 / 飞回） |
+| 13 | ⏸️ **额外项目：武器开局二选一**（剑 / 长枪），**单局内不切换** —— ⚠️ **V1 只做剑，进关卡默认装配剑** | 省掉切换动作与切换 UI；⚠️ 只有一把武器时"选择"无意义 |
+| 14 | ⏸️ **额外项目：长枪细节** —— **固定投掷距离**、**直线**飞行、到达终点**插在地上**、召回**与其他攻击同一套 hitbox 判定**、玩家死亡则**长枪留在原地**并直接进结算。**蓄力 / 瞄准 / 指示器 / 瞄准减速已整体取消** | 不再需要"长按三态"输入与指示器 UI；长枪需世界物体表现（飞行 / 插地 / 飞回） |
 | 15 | **受击打断分两档：普通小怪会被打断**（硬直 0.4 s + 闪白，攻击中断）；**Boss 不会**（仅闪白，无硬直条/破防） | ⚠️ 现有代码里小怪的受击反应**链路是断的**（`EnemyHealth` 从不通知 AI），需要**接通**而不是删除（见 **T21**）；Boss 前摇表现必须做足预警 |
 | 16 | 待定：投掷距离与投掷/召回速度的具体数值、命中回体力、敌人失去目标后的搜索行为、敌人互相分离、Boss 招式表、关卡是否美化 | 见 `GDD.md` §15.2 |
 
@@ -526,8 +545,8 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 |---|---|---|
 | 0 | `Docs/README.md` | 索引与阅读指引、**一句话现状** |
 | 1 | **`Docs/PROJECT-CONTEXT.md`**（本文） | **新会话快速接管：项目全貌 + 代码地图 + 坑** |
-| 2 | `Docs/GDD.md` | 游戏策划案（**要做什么**）。⚠️ 关卡结构部分已被方向变更覆盖 |
-| 3 | **`Docs/ARPG-DIRECTION.md`** | **⚠️ 关卡结构以此为准**：房间制 → ARPG 单场景的 5 项决策 + 相机实现 + 架构约束 |
+| 2 | `Docs/GDD.md` | 游戏策划案（**要做什么**）。**关卡结构见 §9**（多关卡独立场景） |
+| 3 | **`Docs/ARPG-DIRECTION.md`** | **方案选型存档**：ARPG 单场景（❌ **未采纳**）+ ⚠️ **仍然生效的 §4.6 相机实现** |
 | 4 | **`Docs/ROADMAP.md`** | **完成路线图**：阶段 0 + M1–M6 分步计划、每步验收标准、依赖关系、阻塞项 |
 | 5 | `Docs/ART-PIPELINE.md` | 美术/音频资源的**获取方案**与可行性（怎么拿） |
 | 6 | `Docs/ART-ASSETS.md` | 美术资产清单：已有/缺失对照、阻断项、**署名表**（缺什么） |
@@ -544,6 +563,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 日期 | 变更 |
 |---|---|
+| 2026-10-05 | **🔄 计划变更：关卡结构改为「多关卡独立场景」+ 武器范围收敛为「只做剑」**（本轮**纯文档，无代码改动**）。**用户决策**：① 放弃"完整场景（ARPG 单场景）"路线，回到**关卡制** —— 且明确为**多个独立关卡场景**（`Level_01` / `Level_02` / `Level_03` 各自一个 `.unity`），含关卡流转与选关；② 多武器改为**额外项目**，V1 **只做剑**。**文档改动**：① `GDD.md` —— 头部表格与变更记录、§1.1/§1.2、§2 核心玩法循环（流程图重绘为多关卡递进）、§3.1 范围（武器收敛 + 多关卡编排 + 选关）、**新增 §3.3 额外项目 / 加分项**、§4.2 移动、§4.6 特殊攻击（标注 V1 只做剑）、§5.1–§5.4（武器范围 + 剑的专用连段动画）、**§9 关卡与场景（重写为 3 关独立场景 + 关卡机制 + `LevelFlow` 需求）**、§10.1/§10.2、§12 资源表、§13.1/§13.3/§13.4、§14 里程碑（新增 M3.5 关卡）、§15。② `ARPG-DIRECTION.md` —— **整份重新定位**为"**方案选型存档（❌ 未采纳）**"：标题/头部/§0 改为撤回结论，§4/§5/§6/§7/§8 标注失效，⚠️ **保留 §4.6 相机实现（唯一仍然生效的产出）**，并修掉 §6.1 后遗留的**断裂表格残片**。③ `ROADMAP.md` —— 头部、§0 进度树（M2 收敛为剑 / M3.5 改多关卡 / 新增额外项目线）、§4 M2 章节（M2.2 → "装配剑"、新增 M2.3"剑的模型 + 连段动画接入"、M2.4 剑·插地、长枪移出）、**新增 M3.7"多关卡场景拆分 + 关卡流转"**、§7/§9/§10/§11/§12、**新增 §13 额外项目章节**。④ `PROJECT-CONTEXT.md`（本文）—— 头部状态与下一步、§1 结构说明、§3 目录地图（补 2 个新 Editor 脚本 + 剑 fbx）、§5.5 关卡与流程（标注 `LevelFlow` 待新增）、`CameraFollow` 描述（俯角 40→30、上限 80→60）、§10 进度、§10.1 决策速查第 13/14 条、§11 索引。⑤ `README.md` 头部/进度/阅读顺序。⑥ `ART-ASSETS.md`、`ART-PIPELINE.md`、`NAVMESH-GUIDE.md`（加"房间 → 关卡"对照注）。 ⚠️ **同批发现的现状**：工作区新出现 `Editor/RoskvaAttachSword.cs`（挂剑）、`Editor/SwordComboImporter.cs`（提取挥砍 + 挂判定事件）与 `Roskva_Sword_R.fbx`（剑模型，**已生成**）—— 剑的接入工作**正在进行**，但 `SwordCombo_Roskva.fbx`（挥砍动画源）**尚不存在**。 **提交 `668f5c7`（相机调参入库）。** |
 | 2026-10-05 | **✅ 相机视角可以上抬了（允许仰视 + 动态地面安全角）**（提交 `2ca175f`）。**问题**：鼠标上推到底，视角停在俯角 5° 不能继续上抬。**根因**：`_minPitch = 5`（正值）把俯角锁死在"永远俯视"。它取正值是为防穿地但**过于保守** —— 相机离地 = `focusHeight + sin(pitch) × distance`，焦点 1.0 + 距离 3 时真正贴地临界是 **−19.5°**，即 **5° ~ −19.5° 这 24.5° 本来是安全的，却被整个砍掉**。深层原因：本版相机**故意删掉了防穿地修正**（每帧 SphereCast 会导致机位跳变→抖动），没有碰撞兜底就只能用 `_minPitch` 硬拦，一拦就把"上抬"整个砍掉了。**方案（用户选定）**：新增动态「地面安全角」`asin((groundY + clearance − focusY) / distance)`，并有三个关键设计点 —— ① ⚠️ **钳制「俯角」而非「机位高度」**：钳制高度会压缩相机距离、且必须改用 `LookAt` 才能让角色居中；钳制俯角则保持距离不变、机位仍从焦点沿视线推出 → **角色继续自动居中**（实测点积 = 1.000000）；② ⚠️ **安全角必须随距离变化**（距离越远允许仰角越小）：1.5/3/5/10 m → −27.8°/−13.5°/−8.1°/−4.0°，写死常数会在拉远时穿地；③ ⚠️ **地面探测必须忽略角色自身碰撞体**（实测天真写法命中 `Player @ y=1.6`，会把地面当成 1.6）。**改动**：`_minPitch` 5→**−60**、新增 `_groundY`/`_groundClearance`/`_autoDetectGroundY`、`ResolveGroundY()`/`GroundSafeMinPitch()`/`EffectivePitch()`/`ClampAboveGround()`。**验证**：各距离相机高度恒为 0.300 m **均不穿地** ✓；最低俯角时相机 0.3 m < 焦点 1.0 m → **确实在仰视** ✓；角色仍在画面正中心 ✓。俯角范围 5°~80°（75°）→ **−13.5°~80°（93.5°）**，新增 18.5° 仰视空间。⚠️ 仍未做（用户决定细节优化后议）：防穿墙、极端仰角+最近距离时相机贴脸。 ⚠️ 同步修正文档中 `_followTargetYaw` 误写为 `true`（实测 false）与"固定俯角 40°"的不准确措辞 |
 | 2026-10-05 | **📄 文档整理（本轮无代码改动）**：全文实查后发现并修正多处**过时表述**，使文档与代码一致。① **头部状态**：由"阶段 0 + M1.1"更新为"M1 全部 + M2.1"，并写明下一步。② **§3 目录地图**：角色由 `Y Bot` 改为 **Roskva**（含 Meshes/Materials/_model/_textures/anim 子目录）、新增 `Gameplay/Combat` 与 `Data/Weapons`、Editor 补 `HitboxAnimationValidator.cs`、标明 `_Modules/` 已删除。③ **§5 类清单**：`WeaponConfig` 描述由"未被引用/命名空间 Game.Date"改为 M2.1 的实况；`PlayerAttack`/`PlayerEnergy` 改为判定体与武器驱动的实况（**删除"PlayEnergy.cs 不一致""从未被消耗"等已修好的旧问题描述**）；新增 **`Hitbox` / `HitboxController` / `HitboxTeam`** 三个类；`GameManager`/`CameraFollow` 描述重写（删掉"从不设 timeScale"与过时的 offset）；`ManaBar` → **`EnergyBar`**；Editor 补校验工具。④ **§6.2 战斗事件流**：由旧的"瞬时 `OverlapSphere`"重写为**判定体驱动**的真实链路，并补上「敌人受击反应（T21）」与「暂停/结算输入闸门」两张流程。⑤ **§6.4 动画事件清单**：补上实测时间，并记录重要提醒 —— `Elbow Uppercut Combo` / `Upward Thrust` 也挂了 `OnAttackHit` 但不属 4 段普攻，**M2 做特殊攻击时必须让它们用自己的判定体**。⑥ **§7 美术资产**：由 `Y Bot`/`idleAvatar` 重写为 **Roskva** 系列（含 Equips_NoSword、金发贴图、握持挂点），并写明 Humanoid 映射的正确验证方法（`isValid` 不够，`Neck` 是可选槽位）。⑦ **§10 当前进度**：由"体力从未消耗 / hitbox 未做 / 暂停菜单未做"（全部已完成的旧状态）重写为按阶段分组的真实进度 + 未修遗留问题表。⑧ **§11 文档索引**：由 5 份补全为 **8 份**（此前漏了 `ARPG-DIRECTION` / `ART-ASSETS` / `ANIM-GUIDE`），与 `README.md` 一致。⑨ **T5 标记已消除**（M2.1 完成"角色数值与攻击数值拆分"）；**T11** 补记第二处拼写错误 `VECTORY`；**T18** 标注"无暂停菜单"已不成立。⑩ 同步修正 `README.md`（头部/进度/下一步/最短路径）、`GDD.md`（§2 结束界面与暂停菜单、§4.5、§10.2/§10.3、§11.1、§12 现状表）、`ART-PIPELINE.md`（资源对照表 + 缺失清单）、`ANIM-GUIDE.md`（Humanoid 现状 + Avatar 复用目标）、`ROADMAP.md`（M5.1 体力条、§8.3 Humanoid 现状）。 **校验：9 份文档的表格列数、代码块闭合、内部链接全部通过。** |
 | 2026-10-04 | **✅ M2.1 WeaponConfig 重做完成**（提交 `41472f2`/`1034503`）。⚠️ 文档记的"命名空间误写 Game.Date、零引用"的 `WeaponConfig` **已在阶段 0 清理死代码时删除** → 本次是**从零新建**。① 新增 `Data/WeaponConfig.cs`（`SpecialAttackType` 枚举 + 配置类，字段按 GDD §5.2 全到位，含取值辅助与 OnValidate 校验）。② 新增两把武器资产 `Data/Weapons/`：**剑**伤害 [12,15,10,20]/判定 长2.5~3.1·宽1.5~1.86/特殊插地；**长枪**伤害 [10,12,9,16]/判定 长3.2~3.9·宽1.0~1.2/特殊投掷（体现 §5.3 的手感定位，数值为初值待实测）。③ **全量接入**：`PlayerAttack` 读武器的伤害/连段窗口/段数/**判定盒尺寸**；`PlayerEnergy` 读武器的体力成本（成本表仍集中在本类，保持 M1.1 的统一出口原则）；`Hitbox` 新增 `SetDamage`/`ApplyShape`；`HitboxController` 新增 `GetByName`/`ApplyWeaponShapes`。④ `PlayerConfig` 的 attackRange/attackDamage/attackEnergyCost/specialEnergyCost 降级为兜底。**验证（临时实例，未触碰项目文件）：装配长枪后判定盒由 2.5~3.1 变为 3.2~3.9 且变窄（配置驱动生效）；模拟 4 段命中帧伤害依次同步为 10/12/9/16（各段独立正确）；连段窗口 0.9、段数 4。编译 0 报错 0 警告。** ⚠️ Player 仍未装配武器（装配属 M2.2）。⚠️ **另发现一个工具坑**：在编辑模式修改 `Time.timeScale` 会**持久化污染** `ProjectSettings/TimeManager.asset`（Unity 把 Fixed Timestep 改写成新的有理数格式）——暂停菜单的端到端测试触发了该写入，已 `git checkout` 恢复并验证 Refresh 后不再被改写。 |

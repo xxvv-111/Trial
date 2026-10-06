@@ -18,7 +18,7 @@ using UnityEngine.SceneManagement;
 ///
 /// 两者的"玩家身份"完全一致：从现有 `Player.prefab` 逐组件复制而来 ——
 ///     8 个玩法脚本：PlayerMotor / PlayerDash / PlayerFSM / PlayerAttack /
-///                   PlayerHealth / PlayerEnergy / AttackFxBridge / HitboxController
+///                   PlayerHealth / PlayerMana / AttackFxBridge / HitboxController
 ///     Animator（Avatar = 本模型自带的 Humanoid Avatar；Controller = PlayerAC）
 ///     CharacterController（⚠️ PlayerMotor 第 56 行 `_cc.Move(...)` 强依赖它，
 ///                          且 PlayerMotor/PlayerAttack 都要求 Animator 在**同一个物体**上）
@@ -346,7 +346,7 @@ public static class CreatePlayerPrefabs
 
         // 关键脚本是否齐
         string[] need = { "PlayerMotor", "PlayerDash", "PlayerFSM", "PlayerAttack",
-                          "PlayerHealth", "PlayerEnergy", "AttackFxBridge", "HitboxController" };
+                          "PlayerHealth", "PlayerMana", "AttackFxBridge", "HitboxController" };
         var miss = new List<string>();
         foreach (var n in need)
         {

@@ -73,7 +73,7 @@ NavMesh 就四个东西要理解：
 |---|---|---|
 | **NavMesh**（导航网格） | 铺在地面上的一张"可行走多边形网"。**烘焙** = 把场景几何体算成这张网 | 三个房间的地面 + 绕开墙和柱子 |
 | **NavMeshSurface** | 挂在某个对象上，负责"点一下生成 NavMesh"的组件 | 新建一个对象挂它，统一负责烘焙 |
-| **NavMeshAgent** | 挂敌人身上。你只告诉它"**去哪**"，它自己算"**怎么走**" | 剑兵、弓兵 |
+| **NavMeshAgent** | 挂敌人身上。你只告诉它"**去哪**"，它自己算"**怎么走**" | 剑兵、法师 |
 | **NavMeshObstacle** | **动态**障碍。开启 carving 后：它出现 = 在网里挖个洞，它消失 = 洞自动补回 | 🔧 **本项目关着的门**就靠它 |
 
 **两个心智模型**（记住这个就不会用错）：
@@ -173,21 +173,57 @@ Unity 6（本项目 6000.0.83f1）的正确姿势是：**给对象挂 `NavMeshSu
 
 选中 `NavMeshRoot` → Inspector → `Add Component` → 搜 `Nav Mesh Surface` → 添加。
 
-### 第 4 步 🔧 填参数（照抄这张表）
+### 第 4 步 🔧 填参数
+
+⚠️ **这一步最容易搞混：要填的地方有两处，别在 `NavMeshSurface` 上找 Radius。**
+
+#### （A）`NavMeshSurface` 组件上的字段（Inspector 里直接填）
 
 | 参数 | 填什么 | 为什么 |
 |---|---|---|
-| **Agent Radius** | `0.4` | 实测敌人 `CapsuleCollider` 的 `radius` 就是 **0.4**，保持一致 |
-| **Agent Height** | `2.0` | 实测敌人 `CapsuleCollider` 的 `height` 是 **2.0** |
-| **Agent Climb** | `0.3` | 台阶高度，本项目是平地，0.3 够用 |
+| **Agent Type** | `Humanoid` | 工程里只有这一个 Agent Type。⚠️ 这个下拉**只是"选哪套体型参数"**，Radius / Height **不在**这里填 |
 | **Collect Objects** | `All` | 房间是 Cube 拼的白盒，All 最简单 |
 | **Include Layers** | 勾上 `Default`（地面/墙都在 Default） | 决定哪些层参与烘焙 |
 | **Use Geometry** | `Physics Colliders` | ⚠️ 见下方说明 |
+
+> ⚠️ **本机反射实测**：`Unity.AI.Navigation.NavMeshSurface` 的序列化字段一共 18 个
+> （`m_AgentTypeID` / `m_CollectObjects` / `m_Size` / `m_Center` / `m_LayerMask` / `m_UseGeometry` /
+> `m_DefaultArea` / `m_GenerateLinks` / `m_IgnoreNavMeshAgent` / `m_IgnoreNavMeshObstacle` /
+> `m_OverrideTileSize` / `m_TileSize` / `m_OverrideVoxelSize` / `m_VoxelSize` / `m_MinRegionArea` /
+> `m_NavMeshData` / `m_BuildHeightMesh` / `m_SerializedVersion`）—— **里面没有任何 Radius / Height**。
+> 体型参数属于 **Agent Type**，要去 (B) 改。
+
+#### （B）Agent Type 的体型参数
+
+菜单 `Window → AI → Navigation` → **Agents** 页 → 选 `Humanoid`：
+
+| 参数 | 填什么 | 为什么 |
+|---|---|---|
+| **Radius** | **`0.4`** ⚠️ **要改** | 实测敌人 `CapsuleCollider.radius` = **0.4**，保持一致。⚠️ 工程里**当前默认值是 0.5** |
+| **Height** | `2.0` | 实测敌人 `CapsuleCollider.height` = **2.0**（当前默认已是 2.0，不用改） |
+| **Step Height** | `0.3` | 台阶高度，本项目是平地，0.3 够用（当前默认 0.75，改不改都行） |
+| **Max Slope** | `45` | 平地，默认够用 |
+
+> ⚠️ **为什么 Radius 必须和碰撞体一致**：烘焙用的是 Agent Type 的 Radius —— 导航网会按它**把墙边内缩**；
+> 敌人身上挂的 `NavMeshAgent` 也按同一套参数走。若烘焙用 0.5、碰撞体只有 0.4，差这 0.1 m 会在
+> **门框 / 窄道**处显形：导航网比实际能通过的宽度更窄 → 敌人**在门口卡住或绕远路**。
+> （项目里实测数据：Agent Type `Humanoid` = radius **0.5** / height 2 / slope 45 / climb 0.75；敌人胶囊 = radius **0.4** / height 2。）
 
 > ⚠️ **为什么推荐 `Physics Colliders` 而不是 `Render Meshes`**：
 > 本项目的墙、地面、门都是 **Cube + BoxCollider**（白盒）。用碰撞体烘焙，结果会和实际物理边界**完全一致**。用渲染网格有时会因为模型缩放/非凸网格出偏差。
 
 ### 第 5 步 🔧 点 Bake
+
+> ⚠️⚠️ **烘焙前必做：先把所有门的 `NavMeshObstacle` 临时禁用（或取消勾选 Carving）！**
+> 本机实测：**Carving 挖出的洞会被写进烘焙数据**。同一份场景、唯一差别是"烘焙时门 obstacle 开不开"：
+>
+> | 烘焙时门 obstacle | 门线扫描结果（`#`=可走 `.`=不可走） | 结果 |
+> |---|---|---|
+> | **启用** | `######.....######` | ❌ 门洞被**永久烘死**，开门也走不通 |
+> | **禁用** | `#################` | ✅ 门洞通的 |
+>
+> 所以正确的顺序是：**临时禁用门的 Carving → Bake → 再把 Carving 启用回来**。
+> 烘焙完请用 §10 的方法复核一次门线（本手册 §15.4 有可抄的判据）。
 
 点 Inspector 上那个 **Bake** 按钮。
 **成功的标志**：Scene 视图里地面浮现一层**蓝色半透明网格**。
@@ -348,7 +384,7 @@ public void Open()  { _body.SetActive(false); }   // 开门 = 门体隐藏
 
 ---
 
-## 9. 弓兵的「保持距离」（kiting）⚠️ 最容易做错的地方
+## 9. 法师的「保持距离」（kiting）⚠️ 最容易做错的地方
 
 ### 9.1 核心认知（务必记住）
 
@@ -357,10 +393,10 @@ public void Open()  { _body.SetActive(false); }   // 开门 = 门体隐藏
 所以下面这种写法是**完全错误**的：
 
 ```csharp
-_agent.SetDestination(_player.position);   // ❌ 弓兵会直接冲向玩家
+_agent.SetDestination(_player.position);   // ❌ 法师会直接冲向玩家
 ```
 
-弓兵要的是"保持 6m 距离"，这需要**你的状态机先算出一个目标点**，再交给 Agent。
+法师要的是"保持 6m 距离"，这需要**你的状态机先算出一个目标点**，再交给 Agent。
 
 ### 9.2 ✅ 正确做法
 
@@ -386,7 +422,7 @@ else
 
 ### 9.3 三种行为的实现
 
-对照 `GDD.md` §6.3 弓兵状态机里的 `Reposition`：
+对照 `GDD.md` §6.3 法师状态机（🔄 2026-10-06：这些走位**都在 `Chase` 里算**，法师**没有**独立的 `Reposition` 状态；剑兵的 `Reposition` 则只做"攻击后退开"，见 §6.2）：
 
 | 状态 | 目标点怎么算 |
 |---|---|
@@ -442,13 +478,14 @@ if (Physics.Linecast(transform.position + Vector3.up, _player.position + Vector3
 
 | 文件 / 资产 | 改动 | 里程碑 |
 |---|---|---|
-| `Assets/_Game/Scripts/Gameplay/Enemy/EnemyMeleeAI.cs` | 加 `NavMeshAgent`；删 `MoveTowardPlayer()` 的 transform 位移；攻击时 `isStopped` | M3 |
-| `Assets/_Game/Scripts/Gameplay/Enemy/EnemyRanged.cs` | ⚠️ 目前**完全没有状态机**，需从零搭；加 kiting 目标点计算 + `SamplePosition` | M3 |
-| `Assets/_Game/Scripts/Gameplay/Room/DoorController.cs` | 门体加 `NavMeshObstacle`（可在场景里挂，不必改代码） | M3 |
-| 🆕 `EnemyStateMachine`（基类） | 把"**选目标点**"与"**交给 Agent 走**"分层——这是两种敌人共用的关键抽象 | M3 |
-| 🆕 `EnemyPerception.cs` | 扇形视野 + Raycast 遮挡（与 NavMesh 无关，见 §10） | M3 |
-| 🆕 `NavMeshRoot` + 烘焙出的 `NavMeshData` | 场景对象 + 烘焙资产 | M3 |
-| 🆕 房间内**障碍物**（柱子/箱子 3–6 个） | 白盒 Cube，静态 | M3 |
+| `Assets/_Game/Scripts/Gameplay/Enemy/EnemyMeleeAI.cs` | ✅ **已完成（M3.2）**：`MoveTowardPlayer()` 与其中的 `transform.position +=` **已删除**，移动改由 `EnemyLocomotion` 统一处理；攻击 / 硬直时走 `Stop()`（内部用 `isStopped`，**没用已过时的 `Stop()`**）。⚠️ 剩余：给预制体挂 `NavMeshAgent` 组件、补 `Alert` / `Reposition` | M3.2 ✅ / M3.4 ⏳ |
+| `Assets/_Game/Scripts/Gameplay/Enemy/EnemyCaster.cs` | ✅ **已完成（M3.5）**：由 `EnemyRanged.cs` **改名而来**（`git mv` 保 GUID），已从零搭好状态机 + kiting 目标点计算 + `SamplePosition` 吸附；⚠️ 覆写了 `AgentStoppingDistance = 0.3`（否则默认值会让 kiting 失效） | M3.5 ✅ |
+| `Assets/_Game/Scripts/Gameplay/Room/DoorController.cs` | ✅ **已完成（M3.1）**：门体移到新建的 `Door` 层（slot 13）+ 挂 `NavMeshObstacle`（`Carving` ✓、`Carve Only Stationary` ✗）。⚠️ **代码未改动**，全在场景里做的 | M3.1 ✅ |
+| 🆕 `EnemyStateMachine.cs`（基类） | ✅ **已完成（M3.2）**：把「**选目标点**」与「**交给 Agent 走**」分层。实为 `EnemyFsmBase`（非泛型外壳）+ `EnemyStateMachine<TState>`（**纯 C#** 三字典表驱动）；⚠️ **刻意为纯 C#**，因为 Unity 不支持泛型组件的序列化，`[SerializeField]` 放进泛型基类有丢引用的风险 | M3.2 ✅ |
+| 🆕 `EnemyAIController.cs` / `EnemyLocomotion.cs` | ✅ **已完成（M3.2，原计划外新增）**：前者是**非泛型**共用层（组件 / 数值 / 受击反应 / 动画触发）；后者是「交给 Agent 走」层，**没挂 Agent 或没烘焙时自动退回直线位移**，烘焙后自动切换，调用方代码不变 | M3.2 ✅ |
+| 🆕 `EnemyPerception.cs` | ✅ **已完成（M3.3）**：扇形视野 + Raycast 遮挡（与 NavMesh 无关，见 §10）。⚠️ 两个实现要点：结果**按帧缓存**、遮挡层**自动排除自己与目标所在的层**（否则每次都判成"被遮挡"） | M3.3 ✅ |
+| 🆕 `NavMeshRoot` + `Assets/Scenes/NavMesh-Game.asset` | ✅ **已完成（M3.1）**：烘焙 **580 ms** / **651 三角形** / **73 KB**，覆盖 ±249.5 米。配置：Agent Type `Humanoid` / `Collect Objects = All` / **Include Layers = 只勾 Environment** / `Use Geometry = Physics Colliders` | M3.1 ✅ |
+| 🆕 房间内**障碍物**（柱子/箱子 3–6 个） | ✅ **已完成（M3.1）**：`Obstacles` 父物体下 `Obstacle_01`–`Obstacle_06`（1.5×2.5×1.5 米白盒 Cube，`Environment` 层）。每个房间 2 个，其中一个**故意卡在"入口门 → 该房间敌人"的连线上** | M3.1 ✅ |
 | `Assets/_Game/Scripts/AI/AStar.cs` | ✅ **保持不动**，作为报告算法章节素材 | — |
 | `Assets/Editor/AStarSelfTest.cs` | ✅ **保持不动**，两个用例当报告测试证据 | — |
 
@@ -479,3 +516,90 @@ if (Physics.Linecast(transform.position + Vector3.up, _player.position + Vector3
 | NavMeshObstacle（carving） | https://docs.unity3d.com/Packages/com.unity.ai.navigation@2.0/manual/NavMeshObstacle.html |
 
 > 💡 **本项目的 API 名称都已用反射在本机核实过**（见 §4）。如果官方文档和你写的代码对不上，**以 §4 为准**——那是你这个 Unity 版本实际存在的成员。
+
+---
+
+## 15. 实际执行记录：M3.1 到底是怎么做的（2026-10-06）
+
+> 这一节是**照着做就能复现**的操作记录，不是设计说明。每一步都写了「手动点哪里 / 填什么 / 怎么算成功」。
+> 本轮由 AI 通过 Unity MCP 通道执行，所以下面同时给出**手动路径**（你自己做时点哪里）和**实测数值**（判据）。
+
+### 15.1 七步总览
+
+| # | 做什么 | 手动路径 | 关键数值 | 验收判据 |
+|---|---|---|---|---|
+| 1 | 改 **Agent Type** 体型 | `Window → AI → Navigation` → **Agents** 页 → 选 `Humanoid` | Radius **0.5 → 0.4** | 读 `NavMesh.GetSettingsByID(0).agentRadius == 0.4` |
+| 2 | 新建 **`Door` 层**并把门移过去 | `Edit → Project Settings → Tags and Layers` → Layers 加 `Door` | slot **13** | `Door1/2/3` 的 `layer == Door` |
+| 3 | 门挂 **`NavMeshObstacle`** | 选中 `Door1/2/3` → `Add Component` → `Nav Mesh Obstacle` | `Shape=Box`，勾 **`Carving`**，取消 `Carve Only Stationary`，`size` 跟随 BoxCollider | 关掉该组件后门线应变可走 |
+| 4 | 摆 **6 个障碍物** | 新建 6 个 `Cube`，挂在空物体 `Obstacles` 下 | 缩放 **1.5 × 2.5 × 1.5**，`layer = Environment` | 与 4 个敌人出生点间距 **≥ 4 米** |
+| 5 | 建 **`NavMeshRoot` + `NavMeshSurface`** | 空物体 `NavMeshRoot` → `Add Component` → `Nav Mesh Surface` | 见 §5 第 4 步两张表 | — |
+| 6 | ⚠️ **先禁用门的 Carving，再 Bake** | Inspector 上的 **`Bake`** 按钮 | — | 三条门线扫描全 `#` |
+| 7 | 给敌人挂 **`NavMeshAgent`** | 编辑 `Boxer.prefab` / `Gunner.prefab` → `Add Component` → `Nav Mesh Agent` | `type=Humanoid`，`Speed 3`，`Stopping 0.9`，敌兵/法师 `Avoidance Priority` 分别 **50 / 60** | 场景 4 个实例都出现该组件 |
+
+### 15.2 ⚠️ 三个必须知道的坑（都是本轮实测撞出来的）
+
+**① Carving 会被写进烘焙数据 —— 这是最坑的一个。**
+同一份场景、唯一差别是"烘焙时门上的 `NavMeshObstacle` 开不开"：
+
+| 烘焙时门 obstacle | 门线扫描（`#`=可走 `.`=不可走） | 结果 |
+|---|---|---|
+| **启用** | `######.....######` | ❌ 门洞**永久烘死**，开门也走不通 |
+| **禁用** | `#################` | ✅ 门洞通的 |
+
+→ **烘焙前必须临时禁用门的 `NavMeshObstacle`，烘完再启用。** 用 Inspector 的 `Bake` 按钮时，
+记得先取消勾选 `Carving`，烘完再勾回来。（本轮已按"禁用→烘焙→启用"的顺序落地，并用"Carving 全关
++ 重载资产"独立复核过资产是干净的。）
+
+**② `NavMeshSurface` 上根本没有 Agent Radius / Height 字段。**
+本机反射实测该组件只有 **18 个**序列化字段（`m_AgentTypeID` / `m_CollectObjects` / `m_LayerMask` /
+`m_UseGeometry` / `m_VoxelSize` / `m_NavMeshData` …），**没有任何体型字段**。
+体型参数属于 **Agent Type**，只能去 `Window → AI → Navigation` → **Agents** 页改。§5 第 4 步已据此拆成两张表。
+
+**③ `NavMeshObstacle` 的 Carving 不是当帧生效的。**
+在同一帧里"关掉组件 → 立刻采样"会读到**旧结果**，很容易误判成"门没被排除出烘焙"（本轮就被骗了一次）。
+跨帧（下一次调用）再看才对。做这类验证时务必把"改状态"和"读结果"**分到两次执行**里。
+
+### 15.3 本轮实测数值（可当报告数据用）
+
+| 项 | 数值 |
+|---|---|
+| Agent Type | 全工程 **1** 个：`id=0 Humanoid`，`radius 0.4` / `height 2` / `slope 45` / `climb 0.75` |
+| 敌人碰撞体 | `Boxer` / `Gunner` 都是 `CapsuleCollider radius 0.4 / height 2`（Radius 取 0.4 就是为了跟它对齐） |
+| 烘焙耗时 | **580 ms** |
+| 导航网规模 | **651 三角形** / 1368 顶点 / **≈ 248553 m²** |
+| 烘焙资产 | `Assets/Scenes/NavMesh-Game.asset`，**73 KB** |
+| 覆盖范围 | `min = (-249.5, 0.1, -249.5)` → `max = (249.5, 5.1, 249.5)`（整块地面，因为 `Ground` 是 500×500 的 Plane） |
+| `layerMask` 生效验证 | mask 只留 `Door` 层时，导航网面积降到 **0 m²**（若 mask 被忽略，应是整块地面）→ 证明 **Include Layers 真的在过滤** |
+| 资产干净性验证 | Carving 全关 + 把资产重新挂载重载 → 三条门线**全 `#`** |
+| 寻路（玩家在同一房间内） | `Boxer1` / `Boxer2` / `Boxer3` / `Gunner` **全部 `PathComplete`** |
+| 绕障 | `Boxer1(0,0,10) → 门内侧(0,0,1)`：路径 **9.18 米** / 直线 9 米，**绕行比 1.020**；拐点在 `Obstacle_01` 的 z 区间内偏到 `x = -0.8`（确实绕开了柱子） |
+
+### 15.4 复现用的验证手法（不用 Play 也能判）
+
+```csharp
+// 扫一条线看某段导航网通不通（半径要 > 导航网的 y 偏移，否则会误判成"全不可走"）
+//   ⚠️ 本轮踩过：用 0.05 米半径扫，结果全是"不可走" —— 因为导航网在 y≈0.066 平面上
+for (float z = -1.6f; z <= 1.61f; z += 0.2f)
+{
+    NavMeshHit h;
+    bool walkable = NavMesh.SamplePosition(new Vector3(0f, 0f, z), out h, 0.2f, NavMesh.AllAreas);
+    Debug.Log(z + " : " + walkable);
+}
+```
+
+```csharp
+// 算一条路径并看它是不是真的通了（PathComplete = 通；PathPartial = 中途被截断）
+var path = new NavMeshPath();
+NavMesh.CalculatePath(startOnMesh, endOnMesh, NavMesh.AllAreas, path);
+Debug.Log(path.status + " 拐点=" + path.corners.Length);
+```
+
+⚠️ 两个判定陷阱：
+- **采样半径太小会误判**：`SamplePosition` 找的是"半径内最近的可走点"，导航网在 y≈0.066，半径 0.05 就够不着 → 全判成不可走。用 **0.2~0.3** 比较稳。
+- **`PathPartial` 不一定是 bug**：玩家在房外、门关着时房间本就该封死，此时 `PathPartial` 是**正确行为**。
+
+### 15.5 还没验证的（必须在 Play 模式确认）
+
+- **门的动态 Carving**：关门堵、开门（`DoorController` 把 `_body.SetActive(false)`）通。
+  编辑模式下 Carving 的更新时机不可靠，**必须在 Play 模式下按 `RoomController` 的实际流程确认**。
+- **敌人的实际移动手感**：抖动 / 瞬移 / 一堆敌人挤成一团（`Avoidance Priority` 已给 50 / 60 做区分）。

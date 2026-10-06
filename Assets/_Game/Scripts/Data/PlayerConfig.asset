@@ -18,7 +18,9 @@ MonoBehaviour:
   dashDelay: 0.1
   iFrameTime: 0.5
   maxHp: 100
-  maxEnergy: 100
+  hitInvulnTime: 0.8
   comboWindow: 1
   attackRange: 2.5
   attackDamage: 0c0000000f0000000a00000014000000
+  maxMana: 100
+  specialManaCost: 30

@@ -21,7 +21,7 @@ namespace Game.Gameplay
         private PlayerDash _dash;
         private PlayerAttack _attack;
         private PlayerHealth _health;
-        private PlayerEnergy _energy;
+        private PlayerMana _mana;
         private Animator _anim;
         private float _invulnTimer;//受击无敌时间
 
@@ -42,7 +42,7 @@ namespace Game.Gameplay
             _dash = GetComponent<PlayerDash>();
             _attack = GetComponent<PlayerAttack>();
             _health = GetComponent<PlayerHealth>();
-            _energy = GetComponent<PlayerEnergy>();
+            _mana = GetComponent<PlayerMana>();
             _anim = GetComponent<Animator>();
 
             //进场enter
@@ -56,7 +56,20 @@ namespace Game.Gameplay
             };
             _enter[PlayerState.Attack] = () =>
             {
-                _motor.enabled = false;//攻击停止移动
+                //⭐ 两条路线（由 PlayerMotor.attackDisplacement 决定）：
+                //   · NativeRootMotion：**必须把组件禁用** —— 只有 OnAnimatorMove 不被调用，位移权才交还给 Animator。
+                //     代价：攻击中完全不能转向、前冲不过碰撞体（会穿墙）、动画根曲线的回撤会原样播放。
+                //   · 其余模式（代码前冲 / 劫持根运动 / 完全不动）：组件保持 enabled ——
+                //     "只转向"与"贴地下压"都写在 Update / OnAnimatorMove 里，禁用会一起停掉。
+                //     ⭐ 转向窗口由 PlayerMotor 内部判（默认方案 B：命中帧前可转、出手后锁定），
+                //        本次 `StartCombo()` 会把窗口重新打开（每段一个自己的窗口）。
+                if (_motor.UsesNativeRootMotion)
+                    _motor.enabled = false;
+                else
+                {
+                    _motor.enabled = true;
+                    _motor.SetFacingOnly(true);
+                }
                 _attack.StartCombo();
                 _anim.SetTrigger("Attack");
             };
@@ -94,19 +107,21 @@ namespace Game.Gameplay
             };
             _update[PlayerState.Attack] = () =>
             {
-                //攻击中可直接接特殊攻击（GDD §4.9：Idle / Run / Attack → Special）
-                if (InputService.Instance.SpecialPressedThisFrame && TrySpecial()) return;
+                var input = InputService.Instance;
 
-                //连段（体力检查在 PlayerAttack 内部，不足则该段不接续）
-                if (InputService.Instance.AttackPressedThisFrame)
-                    _attack.TryNextCombo();
+                //攻击中可直接接特殊攻击（GDD §4.9：Idle / Run / Attack → Special）
+                if (input.HasBufferedSpecial && TrySpecial()) { input.ConsumeSpecial(); return; }
+
+                //连段（2026-10-06 起普攻免费，窗口内就能一直接）
+                //⭐ 2026-10-07 缓冲：窗口**还没开**时 TryNextCombo 返回 false ⇒ 按键**不消费**、留在缓冲里，
+                //   等窗口一开（命中帧那一刻）立刻接上 —— 这就是「提前按也算数」的实现。
+                if (input.HasBufferedAttack && _attack.TryNextCombo()) input.ConsumeAttack();
 
                 if (IsAttackAnimOver())
                     Change(HasMoveInput() ? PlayerState.Run : PlayerState.Idle);
 
-                //攻击中可取消接冲刺；体力不足则保持攻击（TryDash 会拒绝）
-                if (InputService.Instance.DashPressedThisFrame)
-                    TryDash();
+                //攻击中可取消接冲刺（冲刺已免费，随时可接）
+                if (input.HasBufferedDash && TryDash()) input.ConsumeDash();
             };
             _update[PlayerState.Special] = () =>
             {
@@ -141,10 +156,16 @@ namespace Game.Gameplay
                 _dash.EndDash();
             };
 
-            //离开攻击状态时清掉残留判定体（收招或被受击打断都要清）
+            //离开攻击状态时：清掉残留判定体（收招或被受击打断都要清）+ **复位"只转向"模式**
+            //⚠️ 复位绝对不能漏 —— 漏了就是"之后只能转身、跑不动"。
             _exit[PlayerState.Attack] = () =>
             {
                 _attack.CloseAllHitboxes();
+                _motor.SetFacingOnly(false);
+                //⚠️ 防御：NativeRootMotion 模式下组件是被禁用的，**离开攻击时必须恢复**。
+                //   （Idle / Run / Dash 的 _enter 里本来也会 `enabled = true`，这里再兜一道 ——
+                //     避免将来有人在 Attack 与某个"不碰 enabled"的状态之间直连时漏掉，那会是"打一次后再也动不了"。）
+                _motor.enabled = true;
             };
         }
 
@@ -162,10 +183,12 @@ namespace Game.Gameplay
         //待机跑步状态
         private void UpdateNeutral()
         {
-            //冲刺 / 攻击 / 特殊攻击都是"收费动作"：付得起体力才切状态
-            if (InputService.Instance.DashPressedThisFrame && TryDash()) return;
-            if (InputService.Instance.AttackPressedThisFrame && TryAttack()) return;
-            if (InputService.Instance.SpecialPressedThisFrame && TrySpecial()) return;
+            //⭐ 2026-10-07 改走**输入缓冲**：后摇 / 硬直期间按下的键会被缓存，能执行时立刻补执行。
+            //   统一写法：**先问缓冲 → 执行成功 → 才消费**（失败就把按键留在缓冲里等下一次机会）。
+            var input = InputService.Instance;
+            if (input.HasBufferedDash && TryDash()) { input.ConsumeDash(); return; }
+            if (input.HasBufferedAttack && TryAttack()) { input.ConsumeAttack(); return; }
+            if (input.HasBufferedSpecial && TrySpecial()) { input.ConsumeSpecial(); return; }
 
             if (HasMoveInput() && State != PlayerState.Run)
             {
@@ -176,23 +199,20 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 尝试冲刺：**先付体力，付得起才切状态**（GDD §4.8：消耗 > 当前体力则不执行）。
-        /// 体力不足时 PlayerEnergy 会触发 OnSpendFailed 供 HUD 报警。
+        /// 尝试冲刺。⚠️ 2026-10-06 规则变更：**冲刺不再消耗资源**（原体力消耗已删除），
+        /// 所以除了"正在冲刺"之外没有别的门槛。
         /// </summary>
         private bool TryDash()
         {
             if (_dash.IsDashing) return false;
-            if (!_energy.TrySpendDash()) return false;
 
             Change(PlayerState.Dash);
             return true;
         }
 
-        /// <summary>尝试起手普攻（第 1 段）。同样先付体力。</summary>
+        /// <summary>尝试起手普攻（第 1 段）。⚠️ 普攻同样**不再消耗资源**。</summary>
         private bool TryAttack()
         {
-            if (!_energy.TrySpendAttack(0)) return false;
-
             Change(PlayerState.Attack);
             return true;
         }
@@ -200,8 +220,9 @@ namespace Game.Gameplay
         // ==================== 特殊攻击 · 火球（M2.4） ====================
 
         /// <summary>
-        /// 尝试释放特殊攻击。顺序：**冷却 → 武器是否配了火球 → 体力**，任一不满足都不切状态。
-        /// ⚠️ 体力走 <see cref="PlayerEnergy.TrySpendSpecial"/>（统一出口，成本读武器配置）。
+        /// 尝试释放特殊攻击。顺序：**冷却 → 武器是否配了火球 → 魔力**，任一不满足都不切状态。
+        /// ⚠️ 魔力走 <see cref="PlayerMana.TrySpendSpecial"/>（统一出口，成本读武器配置）。
+        /// ⭐ 这是**唯一**消耗资源的动作（冲刺与普攻已免费）。
         /// </summary>
         private bool TrySpecial()
         {
@@ -211,7 +232,7 @@ namespace Game.Gameplay
             if (weapon == null || weapon.specialType != Game.Data.SpecialAttackType.Fireball) return false;
             if (weapon.specialProjectilePrefab == null) return false;
 
-            if (!_energy.TrySpendSpecial()) return false;//付不起 → 不执行（PlayerEnergy 会报警）
+            if (!_mana.TrySpendSpecial()) return false;//付不起 → 不执行（PlayerMana 会报警）
 
             _specialCdTimer = weapon.specialCooldown;
             Change(PlayerState.Special);

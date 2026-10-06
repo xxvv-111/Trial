@@ -6,12 +6,16 @@ using Game.Gameplay;
 namespace Game.UI
 {
     /// <summary>
-    /// 体力条 HUD。订阅 <see cref="PlayerEnergy.OnEnergyChanged"/> 更新填充，
-    /// 并在体力不足时**闪烁报警**（GDD §4.8 要求"动作不触发 + 明确提示"）。
+    /// **魔力条** HUD（2026-10-06 由「体力条」改回「魔力条」，类名 <c>EnergyBar</c> → <c>ManaBar</c>）。
+    /// 订阅 <see cref="PlayerMana.OnManaChanged"/> 更新填充，
+    /// 并在魔力不足时**闪烁报警**（要求"动作不触发 + 明确提示"）。
+    ///
+    /// ⚠️ 脚本资产本身**没有换 GUID**（用 git mv 同时移动 .cs 与 .meta），
+    ///    所以场景里 <c>ManaBarBack</c> 上的组件引用**不会断**。
     /// </summary>
-    public class EnergyBar : MonoBehaviour
+    public class ManaBar : MonoBehaviour
     {
-        [SerializeField] private PlayerEnergy _player;
+        [SerializeField] private PlayerMana _player;
         [SerializeField] private RectTransform _fill;
 
         private Image _fillImage;
@@ -30,18 +34,18 @@ namespace Game.UI
         private void OnEnable()
         {
             if (_player == null) return;
-            _player.OnEnergyChanged += OnEnergyChanged;
-            _player.OnSpendFailed += Flash;
+            _player.OnManaChanged += OnManaChanged;
+            _player.OnManaSpendFailed += Flash;
         }
 
         private void OnDisable()
         {
             if (_player == null) return;
-            _player.OnEnergyChanged -= OnEnergyChanged;
-            _player.OnSpendFailed -= Flash;
+            _player.OnManaChanged -= OnManaChanged;
+            _player.OnManaSpendFailed -= Flash;
         }
 
-        private void OnEnergyChanged(float cur, float max)
+        private void OnManaChanged(float cur, float max)
         {
             SetFill(max <= 0f ? 0f : cur / max);
         }
@@ -58,7 +62,7 @@ namespace Game.UI
             _fill.offsetMax = Vector2.zero;
         }
 
-        /// <summary>体力不足时闪烁提示。</summary>
+        /// <summary>魔力不足时闪烁提示。</summary>
         private void Flash()
         {
             if (_fillImage == null) return;

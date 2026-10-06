@@ -62,3 +62,19 @@ Thumbs.db
 *.psa.meta
 *.psk
 *.psk.meta
+
+# ===== 第三方怪物模型包（不进仓库）=====
+# Polygonmaker · Monsters Series（含 Polygonmaker - Shader）：共 1.23 GB / 341 个文件。
+# 其中真正被工程用到的只有 Wraith 一套 —— 传递闭包 24 个文件 / 578 MB，
+# 光 14 张 .tga 源贴图就占 564 MB（Wraith_[1-4] 的 Albedo 各 64 MB、Normal/Emission 各 48 MB）。
+# 未用到的 161 个文件 / 650 MB（其它怪物系列、.unitypackage、.pdf、.psd、Mobile/ 备用贴图等）本来就不需要。
+#
+# ⚠️ 与上面几个包不同：这个包**不是**「用到的东西已抽出来、可以完全不要」——
+#    Assets/_Game/Prefabs/Enemy/Monster1.prefab 与 Monster2.prefab 直接引用
+#    Assets/Polygonmaker/Monsters Series/Monsters - Wraith/Characters/Wraith_4.prefab
+#    与 Wraith_CustomColors_4.prefab；那里面又引用 Source/Wraith.fbx、Source/Materials/*.mat、
+#    Source/Textures/*.tga、Polygonmaker - Shader/Shaders/Polygonmaker-AS-Skin*.shader。
+#    ⇒ **本地必须保留**；克隆仓库后敌人会变成粉色/丢失，需自行放回本包才能跑。
+#    属第三方资源，**需要署名**。
+/Assets/Polygonmaker/
+/Assets/Polygonmaker.meta

@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 798ea0714f1918d4792ff83bc443e6e1, type: 3}
+  m_Name: EnemyCasterConfig
+  m_EditorClassIdentifier: 
+  displayName: "\u6CD5\u5E08"
+  hp: 30
+  aggroRange: 14
+  attackRange: 9
+  moveSpeed: 2.8
+  windupTime: 0.5
+  recoverTime: 1.2
+  damage: 8
+  prefab: {fileID: 0}
+  hitEffect: {fileID: 0}
+  canBeInterrupted: 1
+  hitStunTime: 0.75
+  knockBackDistance: 0.4
+  flashTime: 0.15
+  alertTime: 0.35
+  repositionDistance: 0
+  comfortDistance: 6
+  castRangeMin: 4
+  castCooldown: 2.2
+  projectileSpeed: 14
+  viewDistance: 0
+  viewAngle: 160
+  requireLineOfSight: 1
+  proximityRange: 2
+  eyeHeight: 1.2
+  aimHeight: 1
+  loseTargetTime: 0

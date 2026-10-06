@@ -3,8 +3,9 @@
 > **用途**：从"当前状态"走到"可交付 exe + 报告"的完整分步计划。
 > 每一步都写明 **做什么 / 产出 / 验收标准 / 依赖什么**，按**依赖顺序**排列，不是按愿望排列。
 >
-> 最后更新：2026-10-05 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2.1 ✅ · M2.2 ✅ · M2.3 ✅ · M2.4 ✅（M2 收口）· 关卡结构改为「多关卡独立场景」· 武器范围收敛为「只做剑」**
-> **下一步：M3 敌人 + 寻路**（⚠️ `Walk` 动画已就绪；不再是"开局二选一"；长枪与武器切换已移入 §13 额外项目）
+> 最后更新：2026-10-07 | 状态：**阶段 0 ✅ · M1 全部完成 ✅ · M2 全部完成 ✅（收口）· M3.1 NavMesh 烘焙 ✅ · M3.2 敌人状态机基类 ✅ · M3.3 视野感知 ✅ · M3.4 剑兵 ✅ · M3.5 法师 ✅ · M3.6 敌人动画状态机 ✅（2026-10-07）** · 资源改回**魔力**且**不再自动回复** · 冲刺穿墙已修（T27）
+> **下一步：M3.7 多关卡场景拆分 + 关卡流转**（⚠️ **M3 敌人部分已全部完成**，敌人从 `Boxer`/`Gunner` 换装为 Wraith 的 `Monster1`/`Monster2`，见 `GDD.md` §6.2）
+> ⚠️ **仍待手验（都必须在 Play 模式）**：门的动态 Carving、攻击手感（输入缓冲 / 顿帧 / 方案 B 转向窗口）、M2.4 火球实试
 > 相关文档：`GDD.md`（要做什么）、`PROJECT-CONTEXT.md`（现状与坑）、`NAVMESH-GUIDE.md`（寻路手册）、`ARPG-DIRECTION.md`（**方案选型存档：ARPG 单场景未采纳；§4.6 相机仍然生效**）、`ART-PIPELINE.md`（资源方案）
 
 ---
@@ -15,18 +16,23 @@
 阶段 0  开工前置 ✅ 已完成（2026-10-04）── 建层 / 补输入 / 补配置 / 清死代码（脚本 50→37）
    │
    ├─► M1  系统骨架 ✅ 全部完成                  ◄── 后面全靠它
-   │     ├─ M1.1 体力统一出口 ✅ 845fece
+   │     ├─ M1.1 资源统一出口 ✅ 845fece（原「体力」，2026-10-06 改回「魔力」且只剩特殊攻击收费）
    │     ├─ M1.2 Hitbox 系统     ✅ 4593136 / 8596c11 / 59ee4e0 / e5f874d（T3+T21 结案）
    │     ├─ M1.3 暂停菜单        ✅ b7add1c（ESC 开关 + 冻结时间 + 锁输入）
    │     └─ M1.4 修文案         ✅（VICTPRY 阶段 0 修；VECTORY 在 M1.3 修）
    │
    ├─► M2  武器（剑）（1–2 天）⚠️ 范围收敛为「只做剑」
    │     ├─ M2.1 WeaponConfig 重做 ✅ 41472f2（配置化 + 全量接入）
-   │     ├─ M2.2 装配剑            ✅（Weapon_Sword 已挂 Player1/Player2 的 PlayerAttack + PlayerEnergy）
+   │     ├─ M2.2 装配剑            ✅（Weapon_Sword 已挂 Player1/Player2 的 PlayerAttack + PlayerMana）
    │     ├─ M2.3 剑的模型 + 4 段连段动画接入（✅ 用户已接：`1_atk_sword03`/`2_atk_sword04`/`3_atk_sword05`/`4_atk_sword01`）
-   │     └─ M2.4 特殊攻击 —— **火球 · 远距离 · 命中爆炸** ✅（代码 + 预制体 + Animator 全通；Play 实测扣 30 体力、爆炸扣 30 血）
+   │     └─ M2.4 特殊攻击 —— **火球 · 远距离 · 命中爆炸** ✅（代码 + 预制体 + Animator 全通；Play 实测扣 30 魔力、爆炸扣 30 血）
    │
-   ├─► M3  敌人+寻路（3–4 天）── NavMesh / 视野 / 剑兵 / 弓兵 / **巡逻（Walk 动画已就绪）**
+   ├─► M3  敌人+寻路（3–4 天）── NavMesh / 视野 / 剑兵 / 法师 / **巡逻（Walk 动画已就绪）**
+   │     ├─ M3.2 敌人状态机基类   ✅（表驱动 FSM + 移动分层 + 共用服务层；纯 C# 状态机 **39 项自测全通过**）
+   │     ├─ M3.3 视野感知         ✅（距离 + 扇形 + 射线遮挡）
+   │     ├─ M3.1 NavMesh 烘焙 + 障碍物 ✅（580 ms / 651 三角形 / 73 KB；6 个障碍物；3 扇门挂 Carving）
+   │     ├─ M3.4 剑兵 ✅ · M3.5 法师 ✅（**2026-10-06 都已完成**）
+   │     └─ M3.6 敌人动画状态机 ✅（**2026-10-07**：两套控制器各 5 状态 / 4 参数 + `TickAttack` 事件 + 受击·死亡接线；敌人换装 Wraith `Monster1`/`Monster2`）
    │
    ├─► M3.5 关卡 ── **3 个独立关卡场景**（Level_01/02/03）+ LevelFlow + 结算与选关
    │
@@ -169,7 +175,8 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 ## 3. M1：系统骨架（2–3 天）—— **最关键阶段**
 
-> M1 做完就能在编辑器里试手感。**后面 M2/M3/M4 全部依赖 M1 的 hitbox 与体力出口。**
+> M1 做完就能在编辑器里试手感。**后面 M2/M3/M4 全部依赖 M1 的 hitbox 与资源出口。**
+> ⚠️ 2026-10-06：资源由「体力」改回「魔力」，且**冲刺与普攻不再消耗**，只有特殊攻击消耗魔力（见 `GDD.md` §4.8）。
 
 ### M1.1 统一体力消耗出口 ⭐ ✅ **已完成（2026-10-04，提交 `845fece`）**
 
@@ -284,7 +291,7 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 - `Data/Weapons/Weapon_Sword.asset` / `Weapon_Spear.asset`：两把武器的完整数值
 - **接入**（关键，否则又是死代码）：
   `PlayerAttack` 读武器的伤害/连段窗口/段数/**判定盒尺寸**；
-  `PlayerEnergy` 读武器的体力成本（**成本表仍集中在 PlayerEnergy**，保持统一出口）；
+  `PlayerMana` 读武器的**特殊攻击魔力消耗**（成本表仍集中在本类，保持统一出口）。⚠️ 2026-10-06：原「每段普攻体力成本」`WeaponConfig.energyCost[]` 已删除 —— 普攻免费；
   `Hitbox` 新增 `SetDamage` / `ApplyShape`；`HitboxController` 新增 `GetByName` / `ApplyWeaponShapes`
 - `PlayerConfig` 的 `attackRange` / `attackDamage` / `attackEnergyCost` / `specialEnergyCost`
   降级为"未装配武器时的兜底"
@@ -437,58 +444,137 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 > 📘 **操作细节全在 `NAVMESH-GUIDE.md`**，本节只列步骤与验收。
 
-### M3.1 NavMesh 烘焙 + 摆障碍物
+### M3.1 NavMesh 烘焙 + 摆障碍物 ✅ **已完成（2026-10-06）**
 
-**现状（实测）**：关卡内**没有任何障碍物**，无法演示"绕障"。包 `com.unity.ai.navigation 2.0.14` 已装、**尚无烘焙产物**。
+**原现状**：关卡内**没有任何障碍物**，无法演示"绕障"。包 `com.unity.ai.navigation 2.0.14` 已装、**尚无烘焙产物**。
 
-**做什么**（详见手册 §5、§6）：
-1. 建 `NavMeshRoot` 挂 `NavMeshSurface`，`Agent Radius 0.4 / Height 2.0`（与实测敌人碰撞体一致），`Use Geometry = Physics Colliders`
-2. 摆 **3–6 个静态障碍物**（柱子/箱子），位置**故意卡在玩家—敌人连线上**
-3. ⚠️ **摆完必须重新 Bake**
-4. 门挂 `NavMeshObstacle` + 勾 **`Carving`**，并从 Include Layers 排除（⚠️ 关键：`DoorController` 只是 `_body.SetActive()`，门若被烘进 NavMesh，开门后导航网**不会自动更新**）
+**已做的**（完整操作记录与踩坑见 `NAVMESH-GUIDE.md` **§15**）：
+1. **Agent Type 体型**：`Window → AI → Navigation → Agents → Humanoid`，**Radius 0.5 → 0.4**（与敌人 `CapsuleCollider.radius = 0.4` 对齐）
+2. **新建 `Door` 层（slot 13）**，3 扇门从 `Environment` 移过去
+3. 门挂 `NavMeshObstacle`（`Shape=Box` + **`Carving`** ✓，取消 `Carve Only Stationary`）
+4. 建 `NavMeshRoot` 挂 `NavMeshSurface`：`Agent Type = Humanoid` / `Collect Objects = All` / **`Include Layers = 只勾 Environment`** / `Use Geometry = Physics Colliders`
+5. 摆 **6 个障碍物**（`Obstacle_01`–`Obstacle_06`，1.5×2.5×1.5 米白盒 Cube，`Environment` 层）——每房间 2 个，其中一个**故意卡在"入口门 → 该房间敌人"的连线上**
+6. 烘焙 → `Assets/Scenes/NavMesh-Game.asset`
+7. 给 `Boxer` / `Gunner` 预制体挂 `NavMeshAgent`（`type=Humanoid`，`Avoidance Priority` 50 / 60）
 
-- **验收**：Scene 视图有蓝色导航网；门开/关时导航网上的洞能自动挖出/补回
-- **依赖**：0.2（`Environment` 层）
+⭐ **实测数值**：烘焙 **580 ms** / **651 三角形** / **≈ 248553 m²** / 资产 **73 KB**；
+覆盖 `(-249.5, 0.1, -249.5)` → `(249.5, 5.1, 249.5)`。
 
-### M3.2 敌人状态机基类
+⭐ **三个坑（都实测撞出来了，务必看 §15.2）**：
+1. **Carving 会被写进烘焙数据** → 烘焙前必须**临时禁用门的 `NavMeshObstacle`**，否则门洞被**永久烘死**（`######.....######` vs `#################`）
+2. **`NavMeshSurface` 上没有 Agent Radius / Height 字段**（18 个序列化字段里没有），体型参数属于 Agent Type
+3. **Carving 不是当帧生效**的 → "改状态"和"读结果"必须分到两次执行里，否则会误判
 
-**现状**：`EnemyMeleeAI` 是**硬编码 switch**（`EState { Idle, Chase, Attack, Hit, Death }`），`EnemyRanged` **完全没有状态机**。
+- **验收（已达成）**：门线扫描三条全 `#`；`layerMask` 生效性用"只留 Door 层 → 面积 0 m²"反证；
+  玩家在同一房间内时 4 个敌人**全部 `PathComplete`**；绕障比 **1.020**（路径在 `Obstacle_01` 的 z 区间内偏到 `x = -0.8`）
+- ⚠️ **仍待在 Play 模式确认**：门的**动态** Carving（关门堵 / 开门通）与敌人实际移动手感
+- **依赖**：0.2（`Environment` 层）✅
 
-**做什么**：抽 `EnemyStateMachine` 基类（与玩家 FSM 同风格——状态表驱动），差异只在"状态集合 + 转移条件 + 数值"。
-关键抽象：**把"选目标点"与"交给 Agent 走"分层**。
+### M3.2 敌人状态机基类 ✅ **已完成（2026-10-06）**
 
-- **验收**：加第三种敌人（如盾兵）几乎只是纯配置
+**原现状**：`EnemyMeleeAI` 是**硬编码 switch**（`EState { Idle, Chase, Attack, Hit, Death }`），`EnemyRanged` **完全没有状态机**。
+
+**已做的**：抽出与 `PlayerFSM` 同风格的**三字典表驱动**状态机，并把「选目标点」与「交给 Agent 走」彻底分层。
+新增 4 个文件（均在 `Assets/_Game/Scripts/Gameplay/Enemy/`）：
+
+| 文件 | 职责 |
+|---|---|
+| `EnemyStateMachine.cs` | `EnemyFsmBase`（非泛型外壳）+ `EnemyStateMachine<TState>`（**纯 C#**，三字典：`Register` / `Start` / `Tick` / `Change` / `LockStateMachine`） |
+| `EnemyAIController.cs` | **非泛型** MonoBehaviour 共用层：组件、数值、目标查找、受击反应（闪白 → 打断 / Boss 只闪白）、动画触发带参数存在性检查 |
+| `EnemyLocomotion.cs` | 「交给 Agent 走」层：`ChaseTarget` / `Stop` / `Resume` / `FaceTarget` / `Retreat`；**没 Agent 或没烘焙时自动退回直线位移** |
+| `EnemyPerception.cs` | 见 M3.3 |
+
+`EnemyMeleeAI` 已迁到基类上，行为与迁移前逐条对齐（同样 5 个状态、同样时序、同样受击反应）。
+
+⭐ **两条关键设计决定（都是为了避免"只能靠实机试出来"）**：
+1. **状态机是纯 C# 类，刻意不继承 MonoBehaviour**。原因有二：① Unity 的序列化**不支持泛型组件**，
+   若把 `_config` 放进泛型基类，有丢引用导致敌人完全不动、且 Inspector 里看不到字段的风险
+   （已查证：官方口径是"泛型 MonoBehaviour 不可用"，社区变通写法恰好就是本方案）；
+   ② 纯 C# 就能**在没有 Unity 的环境里跑自测** —— 状态迁移是纯逻辑，不该只能靠实机验证。
+2. **移动只有一个写入者**：有 Agent 时全部交给 Agent，`EnemyLocomotion` 绝不写 `transform.position`
+   （NAVMESH-GUIDE §7.2 ① 的抖动/瞬移就是这么来的）。
+
+- **验收（已达成）**：加第三种敌人（如盾兵）几乎只是纯配置 —— 自测里用**同一套骨架**跑通了"第三种远程敌人"的
+  `走位 → 攻击` 循环，**没有新增一行状态机代码**（⚠️ 该用例的**状态集合需按 M3.5 法师的 6 状态重写**，见 M3.5）
 - **依赖**：无
 
-### M3.3 视野感知组件
+### M3.3 视野感知组件 ✅ **已完成（2026-10-06）**
 
 `GDD.md` §6.1：感知 = **距离 + 视野扇形 + 视线射线遮挡**。
-⚠️ **NavMesh 完全不提供这个能力**，需自写 `EnemyPerception`。
+⚠️ **NavMesh 完全不提供这个能力**。
 
-- 判三件事：距离 / 扇形角度（`Vector3.Angle`）/ `Physics.Raycast` 遮挡
+**已做的**：`EnemyPerception.cs`（MonoBehaviour），三个判据全实现：
+距离 / 扇形角度（`Vector3.Angle` 对全角的一半）/ `Physics.Raycast` 遮挡；
+结果**按帧缓存**（同一帧多次查询只算一次）；另带 Scene 视图可视化（扇形两条边 + 距离圈 + 到目标连线按看得见/看不见上色）。
+
+**⚠️ 两条实现要点（都是坑）**：
+- 遮挡射线的层要**自动排除自己和目标所在的层** —— 起点在自身碰撞体内、终点就在目标身上，
+  不排除的话每次都会判成"被遮挡"
+- 参数**统一由 `EnemyAIConfig` 下发**（新增 `viewDistance` / `viewAngle` / `requireLineOfSight` /
+  `proximityRange` / `eyeHeight` / `aimHeight` / `loseTargetTime`），调参只在一处，不必逐个预制体改组件
+
+**⚠️ 一处需要你实机确认的行为变化**：剑兵的 `Idle → Chase` 由「纯距离」改为「距离 + 扇形 + 视线」，
+`viewAngle` 默认 **160°**（GDD 口径）。若实机发现敌人"不追人了"，把该值调到 **360** 即退回纯距离感知（一个字段）。
+
 - **依赖**：无
+- ✅ **已接入（M3.5）**：法师 `EnemyCaster` —— 继承 `EnemyAIController`，与剑兵共用同一套骨架
 
-### M3.4 剑兵（近战）
+### M3.4 剑兵（近战）✅ **已完成（2026-10-06）**
 
-- 改造 `EnemyMeleeAI`：加 `NavMeshAgent`，⚠️ **删掉 `MoveTowardPlayer()` 里的 `transform.position +=`**（否则抖动/瞬移）
-- 攻击时用 `_agent.isStopped = true`（⚠️ 不是已过时的 `Stop()`）
-- 补状态：`Alert` / `Reposition`（现有五状态缺这两个）
-- 🔧 需动画 5 个：Idle / Run / Attack / Hit / Death
+- ✅ 改造 `EnemyMeleeAI`：`NavMeshAgent` 已在 M3.1 挂上（`Boxer`/`Gunner` 各一个）；
+  `MoveTowardPlayer()` 里的 `transform.position +=` 已在 M3.2 删除，移动改由 `EnemyLocomotion` 统一处理
+- ✅ 攻击 / 硬直时用 `isStopped`（**没用已过时的 `Stop()`**）
+- ✅ 补状态：**`Alert`**（站住转身 + 停顿 `alertTime` 0.35 s）/ **`Reposition`**（攻击后退开 `repositionDistance` 1.5 m）
+  —— 状态数 5 → **7**（`Idle / Alert / Chase / Attack / Reposition / Hit / Death`）
+- 🔧 **仍需动画 5 个**：Idle / Run / Attack / Hit / Death（属 M3.6）
 
-### M3.5 弓兵（远程）
+### M3.5 法师（远程）✅ **已完成（2026-10-06）** 🔄 由「弓兵」改定
 
-- ⚠️ **从零搭状态机**（现 `EnemyRanged` 只有一个冷却计时器）
-- **kiting 核心**（手册 §9）：状态机先算"远离玩家的目标点" → `NavMesh.SamplePosition` 吸附 → 再交给 Agent
-  ⚠️ **绝不能直接 `SetDestination(player.position)`**，那样弓兵会冲向玩家
-- 前方摇被打断时**直接取消这次射击**（不要硬直后继续放箭）
-- 弓箭也要检查视线遮挡
-- 🔧 需动画 6 个：Idle / Run / Aim / Shoot / Hit / Death
+> **改动原因**：原**弓兵**需要 `Aim` / `Shoot` 两段**库里没有的拉弓动画**（`ANIM-GUIDE.md` 标注为**唯一"必须手 K / 去 Mixamo 找"的阻塞点**）。
+> 改成法师后施法动作**现成可用**：`Magical-Knight_Set/Animation/Humanoid/atk_energy01~11`（11 个）+ `inplace/` 去根运动版本。
 
-### M3.6 敌人动画状态机
+- ✅ **已从零搭好**：`EnemyRanged` → **`EnemyCaster`**（`git mv` 保 GUID），改写为 `EnemyAIController` 子类；行为 **6 状态**（无 `Reposition`）
+- **kiting 核心**（手册 §9）：在 `Chase` 里先算"远离/接近玩家的目标点" → `NavMesh.SamplePosition` 吸附 → 再交给 `EnemyLocomotion.MoveToOrStep`
+  ⚠️ **绝不能直接 `SetDestination(player.position)`**，那样法师会冲向玩家
+- **前摇被打断时直接取消这次施法**（不要硬直后继续放法术）
+- 施法也要**检查视线遮挡**
+- 🔧 **需动画 5 个**：`Idle` / `Run` / `Attack` / `Hit` / `Death`（🔄 原 `Aim` + `Shoot` **折叠进 `Attack`**）
+- 行为状态：`Idle / Alert / Chase（含 kiting 走位）/ Attack / Hit / Death` = **6 个**（比剑兵少一个 `Reposition`）
 
-**现状（实测）**：`EnemyAC.controller` **只有 `idle` + `combo_01_1` 两个状态**，必须大幅扩充。
+### M3.6 敌人动画状态机 ✅ **已完成（2026-10-07）**
 
-- **验收**：剑兵/弓兵的行为与动画状态一一对应，无"每帧 `SetTrigger`"隐患（现有 `EnemyMeleeAI` 的 `_anim.SetTrigger("Attack")` 写在 `Update` 里，属隐患）
+**交付记录（实测）**
+
+| 项 | 结果 |
+|---|---|
+| 控制器 | `_Game/Art/Animations/Enemy/Monster1/AC_Monster1.controller` · `Monster2/AC_Monster2.controller`，各 **5 状态 / 4 参数** |
+| 参数 | `Speed`(Float) · `Attack`(Trigger) · `Hit`(Trigger) · `IsDead`(Bool) —— 两套**完全同名**，代码只认这 4 个 |
+| 转移 | `idle ↔ flyinplace` 由 `Speed>0.1 / <0.1` 驱动；`attack` / `hit` 按 exitTime 回收；AnyState → `death` / `hit` / `attack`（**列表顺序即优先级**） |
+| 事件 | `TickAttack` 挂在 `Monster1/attack1.anim` 的 **0.45 s**、`Monster2/taunt.anim` 的 **0.50 s**（由**手掌骨骼轨迹采样**定出，不是拍脑袋） |
+| 代码接线 | `EnemyAIController` 新增 `SetAnimFloat` / `ResetAnimTrigger` / `PlayHitAnim` / `PlayDeathAnim` / `OnKilled` 钩子；`EnemyLocomotion` 暴露 `CurrentSpeed`（Agent 实时速度 → `Speed` 参数） |
+| 死亡表现 | ✅ **修好**：此前 `EnemyHealth.Die()` **直接 `SetActive(false)`**，死亡动画一帧都播不出来；现改为"先播完、再按 `_deathHideDelay`（默认 2.4 s，`unscaledTime` 计时）隐藏" |
+| 模型换装 | 敌人从 `Boxer`/`Gunner` 换成 **Wraith**（`Monster1` 近战 / `Monster2` 远程），正式预制体落在 `_Game/Prefabs/Enemy/`，三个房间已重新装配（`RoomController._enemies` 已重连） |
+| 验证 | Play 模式逐条实测：受击 → `hit`、走位 → `flyinplace`(Speed=3)、致死 → `death` + 延迟隐藏、近战打出伤害（玩家 100→80）；**控制台 0 条**（`TickAttack has no receiver!` 与 `Failed to create agent` 均消失） |
+
+**为什么 M3.6 是功能性前置（留档）**：`Boxer` / `Gunner` 的 Animator **`avatar` 是空的**，全工程没有它们模型的 Avatar 资产
+⇒ Humanoid 肌肉剪辑**没有 Avatar 就根本播不出来** ⇒ `EnemyMeleeAI` 的伤害只由 `TickAttack` 开判定体 ⇒ **打不出伤害**。
+所以这一项不做，敌人就只是个会走路的模型。
+
+**实施前的现状（留档对照）**：两个敌人预制体用的是**同一个 controller**
+`_Game/Art/Animations/Enemy/old/EnemyAC.controller`（注意在 `old/` 目录下！），**只有 `idle` + `combo_01_1` 两个状态**、参数只有 1 个 `Attack` Trigger。
+
+---
+
+**当时的计划（已照此实施；素材一栏已按换装结果更新）**
+
+- ⭐ **M3.4/M3.5 定稿后范围大幅收敛**：两个敌人**各 5 个动画状态**（`Idle` / `Run` / `Attack` / `Hit` / `Death`），结构相同、只是 clip 不同
+- 🎬 **素材来源（🔄 换装后）**：`Polygonmaker/Monsters Series/Monsters - Wraith/Animations/Anim_Wraith@*.FBX`（**21 个**动作）
+  —— 原计划的 `Magical-Knight_Set/Animation/Humanoid/`（219 个）**随模型换装一并弃用**，原因见上（Avatar 缺失）。
+  Wraith 侧 `WraithAvatar` 有效，**无需手 K 任何动画**。
+- 📋 **工作流照搬玩家侧**：把 FBX 里的 clip 提取成 `.anim` 放进 `_Game/Art/Animations/Enemy/Monster1|2/`，再用它建 controller
+  （玩家就是这么做的：`Art/Animations/Player/` 下有 `Idle01.anim` / `1_atk_sword03.anim` / `atk_energy01.anim` / `roll_front.anim` / `hit_light_F_body.anim` / `dead_01.anim`）
+- **验收**：两个敌人的行为状态都能映射到 5 个动画之一（映射表见 `GDD.md` §6.4.1），且**没有"每帧 `SetTrigger`"** 的实现 —— ✅ 已达成：
+  `SetAnimTrigger` 只在 `EnterAttack` / `OnInterrupted` 等状态切换点调用，`Speed` 是唯一每帧写的参数（浮点，写同一值无副作用）。
 
 ---
 
@@ -556,7 +642,7 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 | 元素 | 现状（实测） |
 |---|---|
 | 生命条 | ✅ `HPBar` + `HPFill` |
-| 体力条 | ✅ **`EnergyBar`**（原 `ManaBar`，M1.1 改名换色并接入消耗/再生） |
+| 魔力条 | ✅ **`ManaBar`**（原 `EnergyBar`，M1.1 改名换色；2026-10-06 由 `EnergyBar` **改回 `ManaBar`**）。已接入消耗 / 不足闪烁；⛔ **2026-10-06 起不再自动回复** |
 | 关卡提示 | ✅ `RoomHintText`（⚠️ 文案英文硬编码 "Clean The Room" / "Door Open"） |
 | 当前武器显示 | ⏸️ **V1 可省略**（只做剑、无切换 UI） |
 | **关卡进度** | ❌ 新增（"Level 1/3"） |
@@ -619,8 +705,8 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 | 玩家动画 | ~~剑·插地~~（方案已改为**火球**，动画沿用 `atk_energy01`） | ⚪ 作废 |
 | 玩家动画 | **长枪·投掷 / 召回**（2 个）—— 额外项目 | 🟡 中 |
 | 武器模型 | **剑、长枪** 各 1 | 🟡 中 |
-| 剑兵 | 模型 + 5 个动画 | 🔴 高 |
-| 弓兵 | 模型 + 弓 + 6 个动画 | 🔴 高 |
+| 剑兵 | 模型 + **5 个动画**（Idle/Run/Attack/Hit/Death，🎬 已可从 `Magical-Knight_Set/Animation/Humanoid` 复用） | 🟡 中（动画现成，只剩模型） |
+| 法师 | 模型（+ 法杖，可选）+ **5 个动画**（同左，施法用 `atk_energy01~11`） | 🟡 中（同上） |
 | Boss | 模型（人形，放大体型）+ N 个招式动画 | 🔴 高（量待招式表） |
 | 障碍物 | 柱子 / 箱子 3–6 个 | 🟡 中（**M3.1 需要**） |
 | 音频 | BGM 3 首 + SFX ~10 个 | 🟡 中 |
@@ -685,18 +771,26 @@ public bool SpecialPressedThisFrame => _controls.Player.Special.triggered;
 
 ## 12. 下一步建议
 
-**当前下一步（按优先级）**：**M2 已全部收口** ✅（M2.1 配置 / M2.2 装配 / M2.3 连段动画 / M2.4 火球特攻）
+**当前进度**：**M2 已全部收口** ✅；**M3.1 NavMesh 烘焙 ✅ · M3.2 敌人状态机基类 ✅ · M3.3 视野感知 ✅ · M3.4 剑兵 ✅ · M3.5 法师 ✅ · M3.6 敌人动画状态机 ✅**（2026-10-07）
+👉 **M3 的敌人部分已全部完成**，下一步是 **M3.7 多关卡场景拆分**。
 
-1. **M3 敌人 + 寻路**：NavMesh 烘焙 → 敌人状态机基类（T6）→ 剑兵 / 弓兵
-   ⚠️ 动手前先**手动实试 M2.4 火球**（按 Q / 右键），并据 `atk_energy01` 的实际出手帧调 `Weapon_Sword.asset` 的 `specialCastDelay`（初值 0.55 s）
-2. **M3.7 多关卡场景拆分**：⚠️ 建议放在 **M3 之后、M4 之前** —— 那时敌人已成型，拆场景才不白拆
-3. **额外项目（§13，时间富余时做）**：长枪投掷召回 / 武器切换 / 剑的额外招式
+1. ✅ **M3.6 敌人动画状态机已完成（2026-10-07）** —— 见上一节的交付记录：两个敌人（Wraith 的 `Monster1` / `Monster2`）各 5 个动画状态、
+   4 个同名参数，攻击 clip 已挂 `TickAttack`，受击 / 死亡 / 移动全部接通，Play 模式实测通过。
+2. ⚠️ **Play 模式手验清单（都必须在 Play 里做，编辑模式测不出来）**：
+   - 门的**动态** Carving（关门堵 / 开门通）—— 编辑模式下 Carving 的更新时机不可靠
+   - 攻击手感三件套：**输入缓冲**（后摇里提前按能否接上）、**顿帧**（有分量但不卡、连续命中是否叠太久）、**方案 B 转向窗口**
+   - **M2.4 火球手验**：按 Q / 右键实试，并据 `atk_energy01` 实际出手帧调 `Weapon_Sword.asset` 的 `specialCastDelay`（初值 0.55 s）
+   - ⚠️ **已知关卡问题（2026-10-07 实测）**：`Monster1_R1`（Room1，位置 = 原 `Boxer1` 的 `(0, 0, 10)`）被 `Obstacle_01` **挡住视线** ——
+     从敌人眼睛 (0, 1.27, 10) 到玩家 (0, 1.03, 4) 的射线在 **3.75 m** 处命中 `Obstacle_01`（`Environment` 层），`HasLineOfSight=False`
+     ⇒ 敌人不会发现玩家、一直停在 `Idle`。这是**关卡摆位**问题（感知逻辑本身是对的），把障碍物挪开或换出生点即可。
+3. **M3.7 多关卡场景拆分**：⚠️ 放在 **M3 之后、M4 之前** —— 敌人已成型，现在拆场景不白拆
+4. **额外项目（§13，时间富余时做）**：长枪投掷召回 / 武器切换 / 剑的额外招式
 
 **工作分工**：
 
-- **我（AI）能做**：写脚本、改代码、跑编译检查、写文档
-- **需要你做**：Blender 出模型 / 动画、Unity 里的场景搭建与拆关、Play 模式手感调参
-- ⚠️ Unity 编辑器通道未连接时，**场景操作我无法代劳**
+- **我（AI）能做**：写脚本、改代码、跑编译检查、跑自测、写文档；通道在线时**也能**做场景 / 预制体编辑
+- **需要你做**：Blender 出模型 / 动画、Play 模式手感与调参决策
+- ⚠️ 通道离线时，**场景操作我无法代劳**
 
 ---
 

@@ -178,6 +178,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 100124, guid: 2f65e2cb2b713d142abcc86d39cca1bc, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6527799535998761327}
+    - targetCorrespondingSourceObject: {fileID: 100124, guid: 2f65e2cb2b713d142abcc86d39cca1bc, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8797421235057692522}
   m_SourcePrefab: {fileID: 100100000, guid: 2f65e2cb2b713d142abcc86d39cca1bc, type: 3}
 --- !u!4 &8144550535447035382 stripped
 Transform:
@@ -223,9 +226,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0adde0cdd3fb144682cd42c5ab6c5a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _config: {fileID: 11400000, guid: 41fe808f401db6943bf883d86f4ea61c, type: 2}
+  _logTransitions: 0
   _hitboxActiveTime: 0.25
   _attackHitboxName: Hitbox_Attack
-  _config: {fileID: 11400000, guid: 41fe808f401db6943bf883d86f4ea61c, type: 2}
 --- !u!136 &6735519587502316454
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -277,3 +281,25 @@ MonoBehaviour:
   _hitboxes:
   - {fileID: 6130177735243527823}
   _f1ToggleGizmos: 1
+--- !u!195 &8797421235057692522
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8144550535447322646}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.4
+  m_Speed: 3
+  m_Acceleration: 20
+  avoidancePriority: 50
+  m_AngularSpeed: 720
+  m_StoppingDistance: 0.9
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4

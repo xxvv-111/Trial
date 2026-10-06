@@ -1,31 +1,36 @@
-using Game.Data;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 近战敌人 AI（switch 式状态机）。
+    /// 近战敌人 AI（剑兵）。M3.2 已从「硬编码 switch 状态机」迁移到
+    /// <see cref="EnemyStateMachine{TState}"/>（三字典表驱动），行为与迁移前逐条对齐。
     ///
-    /// **M1.2 已接通 T21**：此前 <see cref="EnemyHealth"/> 受击只扣血、从不通知 AI，
-    /// 导致本类的受击反应（硬直 / 闪白 / 击退）全是死代码 —— 小怪挨打毫无反应。
-    /// 现在通过订阅 <see cref="EnemyHealth.Damaged"/> 接通。
+    /// 本类现在只负责三件事：**状态表 / 转移条件 / 动画与判定体的时机**。
+    /// 组件、数值、受击反应、移动分层、视野感知都在基类与
+    /// <see cref="EnemyPerception"/> / <see cref="EnemyLocomotion"/> 里。
     ///
-    /// ⚠️ 待改造：M3 接入 NavMesh —— 把 <see cref="MoveTowardPlayer"/> 的 transform 位移
-    ///    换成 NavMeshAgent，并补 Alert / Reposition 两个状态（见 Docs/NAVMESH-GUIDE.md §7）。
+    /// 状态转移（GDD §6.2）：
+    /// <code>
+    /// Idle       ──看见玩家（距离 + 扇形 + 视线）──> Alert
+    /// Alert      ──停顿 alertTime 秒（这段时间只转身）──> Chase
+    /// Chase      ──距离 ≤ attackRange──> Attack ──后摇结束──> Reposition
+    /// Reposition ──退开 repositionDistance 米（到位 / 超时 / 玩家又贴脸）──> Chase
+    /// 任意        ──受击（小怪）──> Hit ──硬直结束──> Chase
+    /// 任意        ──生命 ≤ 0──> Death（锁死状态机）
+    /// </code>
+    ///
+    /// ⚠️ GDD §6.2 的 `Windup` / `Recover` 在本实现里**没有单独成状态** ——
+    ///    它们由攻击状态内的计时（`windupTime` / `recoverTime`）表达，迁移前就是这样，保持不动。
+    ///
+    /// ✅ **M3.4 已完成**：补上 <c>Alert</c>（转朝向 + 短暂停顿）与 <c>Reposition</c>（攻击后拉开距离）。
+    /// ⚠️ 仍缺**敌人动画状态机**（M3.6，`EnemyAC` 只有 2 个状态）—— 所以 `Alert` / `Reposition`
+    ///    目前**没有对应动画触发**（刻意不调 <c>SetAnimTrigger</c>，免得给控制台添无谓的"参数不存在"警告）。
     /// </summary>
-    public class EnemyMeleeAI : MonoBehaviour
+    public class EnemyMeleeAI : EnemyAIController
     {
-        public enum EState { Idle, Chase, Attack, Hit, Death }
-
-        //数值（来自 EnemyAIConfig）
-        private float aggroRange;//追击距离
-        private float attackRange;//攻击距离
-        private float moveSpeed;//追击速度
-        private float recoverTime;//后摇
-        private float hitStunTime;//受击硬直时长
-        private float knockBackDistance;//受击击退距离
-        private float flashTime;//闪白时长
-        private bool canBeInterrupted;//是否会被打断（Boss = false）
+        public enum EState { Idle, Alert, Chase, Attack, Reposition, Hit, Death }
 
         [Tooltip("判定体开启后持续多久自动关闭（秒）。需与攻击动画的判定窗口匹配。")]
         [SerializeField] private float _hitboxActiveTime = 0.25f;
@@ -33,251 +38,268 @@ namespace Game.Gameplay
         [Tooltip("敌人攻击判定体的名字（挂在敌人预制体下、Layer = EnemyHitbox）。")]
         [SerializeField] private string _attackHitboxName = "Hitbox_Attack";
 
-        [SerializeField] private EnemyAIConfig _config;
+        //强类型状态机由子类自己持有（基类不能是泛型，见 EnemyAIController 的类注释）
+        private EnemyStateMachine<EState> _fsm;
 
-        private Transform _player;//玩家位置
-        private PlayerFSM _playerFsm;//玩家状态机
-        private EState _st = EState.Idle;//当前状态
+        private float _atkT;   //进入攻击状态后经过的秒数
+        private float _stunT;  //受击硬直剩余秒数
+        private float _alertT; //Alert 停顿已过秒数
+        private float _repoT;  //Reposition 已过秒数（超时兜底用）
+        private Vector3 _repoPoint;//Reposition 的目标点（已吸附到导航网）
 
-        private float _atkT;//进入攻击状态后经过的秒数
-        private float _stunT;//受击硬直剩余秒数
-        private float _flashT;//受击闪白剩余秒数
+        // ==================== 状态表 ====================
 
-        private Renderer _ren;//闪白用
-        private MaterialPropertyBlock _mpb;//⚠️ 用它改色，避免 material 实例化泄漏
-        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-        private Color _normalColor;
-
-        private CapsuleCollider _col;
-        private Animator _anim;
-        private EnemyHealth _health;
-        private HitboxController _hitboxes;
-
-        public EState State { get { return _st; } }
-
-        private void Awake()
+        protected override void Awake()
         {
-            aggroRange = _config.aggroRange;
-            attackRange = _config.attackRange;
-            moveSpeed = _config.moveSpeed;
-            recoverTime = _config.recoverTime;
+            base.Awake();
 
-            hitStunTime = _config.hitStunTime;
-            knockBackDistance = _config.knockBackDistance;
-            flashTime = _config.flashTime;
-            canBeInterrupted = _config.canBeInterrupted;
+            _fsm = new EnemyStateMachine<EState>(name);
 
-            _col = GetComponent<CapsuleCollider>();
-            _anim = GetComponent<Animator>();
-            _health = GetComponent<EnemyHealth>();
-            _hitboxes = GetComponent<HitboxController>();
+            _fsm.Register(EState.Idle, update: UpdateIdle);
+            _fsm.Register(EState.Alert, enter: EnterAlert, update: UpdateAlert);
+            _fsm.Register(EState.Chase, enter: EnterChase, update: UpdateChase, exit: ExitChase);
+            _fsm.Register(EState.Attack, enter: EnterAttack, update: UpdateAttack, exit: ExitAttack);
+            _fsm.Register(EState.Reposition, enter: EnterReposition, update: UpdateReposition);
+            _fsm.Register(EState.Hit, update: UpdateHit);
+            _fsm.Register(EState.Death, enter: EnterDeath);
 
-            _ren = GetComponentInChildren<Renderer>();
-            _mpb = new MaterialPropertyBlock();
-            if (_ren != null && _ren.sharedMaterial != null && _ren.sharedMaterial.HasProperty(BaseColorId))
-                _normalColor = _ren.sharedMaterial.GetColor(BaseColorId);
+            AttachStateMachine(_fsm);
+        }
+
+        protected override void Start()
+        {
+            base.Start();
+            _fsm.Start(EState.Idle);
+        }
+
+        // ==================== Idle ====================
+
+        private void UpdateIdle()
+        {
+            //⚠️ 与迁移前的区别：不再只看距离，改为「距离 + 视野扇形 + 视线遮挡」（GDD §6.1）
+            //⭐ M3.4：发现玩家先进 Alert（站住转身、短暂停顿），不再"看见就起跑"
+            if (CanSeeTarget) _fsm.Change(EState.Alert);
+        }
+
+        // ==================== Alert（M3.4 · GDD §6.2：转朝向 + 短暂停顿） ====================
+
+        private void EnterAlert()
+        {
+            _alertT = 0f;
+            Loco.Stop();//先站住：这段时间只转身、不移动（Agent 停下，避免"边转头边滑步"）
+        }
+
+        private void UpdateAlert()
+        {
+            if (Target == null) { _fsm.Change(EState.Idle); return; }
+
+            Loco.FaceTarget(Target);//只转身（下一段 Chase 的 MoveTo 会把转向权交还给 Agent）
+
+            //⚠️ 刻意不调 SetAnimTrigger("Alert")：敌人动画状态机（M3.6）还没有这个参数，
+            //   调了只会往控制台添一条无谓的"参数不存在"警告。M3.6 时再补。
+            _alertT += Time.deltaTime;
+            if (_alertT >= AlertTime) _fsm.Change(EState.Chase);
+        }
+
+        // ==================== Chase ====================
+
+        private void EnterChase()
+        {
+            Loco.Resume();//上一次攻击 / 硬直时停下的 Agent，这里恢复
+        }
+
+        private void UpdateChase()
+        {
+            if (Target == null) return;
+
+            //进入攻击距离 → 发起攻击（时序与迁移前一致）
+            if (SqrDistanceToTarget <= AttackRange * AttackRange)
+            {
+                _fsm.Change(EState.Attack);
+                return;
+            }
+
+            //丢失目标太久就放弃（loseTargetTime = 0 时永不放弃，等价于迁移前的行为）
+            if (LoseTargetTime > 0f && Perception != null && Perception.TimeSinceLastSeen > LoseTargetTime)
+            {
+                _fsm.Change(EState.Idle);
+                return;
+            }
+
+            //Agent 优先；没 Agent / 没烘焙时自动退回直线位移
+            Loco.ChaseTarget(Target);
+        }
+
+        private void ExitChase()
+        {
+            Loco.Stop();
+        }
+
+        // ==================== Attack ====================
+
+        private void EnterAttack()
+        {
+            _atkT = 0f;
+            if (Hitboxes != null) Hitboxes.DisableAllHitboxes();//保险：进入时先清干净
+            SetAnimTrigger("Attack");
+        }
+
+        private void UpdateAttack()
+        {
+            Loco.FaceTarget(Target);//攻击期间只转向不动（Agent 已停）
+
+            _atkT += Time.deltaTime;
+            //⭐ M3.4：后摇结束先**拉开距离**再回追击（GDD §6.2「不应贴脸」）。
+            //   ⚠️ repositionDistance = 0 时直接回 Chase —— 且刻意**不在 enter 回调里调 Change**
+            //       （那会在 Change 内部再触发一次 Change，递归语义容易踩坑），条件放在这里判。
+            if (_atkT >= RecoverTime)
+                _fsm.Change(RepositionDistance > 0f ? EState.Reposition : EState.Chase);
+        }
+
+        private void ExitAttack()
+        {
+            //正常收招 / 被打断都要清，避免「已经不打人了，判定还生效」
+            if (Hitboxes != null) Hitboxes.DisableAllHitboxes();
+        }
+
+        // ==================== Reposition（M3.4 · GDD §6.2：攻击后退开，避免贴脸） ====================
+
+        private void EnterReposition()
+        {
+            _repoT = 0f;
+
+            //目标点 = 沿「背离玩家」的方向退开 repositionDistance 米
+            Vector3 away;
+            if (Target != null)
+            {
+                away = transform.position - Target.position;
+                away.y = 0f;
+            }
             else
-                _normalColor = Color.white;
-        }
-
-        private void OnEnable()
-        {
-            //接通 T21：受击通知
-            if (_health != null) _health.Damaged += OnDamaged;
-        }
-
-        private void OnDisable()
-        {
-            if (_health != null) _health.Damaged -= OnDamaged;
-        }
-
-        private void Start()
-        {
-            GameObject p = GameObject.FindWithTag("Player");
-            if (p != null)
             {
-                _player = p.transform;
-                _playerFsm = p.GetComponent<PlayerFSM>();
-            }
-        }
-
-        private void Update()
-        {
-            //玩家距离（用平方比较，省一次开方）
-            float distSqr = (_player != null)
-                ? (_player.position - transform.position).sqrMagnitude
-                : 9999f;
-
-            //受击闪白计时：时间到就恢复原色
-            if (_flashT > 0f)
-            {
-                _flashT -= Time.deltaTime;
-                if (_flashT <= 0f) RestoreColor();
+                away = -transform.forward;//目标丢了就沿自己背后退
             }
 
-            switch (_st)
-            {
-                case EState.Idle://玩家进入追击范围 → 追击
-                    if (distSqr <= aggroRange * aggroRange) SetState(EState.Chase);
-                    break;
+            if (away.sqrMagnitude < 0.0001f) away = -transform.forward;//与玩家重合时随便挑一个方向，避免除零
+            Vector3 want = transform.position + away.normalized * RepositionDistance;
 
-                case EState.Chase://进入攻击距离 → 发起攻击
-                    if (distSqr <= attackRange * attackRange)
-                    {
-                        _atkT = 0f;
-                        SetState(EState.Attack);
-                        break;
-                    }
-                    MoveTowardPlayer();
-                    break;
+            //⚠️ **必须吸附到导航网**（NAVMESH-GUIDE §9）：把网格外的点直接丢给 Agent，
+            //   它会走到"最近的合法点"甚至原地打转。
+            //   半径取 0.3 —— 要**大于导航网的 y 偏移**（本工程约 0.066），用 0.05 会全判成"不在网格上"。
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(want, out hit, 0.3f, NavMesh.AllAreas))
+                want = hit.position;
 
-                case EState.Attack:
-                    FacePlayer();
-                    _atkT += Time.deltaTime;
-                    if (_atkT >= recoverTime) SetState(EState.Chase);//后摇结束回追击
-                    break;
-
-                case EState.Hit://受击硬直
-                    _stunT -= Time.deltaTime;
-                    if (_stunT <= 0f) SetState(EState.Chase);
-                    break;
-
-                case EState.Death://死亡：不再行动
-                    break;
-            }
+            _repoPoint = want;
+            Loco.MoveToOrStep(want);
         }
 
-        // ==================== 受击反应（T21 接通点） ====================
+        private void UpdateReposition()
+        {
+            _repoT += Time.deltaTime;
+
+            //玩家又贴上来了 → 不退了，直接回追击（下一帧就会因进入攻击范围而开打）
+            if (SqrDistanceToTarget <= AttackRange * AttackRange)
+            {
+                _fsm.Change(EState.Chase);
+                return;
+            }
+
+            //到位（水平差 < 0.25 m）或超时 → 回追击
+            Vector3 d = _repoPoint - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude <= 0.0625f || _repoT >= RepositionTimeout)
+            {
+                _fsm.Change(EState.Chase);
+                return;
+            }
+
+            Loco.MoveToOrStep(_repoPoint);
+            //⚠️ 这里**不** FaceTarget：Agent 走位时朝向由它自己管（朝行进方向）。
+            //   强行接管会和 Agent 的自动转向打架（EnemyLocomotion 里 MoveTo 每帧会把转向权交还 Agent），
+            //   表现是抖动。所以后退时是"转身走开"，走完由 Chase 再转回来面对玩家。
+        }
 
         /// <summary>
-        /// 受击回调。规则（GDD §6.1）：
-        ///   · **小怪**（canBeInterrupted = true）：硬直 + 闪白 + 击退，**攻击被打断**
-        ///   · **Boss**（canBeInterrupted = false）：**只闪白**，不硬直、不打断前摇
+        /// 后退的**超时保护**：按正常速度走过去只要 <c>distance / speed</c> 秒，给 2 倍余量。
+        /// 没有它的话，目标点被柱子挡住（永远到不了位）会让敌人**永久卡在 Reposition**。
         /// </summary>
-        private void OnDamaged(EnemyHealth h, int dmg)
+        private float RepositionTimeout
         {
-            if (_st == EState.Death) return;
-
-            //致死一击：不做受击反应（死亡收尾由 EnemyHealth 负责）
-            if (_health != null && _health.IsDead) return;
-
-            FlashRed();
-
-            if (!canBeInterrupted) return;//Boss：只闪白
-
-            //打断当前动作：关掉判定体，避免「已经被打断了，但判定还生效」
-            if (_hitboxes != null) _hitboxes.DisableAllHitboxes();
-
-            KnockBack();
-
-            _stunT = hitStunTime;
-            SetState(EState.Hit);
+            get { return Mathf.Max(0.3f, RepositionDistance / Mathf.Max(0.1f, MoveSpeed) * 2f); }
         }
 
-        /// <summary>受击闪白。用 MaterialPropertyBlock，**不产生材质实例**。</summary>
-        private void FlashRed()
-        {
-            if (_ren == null) return;
+        // ==================== Hit ====================
 
-            _ren.GetPropertyBlock(_mpb);
-            _mpb.SetColor(BaseColorId, Color.red);
-            _ren.SetPropertyBlock(_mpb);
-            _flashT = flashTime;
+        private void UpdateHit()
+        {
+            _stunT -= Time.deltaTime;
+            if (_stunT <= 0f) _fsm.Change(EState.Chase);
         }
 
-        private void RestoreColor()
+        protected override void OnInterrupted(int damage)
         {
-            if (_ren == null) return;
+            if (Hitboxes != null) Hitboxes.DisableAllHitboxes();//先关判定体：已经被打断了，判定不该再生效
 
-            _ren.GetPropertyBlock(_mpb);
-            _mpb.SetColor(BaseColorId, _normalColor);
-            _ren.SetPropertyBlock(_mpb);
+            Loco.Retreat(KnockBackDistance);
+            Loco.Stop();
+
+            _stunT = HitStunTime;
+            PlayHitAnim();//M3.6：触发 hit 动画（内部会先复位残留的 Attack 触发器）
+            _fsm.Change(EState.Hit);
         }
+
+        // ==================== Death ====================
 
         /// <summary>
-        /// 受击后退，避免贴脸。
-        /// ⚠️ 直接改 transform 会**忽略碰撞**（敌人没有 Rigidbody / CharacterController）。
-        ///    距离小（默认 0.4m）影响有限；M3 接入 NavMeshAgent 后应改为沿路径退避。
+        /// 致死一击（来自基类 <c>HandleDamaged</c>）。基类拿不到 <see cref="EState"/>，所以由这里切。
+        /// ⚠️ 在此之前**必须**已经跑过 <see cref="EnemyHealth.Damaged"/>，
+        ///   因为 <see cref="EnemyHealth"/> 随后就会按延迟把物体隐藏掉。
         /// </summary>
-        private void KnockBack()
+        protected override void OnKilled()
         {
-            if (knockBackDistance <= 0f) return;
-            transform.position -= transform.forward * knockBackDistance;
+            _fsm.Change(EState.Death);
         }
 
-        // ==================== 移动 / 朝向 ====================
-
-        /// <summary>⚠️ M3 接入 NavMesh 后应**删除本方法**，改由 NavMeshAgent 驱动（见 NAVMESH-GUIDE §7）。</summary>
-        private void MoveTowardPlayer()
+        private void EnterDeath()
         {
-            if (_player == null) return;
-            Vector3 dir = _player.position - transform.position;
-            dir.y = 0f;//只在地面走
-            if (dir.sqrMagnitude > 0.01f)
-            {
-                transform.rotation = Quaternion.LookRotation(dir.normalized);
-                transform.position += dir.normalized * (moveSpeed * Time.deltaTime);
-            }
+            Loco.Stop();
+            if (Hitboxes != null) Hitboxes.DisableAllHitboxes();
+            PlayDeathAnim();//M3.6：设 IsDead 参数，驱动动画状态机的 AnyState → death
+            _fsm.LockStateMachine();//死后不再接受任何状态切换
         }
 
-        /// <summary>水平朝向玩家（不带俯仰）。</summary>
-        private void FacePlayer()
-        {
-            if (_player == null) return;
-            Vector3 toP = _player.position - transform.position;
-            toP.y = 0f;
-            if (toP.sqrMagnitude > 0.01f)
-                transform.rotation = Quaternion.LookRotation(toP.normalized);
-        }
-
-        // ==================== 攻击命中（M1.2：改用判定体） ====================
+        // ==================== 攻击命中（M1.2：走判定体） ====================
 
         /// <summary>
-        /// 动画关键帧事件（挂在 enemy/combo_01_1 上）。
+        /// 动画关键帧事件（挂在 enemy 的攻击动画上）。
         /// M1.2 起改为**开启敌人判定体**，与玩家侧规则对称（GDD 设计支柱 4）。
         /// </summary>
         private void TickAttack()
         {
-            if (_hitboxes != null)
+            if (Hitboxes != null)
             {
-                _hitboxes.EnableHitbox(_attackHitboxName, _hitboxActiveTime);
+                Hitboxes.EnableHitbox(_attackHitboxName, _hitboxActiveTime);
                 return;
             }
 
-            //兜底：未配判定体时退回旧的直接结算，避免「完全打不到玩家」
+            //兜底：未配判定体时退回直接结算，避免「完全打不到玩家」
             Debug.LogWarning("[EnemyMeleeAI] 未配置 HitboxController，退回直接结算：" + name, this);
 
-            if (_playerFsm == null) return;
-            float d = (_player != null)
-                ? (_player.position - transform.position).sqrMagnitude
-                : 9999f;
-            if (d <= attackRange * attackRange * 1.2f && !_playerFsm.Invulnerable)
-                _playerFsm.TakeDamage(_config.damage);
+            if (TargetFsm == null || Target == null) return;
+
+            float d = (Target.position - transform.position).sqrMagnitude;
+            if (d <= AttackRange * AttackRange * 1.2f && !TargetFsm.Invulnerable)
+                TargetFsm.TakeDamage(Damage);
         }
 
-        // ==================== 状态机 ====================
-
-        /// <summary>
-        /// 切换状态。**进入状态时的一次性动作放这里**，不要写在 Update 里 ——
-        /// 原先 SetTrigger("Attack") 写在 Update 中，会被**每帧触发**，导致攻击动画不断被重置。
-        /// </summary>
-        private void SetState(EState next)
-        {
-            if (next == _st) return;
-
-            //离开 Attack 时清掉残留判定（正常收招 / 被打断都要清）
-            if (_st == EState.Attack && _hitboxes != null) _hitboxes.DisableAllHitboxes();
-
-            _st = next;
-
-            if (next == EState.Attack) _anim.SetTrigger("Attack");
-        }
+        // ==================== Scene 视图 ====================
 
         private void OnDrawGizmosSelected()
         {
             if (_config == null) return;
-            Gizmos.color = new Color(1f, 0.6f, 0f, 1f);
-            Gizmos.DrawWireSphere(transform.position, _config.aggroRange);
+
+            //⚠️ 追击范围由 EnemyPerception 自己画（扇形 + 距离圈），这里只补攻击范围
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(transform.position, _config.attackRange);
         }

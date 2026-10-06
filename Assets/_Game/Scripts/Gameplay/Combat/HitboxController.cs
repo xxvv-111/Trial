@@ -178,6 +178,11 @@ namespace Game.Gameplay
 
             target.TakeDamage(box.Damage);
 
+            //⭐ 2026-10-07 顿帧（打击感）：命中瞬间把 timeScale 压到 0 一小段**真实时间**。
+            //   放在这个**唯一命中出口**里 ⇒ 玩家打敌人、敌人打玩家都会自动生效。
+            //   ⚠️ 顺序在 TakeDamage **之后**：此时受击方已切进 Hit 状态，冻结会停在"刚被打到"的姿态。
+            if (HitStop.Instance != null) HitStop.Instance.RequestForDamage(box.Damage);
+
             Vector3 point = other.ClosestPoint(transform.position);
             if (OnHit != null) OnHit(point, box.Damage);
             return true;

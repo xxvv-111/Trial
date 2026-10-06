@@ -12,13 +12,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 798ea0714f1918d4792ff83bc443e6e1, type: 3}
   m_Name: EnemyAIConfig
   m_EditorClassIdentifier: 
-  displayName: "\u62F3\u51FB\u624B"
+  displayName: "\u5251\u5175"
   hp: 30
   aggroRange: 8
   attackRange: 1
   moveSpeed: 3
   windupTime: 1
-  recoverTime: 1.5
+  recoverTime: 1
   damage: 10
   prefab: {fileID: 0}
   hitEffect: {fileID: 0}
+  canBeInterrupted: 1
+  hitStunTime: 0.75
+  knockBackDistance: 0.4
+  flashTime: 0.15
+  alertTime: 0.35
+  repositionDistance: 1.5
+  comfortDistance: 6
+  castRangeMin: 4
+  castCooldown: 2.2
+  projectileSpeed: 14
+  viewDistance: 0
+  viewAngle: 160
+  requireLineOfSight: 1
+  proximityRange: 2
+  eyeHeight: 1.2
+  aimHeight: 1
+  loseTargetTime: 0

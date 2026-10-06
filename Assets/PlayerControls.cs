@@ -179,7 +179,7 @@ namespace Game.Core
                     ""name"": ""Special"",
                     ""type"": ""Button"",
                     ""id"": ""b77bf806-4ed6-4650-bc86-0a573754019b"",
-                    ""expectedControlType"": ""Button"",
+                    ""expectedControlType"": """",
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
@@ -561,18 +561,7 @@ namespace Game.Core
                 {
                     ""name"": """",
                     ""id"": ""4b280d65-75c6-4685-a076-6d6c9a4587a5"",
-                    ""path"": ""<Keyboard>/q"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": ""Keyboard&Mouse"",
-                    ""action"": ""Special"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": false
-                },
-                {
-                    ""name"": """",
-                    ""id"": ""6af654f4-a916-4a5a-a2c4-294db979b3e7"",
-                    ""path"": ""<Mouse>/rightButton"",
+                    ""path"": ""<Keyboard>/1"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": ""Keyboard&Mouse"",

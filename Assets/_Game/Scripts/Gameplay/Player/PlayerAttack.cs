@@ -33,15 +33,59 @@ namespace Game.Gameplay
         private int comboLength;//本武器普攻段数
 
         private Animator _anim;
-        private PlayerEnergy _energy;
         private HitboxController _hitboxes;
 
         private int _comboIndex;//连击段数
         private float _lastAttackTime = -99f;//上次攻击时间
+
+        /// <summary>段序号自增计数（每次开新的一段 +1）。见 <see cref="SegmentId"/>。</summary>
+        private int _segmentId;
+
+        /// <summary>本段（这一刀）开始的时刻 —— 前冲位移的时间轴起点。见 <see cref="SegmentStartTime"/>。</summary>
+        private float _segmentStartTime;
         private bool _cancombo;//是否可接下一段
         private bool _dead;//是否死亡（⚠️ 当前无调用方，死亡链路待统一，见 T8）
 
         public bool isAttacking;//是否处于攻击状态（由 AttackStateBehaviour 驱动）
+
+        /// <summary>
+        /// ⭐ **本段攻击是否已经出手**（= 命中帧 <see cref="OnAttackHit"/> 是否已过）。
+        ///
+        /// 用途：方案 B 的「转向窗口」——**出手前可以调整朝向，出手后朝向锁定**
+        /// （由 <see cref="PlayerMotor"/> 在"只转向"模式下读取 <see cref="CanTurn"/>）。
+        ///
+        /// ⚠️ 每段独立计：<see cref="StartCombo"/> 与 <see cref="TryNextCombo"/> 都会清零，
+        ///    所以在一次 4 段连段里，**每一段都有自己的窗口**。
+        ///
+        /// ⚠️ **失败时是"放行"而不是"锁死"**：若某段动画忘了挂 `OnAttackHit` 事件，
+        ///    本标志会一直为 false → 该段全程可转向（宁可松，也不要让玩家突然转不动）。
+        /// </summary>
+        private bool _hitThisSegment;
+
+        /// <summary>
+        /// 当前是否**允许**靠输入调整朝向（方案 B 的窗口判据）。
+        /// ⭐ 刻意**不**再叠加 <see cref="isAttacking"/> —— 那个由 `AttackStateBehaviour` 在动画状态
+        /// enter/exit 时驱动，而 Attack 的过渡本身有 0.05~0.25 s 混合期，会让窗口起点不可控。
+        /// 外层是否处于攻击由 <see cref="PlayerFSM"/> 的 Attack 状态保证。
+        /// </summary>
+        public bool CanTurn { get { return !_hitThisSegment; } }
+
+        /// <summary>
+        /// ⭐ 本段（这一刀）的**自增编号** —— 每开新的一段都 +1。
+        ///
+        /// 用途：<see cref="PlayerMotor"/> 靠它判断"换段了没有"，从而把前冲进度**归零重算**
+        /// （每段各自从头开始算位移，而不是连着上一段继续累加）。
+        ///
+        /// ⚠️ 刻意用自增计数、**而不是**时间戳：`_lastAttackTime` 在**命中帧**
+        ///    （见 <see cref="OnAttackHit"/>）也会被刷新，拿它当"段边界"会让前冲进度在中途被重置。
+        /// </summary>
+        public int SegmentId { get { return _segmentId; } }
+
+        /// <summary>本段（这一刀）开始的时刻 —— 前冲位移的时间轴起点。</summary>
+        public float SegmentStartTime { get { return _segmentStartTime; } }
+
+        /// <summary>当前连段段号（0 基）。武器配置里"每段的数值"都按它取。</summary>
+        public int ComboIndex { get { return _comboIndex; } }
 
         /// <summary>当前武器（可能为 null = 未装配）。</summary>
         public WeaponConfig Weapon { get { return _weapon; } }
@@ -51,7 +95,6 @@ namespace Game.Gameplay
         private void Awake()
         {
             _anim = GetComponent<Animator>();
-            _energy = GetComponent<PlayerEnergy>();
             _hitboxes = GetComponent<HitboxController>();
 
             ResolveWeaponData();
@@ -96,43 +139,52 @@ namespace Game.Gameplay
 
         /// <summary>
         /// 开始连段第 1 段。由 PlayerFSM 在进入 Attack 状态时调用。
-        /// ⚠️ 第 1 段的体力消耗由 **PlayerFSM 在切换状态前**扣除（见 PlayerFSM.TryAttack），
-        ///    本方法只管重置连段计数。
+        /// ⚠️ 2026-10-06 起**普攻不消耗任何资源**（原体力扣除已删除），本方法只管重置连段计数。
         /// </summary>
         public void StartCombo()
         {
             _comboIndex = 0;
             _cancombo = false;
+            _hitThisSegment = false;//★ 新的一段开始 → 转向窗口重新打开（方案 B）
+            _segmentId++;//★ 段序号 +1 → PlayerMotor 据此把前冲进度归零
+            _segmentStartTime = Time.time;
             _lastAttackTime = Time.time;
         }
 
         /// <summary>
         /// 尝试接下一段。连段窗口内且未超段数才生效。
-        /// ⚠️ 体力不足则该段**不接续**（前一段正常播完）—— GDD §4.8 连段细则。
+        /// ⚠️ 2026-10-06 规则变更：**普攻不再消耗资源**，原来"体力不足则该段不接续"的判断已删除，
+        ///    现在只要在连段窗口内就能一直接下去。
+        ///
+        /// ⭐ 2026-10-07：**返回是否真的接上了** —— 供输入缓冲判断"要不要消费这次按键"。
+        ///    返回 false（窗口没开 / 已到末段）时，按键会**留在缓冲里**等下一次机会，
+        ///    这样玩家在后摇里提前按下也能接上。
         /// </summary>
-        public void TryNextCombo()
+        public bool TryNextCombo()
         {
             if (!_cancombo || _comboIndex >= comboLength - 1 || !ComboWindowOpen())
-                return;
+                return false;
 
-            int next = _comboIndex + 1;
-
-            //体力不足 → 放弃接续（PlayerEnergy 会触发 OnSpendFailed 供 HUD 报警）
-            if (_energy != null && !_energy.TrySpendAttack(next)) return;
-
-            _comboIndex = next;
+            _comboIndex++;
             _cancombo = false;
+            _hitThisSegment = false;//★ 进入下一段 → 该段自己的转向窗口重新打开（方案 B）
+            _segmentId++;//★ 换段 → 前冲进度归零、从头重算
+            _segmentStartTime = Time.time;
             _lastAttackTime = Time.time;
             _anim.SetTrigger("Attack");
+            return true;
         }
 
         /// <summary>
         /// 动画关键帧事件（挂在 combo_01_1~4 上）。
         /// 这是"判定开启帧"——GDD §8 要求判定体在**关键动作帧**期间存在。
+        /// ⭐ 同时也是**转向窗口的关闭点**（方案 B）：出手之后朝向锁定，判定体与视觉因此不会错位。
         /// </summary>
         private void OnAttackHit()
         {
             if (_dead) return;
+
+            _hitThisSegment = true;//★ 已出手 → 本段不能再转向（方案 B）
 
             //命中判定体由 HitboxController 负责；伤害值在 M2.1 已改由武器配置提供。
             //⚠️ 判定体的 _damage 是预制体上的序列化值 —— 换武器后需要同步（见 SyncHitboxDamage）。

@@ -6,8 +6,13 @@ namespace Game.Gameplay
 {
     /// <summary>
     /// 冲刺：位移 + 无敌帧，是主要的闪避手段（GDD §4.4）。
-    /// 体力消耗由 <see cref="PlayerFSM"/> 在决策点统一扣除（见 PlayerFSM.TryDash），
+    /// ⚠️ 2026-10-06 起**冲刺不消耗任何资源**（原体力消耗已删除）；
     /// 本类只负责位移与无敌计时。
+    ///
+    /// ⚠️ **位移必须经 <see cref="PlayerMotor"/>**（内部走 `CharacterController.Move`）。
+    /// 2026-10-06 修的 bug：原实现在这里直接写 `transform.position +=`，
+    /// **绕过了 CharacterController 的碰撞检测 → 冲刺能穿墙**。
+    /// 现在改成"只有一个位置写入者"，见 `PlayerMotor.StepMoveGrounded`。
     /// </summary>
     public class PlayerDash : MonoBehaviour
     {
@@ -26,6 +31,8 @@ namespace Game.Gameplay
         private float _dashTimer;//剩余冲刺时间
         private float _iFrameTimer;//剩余无敌时间
 
+        private PlayerMotor _motor;//位移出口（它持有 CharacterController）
+
         public bool IsDashing => _dashTimer > 0f;
         public bool IsInvulnerable => _iFrameTimer > 0f;
 
@@ -35,6 +42,10 @@ namespace Game.Gameplay
             dashDelay = config.dashDelay;
             dashDuration = config.dashTimer;
             iFrameDuration = config.iFrameTime;
+
+            _motor = GetComponent<PlayerMotor>();
+            if (_motor == null)
+                Debug.LogWarning("[PlayerDash] 同物体上没有 PlayerMotor —— 冲刺位移无法执行（需要它来走 CharacterController）。", this);
 
             //⚠️ 这里必须初始化为 0。原实现把无敌计时直接初始化成配置值（0.5s），
             //   而 Update 每帧递减 → 开局会白送玩家 0.5 秒无敌。
@@ -50,9 +61,15 @@ namespace Game.Gameplay
 
         private void LateUpdate()
         {
+            if (!IsDashing) return;
+
             //起手 dashDelay 之后才开始位移（保留原有的"起手停顿"手感）
-            if (IsDashing && _dashTimer < (dashDuration - dashDelay))
-                transform.position += transform.forward * (dashSpeed * Time.deltaTime);
+            if (_dashTimer >= (dashDuration - dashDelay)) return;
+            if (_motor == null) return;
+
+            //⚠️ 走 CharacterController（经 PlayerMotor），**不要**改回 transform.position ——
+            //   直接写坐标会绕过碰撞体，冲刺又会穿墙。
+            _motor.StepMoveGrounded(transform.forward * (dashSpeed * Time.deltaTime));
         }
 
         /// <summary>由 PlayerFSM 在进入 Dash 状态时调用。</summary>

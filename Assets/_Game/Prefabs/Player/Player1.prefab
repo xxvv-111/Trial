@@ -465,8 +465,12 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 9100000, guid: 422a200abd811dd4e8b789a6b8ede3e8, type: 2}
     - target: {fileID: 5866666021909216657, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
-      propertyPath: m_ApplyRootMotion
+      propertyPath: m_CullingMode
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8570184288975869521, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalRotation.x
@@ -544,6 +548,10 @@ MonoBehaviour:
   _camera: {fileID: 0}
   groundStickSpeed: 2
   turnSpeed: 720
+  attackTurnSpeed: 180
+  gateTurnByHitFrame: 1
+  attackUseRootMotion: 1
+  attackRootMotionScale: 1
 --- !u!114 &5117647566027896781
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -665,9 +673,9 @@ CharacterController:
   m_Radius: 0.3
   m_SlopeLimit: 45
   m_StepOffset: 0.3
-  m_SkinWidth: 0.08
+  m_SkinWidth: 0.03
   m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0.8, z: 0}
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!114 &1747581787612744132
 MonoBehaviour:
   m_ObjectHideFlags: 0

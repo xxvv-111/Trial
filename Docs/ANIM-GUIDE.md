@@ -42,17 +42,26 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 | 剑兵 **Attack** | `combo_01_1`（已在 `EnemyAC` 里）+ 可从 20 多个 kick / `combo_02` 里挑，**还能换花样** | ✅ 直接用，且有富余 |
 | 剑兵 Hit | `Stomach Hit` | ✅ 直接用 |
 | 剑兵 Death | `Sword And Shield Death` | ✅ 直接用 |
-| 弓兵 Idle / Run / Hit / Death | 同上 | ✅ 直接用 |
+| 法师 Idle / Run / Hit / Death | 同上 | ✅ 直接用 |
+| **法师 Attack（施法）** | 🔄 **2026-10-06：`Magical-Knight_Set/Animation/Humanoid/atk_energy01~11`（11 个）+ `inplace/` 去根运动版** | ✅ **直接用，且有富余** |
 | 玩家 剑·插地 | 改 `Elbow Uppercut Combo`（闲置）或 `combo_02_*` | 🟡 可改造 |
 | 玩家 长枪·投掷 | `Upward Thrust`（闲置） | 🟡 可改造 |
 | 玩家 长枪·召回 | **投掷倒放**（Unity 里可直接改速度方向） | 🟡 可改造 |
-| **弓兵 Aim** | 库里没有拉弓动作 | 🔴 **需手 K 或 Mixamo** |
-| **弓兵 Shoot** | 同上 | 🔴 **需手 K 或 Mixamo** |
 | Boss 招式 | 库里大概率没有 | 🔴 需手 K（⚠️ 招式表未定，量未知） |
 
-**→ 结论：真正"必须手 K"的只有弓兵的 `Aim` / `Shoot` 两个**（且 Mixamo 上有现成的拉弓射击动画，可以先去找）。
+**→ 结论（🔄 2026-10-07 更新）：敌人侧已经"没有必须手 K 的动画"了。**
+原先标红的两条 —— `弓兵 Aim` / `弓兵 Shoot`（拉弓动作库里确实没有）—— **随「弓兵 → 法师」的设计改动而消失**。
 
-**所以建议的顺序是**：先动手复用/改造跑通玩法 → 只在确实不够用时才手 K → 手 K 优先补"库里完全没有"的（弓兵瞄准射击）。
+> 🔄 **2026-10-07 敌人换装（M3.6 完成）**：上表里"剑兵 / 法师"的两列**素材来源已整体作废** —— 敌人从人形 `Boxer` / `Gunner`
+> 换成了 **Wraith 怪物**（`Monster1` 近战 / `Monster2` 远程）。原因不是"Magical-Knight_Set 不好用"，而是
+> **`Boxer` / `Gunner` 的 Animator `avatar` 是空的**、全工程没有它们模型的 Avatar 资产 ⇒ Humanoid 肌肉剪辑**没有 Avatar 就播不出来**。
+> Wraith 自带有效的 `WraithAvatar`，一次解决。
+>
+> ⭐ **换装后敌人的动作全部来自 `Polygonmaker/Monsters Series/Monsters - Wraith/Animations/Anim_Wraith@*.FBX`（21 个）**，
+> 且**必须用 Humanoid 版**（`WraithAvatar` 是 Humanoid）。实际选用的 5+5 个 clip、参数与转移表见 `GDD.md` §6.4.1。
+> 下表**保留原措辞**，作为"当时基于 Magical-Knight_Set 的选型记录"。
+
+**所以建议的顺序是**：先动手复用/改造跑通玩法 → 只在确实不够用时才手 K → 目前**只剩 Boss 招式**需要手 K（量待定）。
 
 ---
 
@@ -62,12 +71,12 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 |---|---|---|---|
 | **A. 直接改现有动画**（Unity Animation 窗口） | **微调**（改节奏、改某个姿势、去根位移） | ⚠️ **不用装任何新软件**，改完立刻预览 | 全身上下手 K 很痛苦，曲线编辑弱，无洋葱皮 |
 | **B. Mixamo 下载后改** | 需要"大致对"的动作 | 质量稳定、免费 | 需登录下载；风格未必贴合 |
-| **C. Blender 从零 K** | 库里完全没有的动作（弓兵 Aim/Shoot、Boss 招式） | 完整控制权，专业工具 | 需学 Blender；⚠️ **本机未安装**（实测） |
+| **C. Blender 从零 K** | 库里完全没有的动作（**现在只剩 Boss 招式**；原「弓兵 Aim/Shoot」已随改法师消失） | 完整控制权，专业工具 | 需学 Blender；⚠️ **本机未安装**（实测） |
 
 **我的建议**：
 
 1. **先试方案 A**（改 `Upward Thrust` → 投掷）。**零环境成本**，改完能立刻在编辑器里看效果。很多"感觉差一点"的动画，改改时长和关键姿势就够了。
-2. 弓兵 `Aim`/`Shoot` **先去 Mixamo 搜**（"draw bow" / "shoot arrow" 是常见动作），大概率比手 K 的好。
+2. ~~法师 `Aim`/`Shoot` 先去 Mixamo 搜~~ —— 🔄 **2026-10-06 已不需要**（敌人侧已无必须手 K 的动画，见上表）。
 3. **只在 1、2 都解决不了时才上 Blender。**
 
 ⚠️ **Blender 现状（实测）**：`which blender` 无结果、`C:\Program Files\Blender Foundation` 不存在 → **未安装**。
@@ -100,7 +109,9 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 | 动画 | 事件名 | 接收方 |
 |---|---|---|
 | `combo_01_1~4`、`Elbow Uppercut Combo`、`Upward Thrust` | **`OnAttackHit`** | `PlayerAttack` |
-| `enemy/combo_01_1` | **`TickAttack`** | `EnemyMeleeAI` |
+| `Monster1/attack1.anim`（M3.6 起，**0.45 s**） | **`TickAttack`** | `EnemyMeleeAI` |
+| `Monster2/taunt.anim`（M3.6 起，**0.50 s**） | **`TickAttack`** | `EnemyCaster` |
+| ~~`enemy/combo_01_1`~~（占位 clip，已弃用） | ~~`TickAttack`~~ | ~~`EnemyMeleeAI`~~ |
 
 ❌ **如果你手 K 了一个新攻击动画但没加事件 → 挥砍有动作、有特效，但「打不掉血」。**
 （因为 `DoMeleeHit()` 只在事件里被调用。）
@@ -132,7 +143,7 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 |---|---|---|
 | `PlayerConfig.comboWindow = 1s` | 连段窗口 | 动画太长会接不上下一段 |
 | `EnemyAIConfig.windupTime / recoverTime` | 敌人前摇 / 后摇 | 动画与状态机计时对不上 |
-| `GDD.md` §6.3 弓兵 | 瞄准前摇 **0.5s**、冷却 2.2s | `Aim` 动画长度应≈0.5s |
+| `GDD.md` §6.3 法师 | 施法前摇 **0.5s**、冷却 2.2s | ⚠️ 前摇已**折进 `Attack` 动画**（不再有独立 `Aim`）—— 出手帧用动画事件驱动，动画长度应与前摇对齐 |
 | `GDD.md` §7.3 Boss | **前摇必须做足**（Boss 不会被打断，前摇是玩家唯一反应窗口） | 决定 Boss 战"打不打得明白" |
 
 🔧 **建议**：**先把这张表里的时长定下来，再动手 K**。否则 K 完了发现节奏对不上，要重来。
@@ -230,7 +241,8 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 
 ### 4.3 接入 Controller
 
-1. 把剪辑拖进 `PlayerAC.controller` / `EnemyAC.controller`
+1. 把剪辑拖进 `PlayerAC.controller` / `AC_Monster1.controller` / `AC_Monster2.controller`
+   （⚠️ 旧的 `EnemyAC.controller` 已弃用，在 `Art/Animations/Enemy/old/` 下）
 2. 连线、设 Trigger（照抄现有状态的写法）
 3. ⚠️ **`PlayerAttack` / `EnemyMeleeAI` 的方法名必须与事件名完全一致**（`OnAttackHit` / `TickAttack`），大小写敏感
 4. 若用了 `AttackStateBehaviour`（挂在攻击状态上）→ **新攻击状态也要挂**，否则 `isAttacking` 计数不对，状态机会卡住
@@ -281,7 +293,7 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 |---|---|---|
 | **1** | **先不装 Blender**，用 Unity Animation 窗口改 `Upward Thrust` 试作投掷 | 零环境成本，先验证"能不能接受现成动作" |
 | **2** | 把 `combo_02` / kick 系列**分配给剑兵**，看观感够不够 | 库里有 20 多个闲置动作，先用完再说 |
-| **3** | 弓兵 `Aim` / `Shoot` **先去 Mixamo 搜** | 比手 K 快，质量更稳 |
+| **3** | ~~法师 `Aim` / `Shoot` 去 Mixamo 搜~~ → 🔄 **已不需要**；日后若补 Boss 招式可先去 Mixamo | 比手 K 快，质量更稳 |
 | **4** | 上面都解决不了 → 装 **Blender 4.x LTS** 手 K | 只补"确实没有"的动作 |
 | **5** | ⚠️ 每段动画做完**立刻检查 4 条硬约束**（§2） | 越早发现越省事 |
 

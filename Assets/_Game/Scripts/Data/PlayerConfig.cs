@@ -24,14 +24,13 @@ namespace Game.Data
         [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.damage —— 本字段仅在**未装配武器**时作兜底。")]
         public int[] attackDamage = { 12, 15, 10, 20 };//4 段普攻伤害
 
-        [Header("体力")]
-        public float maxEnergy = 100f;
-        public float dashEnergyCost = 20f;//冲刺消耗
-        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.energyCost —— 本字段仅在**未装配武器**时作兜底。")]
-        public int[] attackEnergyCost = { 8, 10, 12, 15 };//4 段普攻消耗
-        [Tooltip("⚠️ M2.1 起已迁到 WeaponConfig.specialEnergyCost —— 本字段仅在**未装配武器**时作兜底。")]
-        public float specialEnergyCost = 30f;//特殊攻击消耗
-        public float energyRegenDelay = 0.6f;//停止消耗后多久开始回复
-        public float energyRegenRate = 25f;//每秒回复量
+        [Header("魔力（2026-10-06 由「体力」改回「魔力」）")]
+        [Tooltip("魔力上限。\n⚠️ 规则变更后 移动 / 冲刺 / 普攻 全部免费，**只有特殊攻击消耗魔力**。")]
+        public float maxMana = 100f;
+        [Tooltip("特殊攻击的兜底魔力消耗。⚠️ 武器配置了 specialManaCost 时以武器为准。")]
+        public float specialManaCost = 30f;
+        //⚠️ 2026-10-06：原 manaRegenDelay / manaRegenRate 两个字段**已删除**。
+        //  魔力不再随时间自动回复（设计决定），恢复只能由显式来源触发
+        //  —— 接入点是 PlayerMana.Restore(amount)（击杀回魔 / 拾取回魔等，后续里程碑再接）。
     }
 }

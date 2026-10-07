@@ -108,6 +108,78 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702677202, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702691360, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702703156, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.z
+      value: NaN
+      objectReference: {fileID: 0}
     - target: {fileID: 755585884702738830, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
       propertyPath: m_Enabled
       value: 0
@@ -119,6 +191,54 @@ PrefabInstance:
     - target: {fileID: 755585884702756408, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
       propertyPath: m_Enabled
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702840418, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Center.z
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.x
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.y
+      value: NaN
+      objectReference: {fileID: 0}
+    - target: {fileID: 755585884702859410, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
+      propertyPath: m_AABB.m_Extent.z
+      value: NaN
       objectReference: {fileID: 0}
     - target: {fileID: 755585884704647340, guid: ada6951a9895f2143962f7615cb61c56, type: 3}
       propertyPath: m_Enabled
@@ -290,6 +410,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _config: {fileID: 11400000, guid: 41fe808f401db6943bf883d86f4ea61c, type: 2}
   _logTransitions: 0
+  _hitFlashColor: {r: 1, g: 0.28, b: 0.22, a: 1}
+  _hitFlashEmission: 2
   _hitboxActiveTime: 0.25
   _attackHitboxName: Hitbox_Attack
 --- !u!114 &1929816077510890031

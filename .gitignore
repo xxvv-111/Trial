@@ -78,3 +78,23 @@ Thumbs.db
 #    属第三方资源，**需要署名**。
 /Assets/Polygonmaker/
 /Assets/Polygonmaker.meta
+
+# ===== 第三方环境资源包（不进仓库）=====
+# Leartes Studios · Siege of Ponthus：城堡整图环境包，4.3 GB / 1092 个文件。
+# 内含两个 1.4 GB 的 .unitypackage（BUILT-IN / URP 各一个）与 132/138 MB 的 4K 金属贴图，
+# 既超 GitHub 单文件 100 MB 硬限制，也远超仓库 1 GB 软限制 ⇒ **无法进仓库，只能排除**。
+#
+# ⚠️ 与前几个包不同：本包**不是可选的**。决定放弃关卡制、改用城堡整图之后，
+#    Assets/Scenes/URP_SiegeOfPonthus.unity（现主场景 / 11 MB）
+#    直接引用包内 Assets/LeartesStudios/SiegeOfPonthus/{URP,HDRP}/... 的预制体与材质；
+#    ⇒ **本地必须保留**。克隆仓库后主场景会大面积丢引用（材质洋红、建筑/道具消失），
+#    需自行放回本包才能打开；NavMesh（Assets/Scenes/URP_SiegeOfPonthus/*.asset）同理需重烤。
+#    属第三方资源，**需要署名**（Leartes Studios · Siege of Ponthus）。
+/Assets/LeartesStudios/
+/Assets/LeartesStudios.meta
+
+# ===== Unreal AnimSequence 的伴生元数据（不进仓库）=====
+# Boss_Crichton 的动画是 Unreal 导出的 .psa（已被上面的 *.psa 排除），
+# 每个 .psa 旁边还有一个 *.props.txt 记录骨骼映射与帧数。
+# 这些文本单独存在毫无意义（Unity 用不上），故一并排除。
+*.props.txt

@@ -4,9 +4,9 @@
 > 任何新的 AI 会话或协作者，**读完本文即可理解项目全貌并开始干活**，不需要重新通读全部代码。
 > 配套文档见文末 §11 文档索引。
 >
-> 最后更新：2026-10-07 | 项目阶段：**阶段 0 ✅ · M1 系统骨架全部 ✅（魔力/Hitbox/暂停/文案）· M2 武器（剑）全部 ✅（配置/装配/连段动画/火球特攻）· M3.1 NavMesh 烘焙 ✅ · M3.2 敌人状态机基类 ✅ · M3.3 视野感知 ✅ · M3.4 剑兵 Alert/Reposition ✅ · M3.5 法师（含 kiting）✅ · M3.6 敌人动画状态机 ✅（含敌人换装 Wraith）** · 资源改回**魔力**且**不再自动回复** · 冲刺穿墙已修（T27） · 攻击中"不移动但可限速转向"（手感方案 A）
+> 最后更新：**2026-10-09** | 项目阶段：**阶段 0 ✅ · M1 系统骨架全部 ✅ · M2 武器（剑）全部 ✅ · M3.1~M3.6 全 ✅（含敌人换装 Wraith）· 主场景 `Castle` 落地 ✅ · ⚠️ M3.7 多关卡已作废** · 资源为**魔力**且**不自动回复** · 冲刺穿墙已修（T27） · ⚠️ **类型定位统一为 ARPG（RPG 层规划中，尚未实现）**
 >
-> **下一步：M3.7 多关卡场景拆分 + 关卡流转**（✅ **M3 敌人部分已全部完成**：M3.1~M3.6 全绿）。
+> **下一步：M4 Boss（`Boss_Crichton` 已就位，缺招式表与决策层）+ Play 模式手验；🔄 M7 ARPG 扩展见 `ROADMAP.md` §14**（✅ M3 敌人部分已全部完成 M3.1~M3.6；⚠️ M3.7 多关卡已作废）。
 > 🔄 **2026-10-07 敌人换装**：近战 `Monster1` / 远程 `Monster2`，模型 = Wraith（自带有效 `WraithAvatar`）。
 > 换装原因：旧 `Boxer` / `Gunner` 的 Animator **`avatar` 是空的**、全工程没有对应 Avatar 资产 ⇒ Humanoid 肌肉剪辑**播不出来** ⇒ 攻击动画不播、`TickAttack` 不触发、**打不出伤害**。
 
@@ -14,13 +14,15 @@
 
 ## 1. 一句话定位
 
-Unity 6 的 **3D 近战动作游戏**（武术/暗黑奇幻题材）。框架自研，包含状态机、事件总线、对象池、A\* 等模块。当前正从"学习项目"改造为**课程设计项目**。
+Unity 6 的 **3D 动作 RPG（ARPG）**（武术 / 暗黑奇幻题材）—— **第三人称斜俯视**。框架自研，包含状态机、事件总线、对象池、A\* 等模块。当前正从"学习项目"改造为**课程设计项目**。
 
-> ⚠️ **2026-10-05 关卡结构定稿：多关卡独立场景** —— `Level_01` / `Level_02` / `Level_03`
-> 各自一个 `.unity` 场景，逐关清怪推进。详见 [`GDD.md`](GDD.md) §9。
-> （中间曾评估"ARPG 单场景：一条通路直达 Boss、沿途小怪"，**未采纳** ——
-> 评估过程存档在 [`ARPG-DIRECTION.md`](ARPG-DIRECTION.md)，⚠️ **其中 §4.6 相机实现仍然生效**。）
-> 玩家模型已换成 **Roskva**（UE 素材包接入，Humanoid；剑模型与 4 段连段动画正在接入）；
+> ⚠️ **2026-10-09 口径统一（最新，全库同步）**
+> · **类型**：统一为 **3D 动作 RPG（ARPG）** —— ⚠️ **RPG 层（跳跃 / 掉落 / 成长 / 数值养成）尚未实现**，当前只具备**动作层**（2026-10-09 定为方向，见 `ROADMAP.md` §14）。
+> · **视角**：**第三人称斜俯视 · 后置跟随**（此前文档所写"俯视角"**不准确**）。
+> · **场景**：**单一大型主场景** `Assets/Scenes/Castle.unity`（城堡整图）—— ⚠️ 2026-10-05 的多关卡方案（`Level_01/02/03`）**已于 2026-10-07 作废**。详见 [`GDD.md`](GDD.md) §9。
+> · **跳跃**：2026-10-03 的"不做跳跃"决策**已推翻**，改为**规划中** —— ⚠️ 动工前必须先修 **T1**、并补回输入里的 `Jump`（见 [`GDD.md`](GDD.md) §4.3）。
+> （更早曾评估"ARPG 单场景：一条通路直达 Boss、沿途小怪"，**未采纳** —— 评估存档在 [`ARPG-DIRECTION.md`](ARPG-DIRECTION.md)，⚠️ **其中 §4.6 相机实现仍然生效**。）
+> 玩家模型已换成 **Roskva**（UE 素材包接入，Humanoid；剑模型与 4 段连段动画已接入）；
 > 相机为**鼠标控视角的后置跟随**（可仰视、动态地面安全角防穿地）。
 > ⚠️ **武器范围收敛为「只做剑」** —— 第二把武器（长枪）与武器切换为额外项目（`ROADMAP.md` §13）。
 
@@ -37,7 +39,7 @@ Unity 6 的 **3D 近战动作游戏**（武术/暗黑奇幻题材）。框架自
 | 程序集 | **单一 `Assembly-CSharp`，无 asmdef** |
 | 关键包 | TextMesh Pro、Timeline、AI Navigation、Test Framework、Visual Scripting |
 | 特殊包 | **`com.coplaydev.unity-mcp`**（Unity MCP，装了这个外部 AI 才能直接操作编辑器） |
-| 场景 | `Assets/Scenes/MainMenu.unity`（buildIndex 0）、`Assets/Scenes/Game.unity`（buildIndex 1） |
+| 场景 | `Assets/Scenes/MainMenu.unity`（开始界面）、**`Assets/Scenes/Tavern.unity`（酒馆中枢，✅ 10-10 已搭建落地 / 1.44 MB）**、**`Assets/Scenes/Castle.unity`（唯一主战斗场景；⚠️ 10-10 由 `URP_SiegeOfPonthus.unity` 改名而来，内容未变、NavMesh 产物仍留在旧目录 `Assets/Scenes/URP_SiegeOfPonthus/`）**、`Assets/Scenes/Game.unity`（旧 3 房间场景，**保留但非主线**） |
 | 编译状态 | ✅ 控制台 0 报错 0 警告 |
 | Git 仓库 | ✅ **已建并已接入远端**：本地 `Demo-main\.git` → `origin` = `https://github.com/xxvv-111/Trial.git`（**旧仓库 `github.com/xxvv-111/Demo.git` 不再使用**） |
 | 当前工作分支 | **`main`**，跟踪 `origin/main`（原仓库分支名为 `CurriculumDesign`） |
@@ -82,8 +84,9 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 ├── Assets\
 │   ├── Scenes\
 │   │   ├── MainMenu.unity          # 开始界面（标题 + 开始/退出）
-│   │   └── Game.unity              # ⚠️ 当前**唯一**游玩场景（3 房间 + 玩家 + Canvas + GameManager）
-│   │                               #  ⚠️ 待拆分为 Level_01/02/03.unity（见 ROADMAP M3.7）
+│   │   ├── Tavern.unity            # ✅ **酒馆中枢（10-10 已搭建落地）**——NPC / 装备 / 法术 / 锻炼 / 任务
+│   │   ├── Castle.unity # ✅ **当前唯一主战斗场景**（城堡整图 / 3672 预制体实例 / NavMesh 已烤）
+│   │   └── Game.unity              # ⚠️ 旧 3 房间玩法场景，**保留但非主线**（M3.7 拆分已作废）
 │   ├── Editor\
 │   │   ├── AStarSelfTest.cs        # A* 的编辑器自测（菜单 Tools/A* 自测、自测2：无路）
 │   │   ├── FieldInspectorMenu.cs   # 反射打印脚本字段（调试工具）
@@ -212,9 +215,9 @@ D:\Unity\Unity Project\CurriculumDesign\Demo-main\
 
 ### 5.5 `Game.Gameplay`（关卡与流程）
 
-> ⚠️ **2026-10-05 结构变更**：关卡由"单场景三房间"改为 **多关卡独立场景**（`Level_01/02/03`）。
-> 下表四个类**机制不变、代码可平移**（每关一个战斗区）；
-> ⚠️ **待新增** `LevelFlow`（关卡索引 / 解锁 / 加载 / 结算）—— 目前**不存在**。
+> ⚠️ **2026-10-07 结构定稿**：**单一大型主场景**（`Castle.unity`）。
+> ⚠️ 10-05 的多关卡方案（`Level_01/02/03` + `LevelFlow`）**已作废**。
+> 下表四个类**机制不变、原样复用**（主场景内每个战斗区域一组 `RoomController`）。
 
 | 类 | 职责 / 要点 |
 |---|---|
@@ -448,7 +451,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | # | 问题 | 位置 | 影响 |
 |---|---|---|---|
-| **T1** | `_motor.enabled = false` 用于"停止移动"，**重力也被停掉** | `PlayerFSM` / `PlayerMotor` | ⚠️ **已降级为低优先级**：跳跃已取消，不再阻塞任何功能（代码仍不优雅） |
+| **T1** | `_motor.enabled = false` 用于"停止移动"，**重力也被停掉** | `PlayerFSM` / `PlayerMotor` | ⚠️ **2026-10-09 重新升级为阻塞项** —— 跳跃改为规划中，**加跳跃前必须先修**（拆分"移动抑制"与"重力常驻"） |
 | **T2** | 玩家同时挂 `Rigidbody` + `CapsuleCollider` + `CharacterController` | `Player.prefab` / 场景 Player | 三套物理重复，易互相干扰 |
 | ~~T3~~ | ~~攻击判定是动画事件里的**瞬时 `OverlapSphere` 采样**~~ | ✅ **已修复 2026-10-04（M1.2）**：改为帧驱动的判定体系统（`Hitbox` + `HitboxController`），判定体在关键帧期间**真实存在**；伤害统一走 `HitboxController.TryProcessHit` 唯一出口 | 已消除 |
 | ~~T4~~ | ~~体力**从未被消耗**（唯一调用点在作弊脚本）~~ | ✅ **已修复 2026-10-04（M1.1）**：成本表集中在 `PlayerEnergy`，接入 3 个消耗点（冲刺 / 普攻首段 / 连段后续），体力不足则**硬性拒绝动作**；加了再生与 HUD 闪烁 | 已消除 |
@@ -543,10 +546,10 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 - ⏸️ 开局二选一 / 武器切换（`PlayerAttack.SetWeapon()` 已就绪）
 - ⏸️ 剑的额外招式（`Elbow Uppercut Combo` / `Upward Thrust` —— 动画已存在但**未接入**）
 
-**关卡（结构变更新增）**
-- ❌ **多关卡场景**：`Level_01/02/03` **尚未拆分**（目前只有 `Game.unity`，3 个房间全在里面）
-- ❌ **`LevelFlow`**（关卡索引 / 解锁 / 加载 / 结算）未做
-- ❌ 选关界面未做；HUD 关卡进度未做
+**场景 / 关卡（2026-10-07 结构定稿）**
+- ✅ **主场景**已定稿：`Assets/Scenes/Castle.unity`（城堡整图 / 3672 预制体实例 / NavMesh 已烤到 `NavMesh-NavMeshPoot.asset`）
+- ⚠️ ~~多关卡场景 `Level_01/02/03`~~ + ~~`LevelFlow`~~ + ~~选关界面~~ —— **全部作废**（2026-10-07 弃关卡制）
+- ❌ 主场景内的**战斗区域布置**（区域数量 / 敌人配置）尚未定稿
 
 **M3 剩余**
 - ✅ **M3.5 法师（远程）**（2026-10-06 完成）：`EnemyRanged` → **`EnemyCaster`**（`git mv` 保 GUID），改为 `EnemyAIController` 子类，**6 个行为状态** + kiting 目标点 + `EnemyPerception` 视线遮挡检查；🆕 `Data/EnemyCasterConfig.asset`（法师独立数值），Gunner 的 `_config` 已指过去。**自测 39 项全通过**（30 → 39，法师用例重写为 6 状态、12 项；🆕 判据「一次 Attack **只出手一次**」+「冷却恢复后能再次施法」）
@@ -568,7 +571,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 编号 | 内容 | 影响 |
 |---|---|---|
-| **T1** | `_motor.enabled = false` 停移动时把贴地也停掉 | 已降级为低优先级（跳跃取消） |
+| **T1** | `_motor.enabled = false` 停移动时把贴地也停掉 | ⚠️ **2026-10-09 重新成为阻塞项**（跳跃回归，加跳跃前必须先修） |
 | **T2** | Player 上 `Rigidbody` + `CharacterController` + `CapsuleCollider` **三者并存** | 物理重复，易互相干扰 |
 | **T6** | 敌人无共用状态机基类（近战 switch 硬编码 / 远程完全没有） | 加两种敌人 = 两份重复代码 → **M3.2 处理** |
 | **T7** | `EnemyHealth.Died` 是 **static 事件** | 跨场景重开有重复订阅风险（`Damaged` 已用实例事件避开） |
@@ -587,7 +590,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | # | 决策 | 关键影响 |
 |---|---|---|
 | 1 | 参考《哈迪斯》，**只取"单层试炼"骨架** | 范围不膨胀 |
-| 2 | **不做跳跃** | 省掉 Jump/Fall/Land 动画；**T1 物理重构降级为低优先级**；~~体力表去掉跳跃项~~（2026-10-06 起不再有体力消耗表） |
+| 2 | ~~**不做跳跃**~~ 🔄 **2026-10-09 推翻 → 改为规划中**（ARPG 方向） | 原判断"跳跃不解决战斗问题"在 **ARPG 方向**下已不成立；⚠️ **需 Jump/Fall/Land 动画回归**、**T1 重新成为阻塞项**、**输入需补回 `Jump`**（见 `GDD.md` §4.3） |
 | 3 | **魔力不足 → 硬性禁止**该动作（消耗 > 当前魔力就不执行） | ⚠️ **2026-10-06 收窄**：现在只有特殊攻击会消耗魔力，冲刺与普攻没有资源门槛 |
 | 4 | **武器 2 把：剑 + 长枪**，都是**四段**普通攻击（⚠️ **V1 只做剑**，见第 13 条） | 现有 `Attack1–4` 动画**可复用**；✅ 剑已换专用连段动画（`1_atk_sword03` 等） |
 | 5 | 🔄 **剑·特殊攻击：火球 · 远距离**（2026-10-05 改定）—— 原「点按 → 插地 → 圆形范围伤害」**作废**；理由：游戏背景允许使用魔法 | 点按分支；发射火球，可复用 `Bullet.cs` 弹道 |
@@ -597,6 +600,7 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 | 9 | **Boss 招式表暂缓** | 先搭决策框架 + 状态机骨架 |
 | 10 | 音频**两种方式都用**（程序化合成 + 现成素材） | `AudioManager` 用"ID → Clip"查表，便于替换 |
 | 11 | **存档用 JSON**（`persistentDataPath` + `JsonUtility`，带 `version`） | 需处理"文件缺失 / 损坏"；会产生**可见的存档文件** |
+| 🔄 12 | **2026-10-09：类型定位定为 ARPG** | 后续新增**跳跃 / 掉落 / 成长 / 数值养成**；⚠️ 范围扩大，**存档由"可选"升为必做**；排期见 `ROADMAP.md` §14 |
 | 12 | **寻路改用 Unity 自带 NavMesh** ⚠️（2026-10-04 翻转；原为"接入自研 A\*"） | **T14 结案**；不再需要自建网格与路径平滑；`AStar` 降级为报告素材。新增工作：房间内摆障碍物 + 烘焙 + 门的 `NavMeshObstacle`(carving)。操作手册见 `NAVMESH-GUIDE.md` |
 | 13 | ⏸️ **额外项目：武器开局二选一**（剑 / 长枪），**单局内不切换** —— ⚠️ **V1 只做剑，进关卡默认装配剑** | 省掉切换动作与切换 UI；⚠️ 只有一把武器时"选择"无意义 |
 | 14 | ⏸️ **额外项目：长枪细节** —— **固定投掷距离**、**直线**飞行、到达终点**插在地上**、召回**与其他攻击同一套 hitbox 判定**、玩家死亡则**长枪留在原地**并直接进结算。**蓄力 / 瞄准 / 指示器 / 瞄准减速已整体取消** | 不再需要"长按三态"输入与指示器 UI；长枪需世界物体表现（飞行 / 插地 / 飞回） |
@@ -613,8 +617,9 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 |---|---|---|
 | 0 | `Docs/README.md` | 索引与阅读指引、**一句话现状** |
 | 1 | **`Docs/PROJECT-CONTEXT.md`**（本文） | **新会话快速接管：项目全貌 + 代码地图 + 坑** |
-| 2 | `Docs/GDD.md` | 游戏策划案（**要做什么**）。**关卡结构见 §9**（多关卡独立场景） |
-| 3 | **`Docs/ARPG-DIRECTION.md`** | **方案选型存档**：ARPG 单场景（❌ **未采纳**）+ ⚠️ **仍然生效的 §4.6 相机实现** |
+| 2 | `Docs/GDD.md` | 游戏策划案（**要做什么**）。**场景结构见 §9**（**单一大型主战斗场景** + **酒馆中枢**，2026-10-09 更新） |
+| 2.5 | `Docs/PHASE1-DESIGN.md` | **第一阶段策划案**：场景流程（开始界面 → 酒馆 → 城堡）、玩家动作集、酒馆 NPC、掉落与**双轨成长**、两种小怪、Boss 三招与突刺追击。**每部分含技术建议 + 可扩展性设计**。第一阶段开工前的权威来源 |
+| 3 | **`Docs/ARPG-DIRECTION.md`** | **方案选型存档**：ARPG 单场景（❌ **未采纳**）+ ⚠️ **仍然生效的 §4.6 相机实现**（⚠️ 此处"ARPG"指**关卡结构方案**，与 2026-10-09 的**类型定位 ARPG** 不是同一件事） |
 | 4 | **`Docs/ROADMAP.md`** | **完成路线图**：阶段 0 + M1–M6 分步计划、每步验收标准、依赖关系、阻塞项 |
 | 5 | `Docs/ART-PIPELINE.md` | 美术/音频资源的**获取方案**与可行性（怎么拿） |
 | 6 | `Docs/ART-ASSETS.md` | 美术资产清单：已有/缺失对照、阻断项、**署名表**（缺什么） |
@@ -631,6 +636,8 @@ GameEvents.PlayerDied → GameManager.OnPlayerDied → 2s 后显示 GameOverPane
 
 | 日期 | 变更 |
 |---|---|
+| **2026-10-09** | **📋 产出第一阶段策划案 `Docs/PHASE1-DESIGN.md`**（本轮**纯文档，零代码改动**）。**依据用户需求**：开始界面 → **酒馆安全中枢**（NPC：装备升级 / 法术学习 / 锻炼提升数值 / 接取任务）→ **城堡**战斗；玩家动作集含**跳跃**；怪物掉**魔晶**用于**局外养成**，击杀**局内升级**；两种小怪（近战追逐 / 远程保持距离并用**倒退动作**）；Boss 有**初见动画 + 三种普攻 + 远距突刺追击**。**① 架构核心建议**：**三层分离** —— `PlayerProgress`（纯数据，进存档）/ `ProgressService`（`DontDestroyOnLoad` 单例，唯一读写）/ `PlayerStats`（运行时派生）⇒ 解决"跨场景数据放哪"这一最容易做错的点。**② 关键新设计**：**双轨成长** —— 局内升级（临时，回酒馆重置）与局外魔晶养成（永久），⚠️ 已列为**待你拍板项 A**（若两条都永久会数值爆炸）；**属性修正器管线**（`StatType` + `StatModifier{ source, value, isPercent }`）⇒ 等级 / 装备 / 锻炼 / buff 共用一套，新增成长来源**不侵入战斗代码**。**③ 交互框架**：`IInteractable` + `InteractionDetector`，⭐ 实测 `.inputactions` 的 Player map **已有 `Interact` 动作**（只是 `InputService` 未暴露，成本≈0）。**④ 复用清单**：`EnemyStateMachine<TState>` 基类（Boss 直接用）、`Hitbox`/`HitboxController`（敌我共用判定）、`ObjectPool`（掉落物）、`EnemyLocomotion.BackstepTo`（远程怪**倒退**逻辑**已是对的**，只缺 clip）、`PlayerMana.TrySpendSpecial`（唯一魔力出口）。**⑤ 复用不上的（需新建）**：酒馆场景（**无室内美术**，建议复用 LeartesStudios 建筑件搭白盒）、Boss 招式动画（**FBX 内 0 动画**）、`Jump`/`Fall`/`Land` 与**倒退动作** clip。**⑥ 风险**：范围膨胀（一次 5 个子系统）⇒ 已给 **P1.0~P1.7 八步顺序**，每步独立可验收。**⑦ 文档同步**：`GDD.md` §9.1 口径由"单一主场景"修正为"**主战斗场景 + 安全中枢**"，`README.md` / 本文件索引加 2.5 行。**校验**：`check_docs.py` 通过。 |
+| **2026-10-09** | **📄 口径统一（全库 11 份文档）—— 类型定位上调为 ARPG，并修正两处过期表述**（本轮**纯文档，零代码改动**）。**① 用户决策**：后续**新增跳跃 / 掉落 / 成长 / 数值养成**，**类型正式定为 3D 动作 RPG（ARPG）**。**② 三处口径统一**：(a) **类型** —— 原"3D 近战动作游戏" → **3D 动作 RPG（ARPG）**（⚠️ 明确标注 **RPG 层尚未实现**，当前只有**动作层**）；(b) **视角** —— 原"俯视角" → **第三人称斜俯视 · 后置跟随**（按 `CameraFollow` 实况：`_pitch` 基准 40°、`_distance` 3 m、焦点高 1.0 m）；(c) **场景** —— 原"多关卡独立场景 `Level_01/02/03`" → **单一大型主场景 `Assets/Scenes/Castle.unity`**（10-07 已定稿，本轮补记；M3.7 与 `LevelFlow` 正式标记作废）。**③ 跳跃决策翻转**：2026-10-03 的"不做跳跃"**推翻 → 规划中**，并回写 4 个**前置阻塞项**：**T1 重新升级为阻塞项**；**输入需补回 `Jump`**（实测 `.inputactions` 的 Player map 现有动作仅 Move·Look·Attack·Interact·Crouch·Previous·Next·Sprint·Dash·Special·Scroll，**确实没有 `Jump`**）；**需补 `Jump`·`Fall`·`Land` 动画**；**存档升为必做**。**④ 文档改动**：`GDD.md`（头部口径记录、§1.1、§2 循环图与现状表、§3.1/§3.2、§4.1、**§4.3 跳跃整节重写**、§9 全节重写为单场景、§12 T1、§14 里程碑加 M7）、`PROJECT-CONTEXT.md`（头部、§1、§2 场景表、§3 目录树、§5.5、§8、§9 T1、§10.1 决策 2、§11 索引、本条日志）、`README.md`（一句话现状、进度、下一步、索引 2 处）、`ROADMAP.md`（§0 树、结构说明、**M3.7 标作废**、§12、**新增 §14 M7 ARPG 扩展**）、`ARPG-DIRECTION.md`（头部术语提醒 + 后续沿革 + §0 结论）、`NAVMESH-GUIDE.md`（头部场景提示）、`ART-PIPELINE.md`（4 处跳跃动画需求由"取消"改回"需要"）。**⑤ 校验**：`.workbuddy/check_docs.py` 通过（代码块闭合 / 表格列数 / 内部链接）。⚠️ **未做**：不改任何代码；`Game.unity`、`PlayerFSM`、`PlayerMotor` 均保持原样。⚠️ **术语提醒**：`ARPG-DIRECTION.md` 标题里的"ARPG"指**关卡结构方案**，与本次的**类型定位 ARPG** 同名不同义。 |
 | 2026-10-07 | **🐞 修复两处手感/渲染问题（用户反馈）：① Monster1 被打一下就变黑；② Monster2 远离玩家时先转身再走。** **① 变黑的根因 = 受击闪白用了 `MaterialPropertyBlock`，而敌人的材质 shader 不吃这一套。** 实测链条：敌人材质是 `Wraith_4.mat`，shader = **`Polygonmaker/SkinCutout DoubleSided`**（ASE 生成的 URP shader）—— 它**根本没有 `_BaseColor`**（只有 `_Color` / `_ColorR/G/B` / `_EmissionColor` / `_SkinHairColor` / `_SSS`），所以 `FlashRed()` 写的 `_BaseColor` 是**空操作**；更糟的是**只要给这些渲染器挂上非空 MPB，整个模型就明显变暗**：实测（固定相机 + 手动步进 + 中心 260×260 平均色）——原样亮度 **0.1817**、MPB 写法（`_BaseColor` = 红）亮度 **0.1605**（**-11.7%，且 R/G/B 全面下降 = 变暗而不是变红**）；而 `_BaseColor` = 红 与 = 白 出来的图**逐字节完全相同** ⇒ 参与渲染的不是颜色值、而是"挂 MPB"这个动作本身。再测"把 shader 声明的全部 26 个属性都写进 MPB"**仍然变暗**（38288 vs 原样 41138）⇒ 不是"缺属性"导致的，而是 URP / SRP Batcher 在这套 ASE shader 上的常量缓冲绑定行为。清空 MPB（`SetPropertyBlock(null)`）则**逐字节复原**。 **② 修法：改用「临时把 `sharedMaterials` 换成受击色克隆材质」**（`EnemyAIController.InitFlash/MakeFlashMaterial/FlashHit/RestoreColor`）：Awake 时按源材质克隆一次（同一材质只克隆一份）并缓存"原样数组 / 闪白数组"，受击换过去、`flashTime` 后换回来。实测：闪白时**偏红且亮度基本不变**（R 0.1811→0.1816、G 0.1760→0.1663），还原后**与原样 md5 完全相同**。顺手修掉一个老问题：原来只闪 `GetComponentInChildren<Renderer>()` 的**第一个**渲染器（Wraith 模型有 33 个渲染器、12 个激活）⇒ 现在**覆盖全部**。另加 `OnDisable` 里兜底 `RestoreColor()`（闪白中途被打死/隐藏，红色材质会留在渲染器上顶着出场）+ `OnDestroy` 销毁克隆材质。新增两个可调字段：`_hitFlashColor`（默认 (1, 0.28, 0.22)）/ `_hitFlashEmission`（默认 2，材质没有 `_EmissionColor` 时忽略）。 **③ 后撤朝向：`EnemyLocomotion` 新增 `BackstepTo(point, faceTarget)`** —— 与 `MoveToOrStep` 的唯一区别是**转向权**：后者把转向交还 `NavMeshAgent`（Agent 朝行进方向转身 ⇒ "先扭过身、再背对玩家走开"），`BackstepTo` 全程 `updateRotation = false` 由自己每帧 `RotateTowards` 攥着朝向。`EnemyCaster.UpdateChase` 的"太近 → 后撤"分支改走它（`Stop`/`Resume`/`MoveToOrStep`/`FaceTarget`/`Retreat` 都会解除该模式）。实测（Play 手动步进 20 fps）：距离 2.50 → 2.58 → 3.40 → 4.19 m **持续拉开**，而**朝向偏角全程 0.0°**、`agent.updateRotation` 全程 `false`，到 4.19 m（≥ `castRangeMin` 4）才转入 `Attack` 施法。 **④ 验证**：`dotnet build Assembly-CSharp.csproj` **0 警告 0 错误**；Play 模式两种表现均实测通过，控制台 **0 条**（进/出 Play 都干净）。⚠️ 本轮另发现两个**环境性**坑（非代码问题）：`EditorApplication.Step()` 可以手动步进游戏循环（Unity 窗口未聚焦时 Player 循环会停、`frameCount` 卡住，此时 `ScreenCapture` 出不了图，但 `Camera.Render()` + RenderTexture 可用）；`SetActive(true)` 激活的敌人在**域重载后**可能没跑到 `Awake`（`Fsm`/`Loco` 为 null）⇒ 用全新 Play 会话复测。⚠️ **回滚点**：`.workbuddy/backup/m36-monsters-2026-10-07/`（只覆盖 M3.6 那批文件）；本轮 3 个 `.cs` 的原版见同目录。 |
 | 2026-10-07 | **🎬 M3.6 敌人动画状态机完成 + 敌人换装 Wraith（`Monster1` / `Monster2`）**。**① 需求**：用户已备好两个怪物模型并把动画放进各自的 Animator，要求"完善好"。**② 换装决定（用户确认）**：旧的 `Boxer` / `Gunner` **要被取代**。根本原因——两者 Animator 的 `avatar` **是空的**，且全工程找不到它们模型的 Avatar 资产（`combo_01_1 1.fbx` 标注 Humanoid 却生成不出 Avatar），⇒ Humanoid 肌肉剪辑**没有 Avatar 就播不出来** ⇒ 攻击动画不播 ⇒ `EnemyMeleeAI` 的伤害只由 `TickAttack` 开判定体 ⇒ **打不出伤害**。Wraith 自带可用的 `WraithAvatar`，一次解决。**③ 控制器重建（2 个文件）**：用户搭的图里**所有 transition 的条件都是空的**、且 AnyState→death/hit 无条件（进 Play 就会互相抢），因此清空重搭：新增 `Speed`(Float) 参数驱动 `idle ↔ flyinplace`（阈值 0.1，值 = Agent 实时水平速度）；`attack` / `hit` 按 exitTime（0.9 / 0.85）回收；AnyState → `death` / `hit` / `attack`（**列表顺序即优先级**，死亡禁止自过渡、攻击禁止自过渡、受击允许自过渡）。**④ 动画事件（关键）**：两个攻击 clip **原本一个事件都没有** ⇒ 近战永远开不了判定体。用**手掌骨骼轨迹采样**（`AnimationClip.SampleAnimation` 逐帧量 `WraithRPalm` 相对根的正前方分量）定出真实出手帧：`attack1` 手部最前伸 **0.512 m @ 0.50 s**、前伸增速峰值 **0.433 s** ⇒ 事件挂 **0.45 s**；`taunt` 手势顶点 **0.50 s** ⇒ 事件挂 **0.50 s**。**⑤ 代码接线（5 个文件）**：`EnemyAIController` 新增 `SetAnimFloat` / `ResetAnimTrigger` / `PlayHitAnim`（受击时**必须先复位 `Attack` 触发器**，否则"受击动画一播完就诈尸补挥一刀"）/ `PlayDeathAnim` / **`OnKilled()` 钩子**（基类非泛型拿不到子类的状态枚举）；`EnemyLocomotion` 暴露 **`CurrentSpeed`**（Agent 走 `agent.velocity`，直线兜底路径带 0.15 s 宽限）；`EnemyMeleeAI` / `EnemyCaster` 补 `OnKilled` + 受击播动画 + `EnterDeath` 设 `IsDead`。**⑥ 死亡表现修复（用户要求一起修）**：`EnemyHealth.Die()` 此前**直接 `SetActive(false)`**，死亡动画一帧都看不到；改为"先播完、再隐藏"——新增 `_deathHideDelay`（默认 **2.4 s**），用 `Time.unscaledTime` 计时（顿帧会把 `timeScale` 压到 0，`WaitForSeconds` 会被拉长）。**⑦ 配置校正**：`EnemyAIConfig.recoverTime` 1.5→**1.0**（= `attack1` 时长）、`hitStunTime` 0.4→**0.75**；`EnemyCasterConfig.recoverTime` 0.6→**1.2**（`windup 0.5 + 1.2 = 1.7 ≈ taunt 1.667`）、`hitStunTime` 同上。⚠️ 顺带发现 `EnemyAIConfig.asset` **落盘时缺了 M3.4/M3.5 新增的字段**（只有 `recoverTime` 之前的老字段），Unity 靠 C# 默认值兜着；本次 `SaveAssets` 已一并补写落盘。**⑧ 关卡重装配（用户确认"铺回 4 只、对齐原布局"）**：两个怪物先存成正式预制体 `_Game/Prefabs/Enemy/Monster1.prefab` / `Monster2.prefab`（**Variant** + 嵌套厂商预制体；实测厂商 `Wraith_4.prefab` / `Wraith_CustomColors_4.prefab` **未被写入任何包装组件**），再按原 `Boxer1` / `Boxer2` / `Boxer3` / `Gunner` 的位置与父物体摆回 `Room1`/`Room2`/`Room3`，并重连三个 `RoomController._enemies`。⚠️ **踩坑（已记入技能）**：`PrefabUtility.InstantiatePrefab` 后 `SetParent(room, true)`，若**不调 `PrefabUtility.RecordPrefabInstancePropertyModifications`**，保存场景时 localPosition 覆盖会被**静默回退成预制体自带的 local 值** ⇒ 敌人被房间的 `(-29,-28,29.5)` 偏移带到 `y=-28`（导航网外 28 米），表现为满屏 `Failed to create agent because it is not close enough to the NavMesh` + 全部回落直线位移。**⑨ 验证**：`dotnet build Assembly-CSharp.csproj` **0 警告 0 错误**；Play 模式逐条实测 —— 受击 → 动画 `hit` + 行为 `Hit`、走位 → 动画 `flyinplace` 且 `Speed` 参数 = 3、致死 → 动画 `death` + `IsDead=True`、3.5 s 后延迟隐藏、近战实际打出伤害（玩家 100→80）；**控制台 0 条**（`TickAttack has no receiver!` 与 `Failed to create agent` 均消失）。隔离实验另证四条 transition 全部生效（`Speed` 双向 / `Attack` trigger / `IsDead`）。⚠️ **遗留（关卡摆位，非代码问题）**：`Monster1_R1` 被 `Obstacle_01` 挡住视线（射线 3.75 m 处命中，`HasLineOfSight=False`）⇒ 该只不会发现玩家。⚠️ **回滚点**：`.workbuddy/backup/m36-monsters-2026-10-07/`（场景 / 两个控制器 / 两个 clip / 5 个 .cs / 2 个配置）。 |
 | 2026-10-06 | **🐞 修复：Gunner 报 `AnimationEvent 'TickAttack' on animation 'combo_01_1' has no receiver!`**。**① 现象**：法师一进入攻击，控制台就刷这条警告（动画事件没人接收）。**② 根因**：两个敌人共用同一个占位 controller `Art/Animations/Enemy/**old**/EnemyAC.controller`（只有 `idle` + `combo_01_1` 两状态），而 `combo_01_1.anim` 在 **0.3 s** 处挂了 `TickAttack` 事件 —— 剑兵的 `EnemyMeleeAI` 有同名方法能接住，**M3.5 改写出的 `EnemyCaster` 没有**。⭐ 这其实**是 M3.5 引入的回归**：旧 `EnemyRanged` 从不触发 `Attack` 动画（只有距离判定 + 冷却），所以事件从来没被触发过；新版 `EnterAttack()` 会 `SetAnimTrigger("Attack")`，于是 `combo_01_1` 开始播、事件开始来。**③ 修法**：`EnemyCaster` 新增 **`TickAttack()`** 作为**出手帧的动画事件入口**（符合 GDD §6.3「出手由动画事件驱动」的既定口径），内部：先判**仍在 `Attack` 状态**（⚠️ **不这样判就会出现"被打断了却还是放出一发"**，GDD §6.3 明确禁止）→ 再走幂等的 `TryCastOnce()`；原前摇计时改为**兜底路径**，两者共用 `_casted` 闸门 ⇒ **一次施法只出一发**。**④ 行为变化（如实记录）**：占位近战 clip 的事件在 **0.3 s**，所以法师**实际出手时机由 0.5 s 变为 0.3 s**（`windupTime` 退居兜底）；⭐ **M3.6 换成法师专属施法 clip（`atk_energy*`）时，只需把事件挪到真正的出手帧，代码不用再动**。**⑤ 验证**：`dotnet build` 0 警告 0 错误；状态机自测 **39 → 42 项全通过**（新增「前摇受击 → 立即离开 Attack，迟到的动画事件被守卫拒绝」「被打断后重新施法仍能出手一次」两项）；实查 Gunner 预制体：`Animator` 与 `EnemyCaster` **在同一个物体上**（动画事件才能找到该方法），全工程扫描确认**只剩这一个**无人接收的事件（其余 `OnAttackHit` 均由 `PlayerAttack` 接收） |

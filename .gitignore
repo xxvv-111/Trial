@@ -98,3 +98,35 @@ Thumbs.db
 # 每个 .psa 旁边还有一个 *.props.txt 记录骨骼映射与帧数。
 # 这些文本单独存在毫无意义（Unity 用不上），故一并排除。
 *.props.txt
+
+# ===== 2026-10-10 新增：酒馆场景的三方资源包（不进仓库）=====
+# Top-Down Interiors（俯视室内家具包）：415.3 MB / 1867 个文件。
+# ⚠️ 本包**是构建必需的**：Assets/Scenes/Tavern.unity 直接引用包内 Prefabs/ 下的 **78 种**预制体
+#    （共 316 个实例）。实测其依赖闭包 = 213 个文件 / **372.5 MB**，其中
+#    **仅 6 张未压缩源 TIF 就占 345 MB**：
+#      Origin/Textures/{Atlas1,Alphas,Addons1}.tif      各 64 MB
+#      Origin/Textures/{Atlas1,Alphas,Addons1}_nmp.tif  各 48 MB
+#    其余 69 预制体 + 93 FBX + 12 材质 + 10 动画 合计仅约 27 MB。
+# ⇒ 与 LeartesStudios / Polygonmaker 同样处理：**本地必须保留**；克隆后酒馆场景会大面积丢引用。
+#    若将来想让它进仓库，正解是先把那 6 张 TIF 转成压缩格式（可降到 ~20 MB 级）再抽取必要文件。
+/Assets/Top-Down Interiors/
+/Assets/Top-Down Interiors.meta
+
+# ===== 2026-10-10 新增：只剩「原始安装包」的目录（不进仓库）=====
+# 这两个目录里**只有下载来的 .unitypackage 本身**，没有任何 Unity 解压后的资产：
+#   Assets/UNT-0034/Top-Down Interior.unitypackage            157.9 MB
+#   Assets/刀剑攻击动画/Rapier Anim Set v1.2.unitypackage      412.9 MB
+# 对构建毫无用处（刀剑包的动画早已抽成 Assets/_Game/Art/Animations/ 下的独立 .anim）。
+# ⚠️ 原规则写的是 /Assets/Rapier_Anim_Set/，而该目录**已被改名为 `刀剑攻击动画`**，
+#    规则失配 ⇒ 这 413 MB 会漏进仓库，故在此补上。
+/Assets/UNT-0034/
+/Assets/UNT-0034.meta
+/Assets/刀剑攻击动画/
+/Assets/刀剑攻击动画.meta
+
+# ===== 2026-10-10 状态更正：上面三个动画包已在本地删除 =====
+# /Assets/TKDstyle_AnimSet/（257 MB）、/Assets/Magical-Knight_Set/（790 MB）、
+# /Assets/Rapier_Anim_Set/（793 MB）已从本地删除；针对它们的规则保留作历史记录
+# （对不存在的路径是空操作）。
+# ✅ 安全前提：这三包**游戏真正用到的动画早已抽成独立 .anim**，存放在
+#    Assets/_Game/Art/Animations/{Player,Enemy}/ 下，**不依赖包内资源** ⇒ 可以整包不要。

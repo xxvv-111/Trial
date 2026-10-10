@@ -1,6 +1,6 @@
 # 完整地图迁移执行清单（放弃关卡制）
 
-> 目标：把 `Assets/Scenes/URP_SiegeOfPonthus.unity`（城堡整图）变成可完整游玩的唯一场景。  
+> 目标：把 `Assets/Scenes/Castle.unity`（城堡整图）变成可完整游玩的唯一场景。  
 > 现状（2026-10-07 17:00 实测）：场景里**自有脚本实例 0 个**、无 NavMesh、19 个 Camera、96 盏灯、3672 个预制体实例。  
 > 相关文档：[NAVMESH-GUIDE.md](NAVMESH-GUIDE.md)（烘焙）、[GDD.md](GDD.md)（玩法）、[ROADMAP.md](ROADMAP.md)（M3.7 已作废）。
 
@@ -16,7 +16,7 @@
   **判据**：Shader 栏显示 `S_SnowHeight`（不是 `Missing`），Scene 视图不是一片亮粉。  
   **失败回退**：若真是 Missing/洋红，本清单阶段 3 之后全部作废 —— 必须先换成 URP 变体的预制体重搭（工作量翻倍），请停下来告诉我。
 - [x] **0.2 备份** 🤖
-  - 场景：`Assets/Scenes/URP_SiegeOfPonthus.unity` → `.workbuddy/backup/`
+  - 场景：`Assets/Scenes/Castle.unity` → `.workbuddy/backup/`
   - 会被改的脚本：`GameManager.cs`、`RoomController.cs`、`RoomTrigger.cs`、`EnemyAIController.cs`
   - 会被改的第三方资源：**不动**（层改动一律走"场景实例覆盖"，不 Apply 到 Prefab）
 

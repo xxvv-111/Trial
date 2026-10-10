@@ -1,6 +1,6 @@
 # 城堡地图：层设置 + 碰撞体 + NavMesh 烘焙（手把手）
 
-> 目标：让 `Assets/Scenes/URP_SiegeOfPonthus.unity` 这张完整地图能烘焙出可用的导航网格，敌人能在里面正常寻路。
+> 目标：让 `Assets/Scenes/Castle.unity` 这张完整地图能烘焙出可用的导航网格，敌人能在里面正常寻路。
 > 本教程里的所有数字都是**实测**的，不是估的。相关：[NAVMESH-GUIDE.md](NAVMESH-GUIDE.md)（原始接入指南）、[SCENE-MIGRATION-CHECKLIST.md](SCENE-MIGRATION-CHECKLIST.md)（总清单）。
 
 ---
@@ -44,7 +44,7 @@
 
 ## 1. 准备工作（2 分钟）
 
-1. 打开 `Assets/Scenes/URP_SiegeOfPonthus.unity`
+1. 打开 `Assets/Scenes/Castle.unity`
 2. **先 `Ctrl+S` 保存**，保证磁盘上是最新状态
 3. 备份场景文件（我可以代做，或者你自己把 `.unity` 复制一份）
 4. 清空 Console（Console 窗口右上角 `Clear`），这样后面只看新产生的信息
@@ -140,7 +140,7 @@
 | 城堡预制体资源（188 个 `.prefab`） | **0** |
 | 你自己建的 RoomBuild 预制体（14 个） | **0** |
 | 旧场景 `Game.unity` | **0** |
-| **新场景 `URP_SiegeOfPonthus.unity`** | **250 处，分布在 217 个实例上** |
+| **新场景 `Castle.unity`** | **250 处，分布在 217 个实例上** |
 
 所以**负缩放完全来自你摆地图时的镜像操作**（把同一块模型 scale 的某一轴设成 `-1` 来翻转复用），跟第三方资源无关，跟旧工程也无关。这也意味着**修改权完全在你手上**，不涉及"改别人的资源"。
 

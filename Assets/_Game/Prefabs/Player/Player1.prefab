@@ -409,8 +409,20 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.25
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.25
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.25
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -13.55
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalPosition.y
@@ -418,11 +430,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 7.6
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalRotation.x
@@ -430,7 +442,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalRotation.z
@@ -442,11 +454,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: -90
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       propertyPath: m_Name
@@ -526,6 +542,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1747581787612744132}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6907979935877552216}
   m_SourcePrefab: {fileID: 100100000, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}
 --- !u!1 &8544005948990281907 stripped
 GameObject:
@@ -550,8 +569,11 @@ MonoBehaviour:
   turnSpeed: 720
   attackTurnSpeed: 180
   gateTurnByHitFrame: 1
-  attackUseRootMotion: 1
+  attackDisplacement: 0
   attackRootMotionScale: 1
+  attackRootMotionForwardOnly: 1
+  allowLungeBackstep: 1
+  lungeVerticalMode: 1
 --- !u!114 &5117647566027896781
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -690,6 +712,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _pairCount: 0
   _logOnRebuild: 0
+--- !u!114 &6907979935877552216
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8544005948990281907}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31e1d5b4d0b714c40b398639c310cf16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _scanInterval: 0.1
 --- !u!4 &9068482222814888457 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 6cc64ce0c2709bf4f8ea121faf9979c1, type: 3}

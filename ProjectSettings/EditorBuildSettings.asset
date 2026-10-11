@@ -9,8 +9,11 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: fa95c0adff35d604fa67bfb978a22867
   - enabled: 1
-    path: Assets/Scenes/Game.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/Scenes/Tavern.unity
+    guid: b7c4d587a1cb8c64e9666cf7409af2f6
+  - enabled: 1
+    path: Assets/Scenes/Castle.unity
+    guid: f14f3a70ee8bdae4f84e4191f386099e
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

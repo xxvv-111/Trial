@@ -94,6 +94,25 @@ namespace Game.Core
         }
 
         /// <summary>
+        /// 交互键（默认 F / 手柄北键）本帧是否按下。由玩家身上的
+        /// <see cref="Game.Gameplay.InteractionDetector"/> 消费。
+        ///
+        /// ⚠️ **本动作在 `.inputactions` 里原本挂着 `Hold` 交互**（要按住约 0.2 s 才 `triggered`，
+        ///    那是 Unity 模板自带的）—— 已按需求改成"按下即触发"（清空 interactions）。
+        ///    若哪天手感又变回"要长按"，先去 `Assets/InputSystem_Actions.inputactions`
+        ///    的 Player map → Interact 检查那一列，然后重新生成 `PlayerControls.cs`。
+        /// </summary>
+        /// <remarks>
+        /// ⚠️ 这里比同组其它 `*PressedThisFrame` 多了一个 `_controls != null` 判空：
+        ///    交互检测器每帧都会读本属性，而 `OnDestroy` 会先把 `_controls` 清成 null
+        ///    再销毁组件 —— 多这一道判断，保证"销毁后还跑一帧"时不会抛 NRE。
+        /// </remarks>
+        public bool InteractPressedThisFrame
+        {
+            get { return GameplayInputEnabled && _controls != null && _controls.Player.Interact.triggered; }
+        }
+
+        /// <summary>
         /// 暂停键（ESC）本帧是否按下。
         ///
         /// ⚠️ **刻意不受 <see cref="GameplayInputEnabled"/> 影响** ——

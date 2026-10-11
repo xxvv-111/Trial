@@ -130,3 +130,18 @@ Thumbs.db
 # （对不存在的路径是空操作）。
 # ✅ 安全前提：这三包**游戏真正用到的动画早已抽成独立 .anim**，存放在
 #    Assets/_Game/Art/Animations/{Player,Enemy}/ 下，**不依赖包内资源** ⇒ 可以整包不要。
+
+# ===== 2026-10-11 新增：开发过程产生的临时图片（不进仓库）=====
+# 这两张留在 Assets/_Game/Art/Materials/ 下的 png 不是资产 —— 没有任何材质/预制体/场景引用它们，
+# 只是当初排查 URP 材质时产生的预览图与手工截图：
+#   preview_plain_lit.png                939 KB（材质预览图）
+#   屏幕截图 2026-10-07 150200.png        4.2 MB（排查时的屏幕截图）
+# 体积不小、对构建无用，明确排除，避免以后 `git add -A` 时误入仓库。
+/Assets/_Game/Art/Materials/preview_plain_lit.png
+/Assets/_Game/Art/Materials/preview_plain_lit.png.meta
+/Assets/_Game/Art/Materials/屏幕截图 2026-10-07 150200.png
+/Assets/_Game/Art/Materials/屏幕截图 2026-10-07 150200.png.meta
+
+# ===== 2026-10-11 状态更正：上面「只剩原始安装包」的两个目录已在本地删除 =====
+# /Assets/UNT-0034/（157.9 MB）与 /Assets/刀剑攻击动画/（412.9 MB）已从本地删除，
+# 针对它们的规则保留作历史记录（对不存在的路径是空操作）。

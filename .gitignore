@@ -69,13 +69,12 @@ Thumbs.db
 # 光 14 张 .tga 源贴图就占 564 MB（Wraith_[1-4] 的 Albedo 各 64 MB、Normal/Emission 各 48 MB）。
 # 未用到的 161 个文件 / 650 MB（其它怪物系列、.unitypackage、.pdf、.psd、Mobile/ 备用贴图等）本来就不需要。
 #
-# ⚠️ 与上面几个包不同：这个包**不是**「用到的东西已抽出来、可以完全不要」——
-#    Assets/_Game/Prefabs/Enemy/Monster1.prefab 与 Monster2.prefab 直接引用
-#    Assets/Polygonmaker/Monsters Series/Monsters - Wraith/Characters/Wraith_4.prefab
-#    与 Wraith_CustomColors_4.prefab；那里面又引用 Source/Wraith.fbx、Source/Materials/*.mat、
-#    Source/Textures/*.tga、Polygonmaker - Shader/Shaders/Polygonmaker-AS-Skin*.shader。
-#    ⇒ **本地必须保留**；克隆仓库后敌人会变成粉色/丢失，需自行放回本包才能跑。
-#    属第三方资源，**需要署名**。
+# ✅ 2026-10-12 更新：本包中真正被引用的 24 个资产（Wraith 一整套）**已迁出**到
+#    Assets/_Game/Art/characters/enemys/Polygonmaker/ —— 随仓库分发（含 .meta，GUID 未改，
+#    Monster1/2.prefab 的引用不受影响），同时其 11 张 4096² 贴图降为 1024²（564 MB → 39 MB）。
+#    ⇒ 克隆仓库后**敌人已可正常显示**，本包只在需要取用其它怪物 / 武器素材时才需放回。
+#    ⚠️ 若日后重新导入本包，会与已迁出的 24 个资产产生 GUID 重复 ⇒ 先删掉 enemys/ 下的副本再导入。
+#    属第三方资源，**需要署名**（Polygonmaker · Monsters Series）。
 /Assets/Polygonmaker/
 /Assets/Polygonmaker.meta
 

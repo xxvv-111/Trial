@@ -120,20 +120,34 @@ versus_01_1, versus_01_2, versus_02_1, versus_02_2   ← 对打动作
 
 **怎么定"命中帧"**：就是 `GDD.md` §8 里 hitbox 开启的那一刻——**武器接触目标的那一帧**，通常在挥砍到位、动作最快的那一瞬。
 
-### 2.3 ③ 根位移要明确（Root Motion）
+### 2.3 ③ 根位移：**本项目一律不用**（位移全部由代码驱动）
 
-**现状（实测）**：`PlayerFSM` 在进入 `Death` 状态时设了 `_anim.applyRootMotion = true`，**其他状态没有**。
+**现状（2026-10-12 定案）**：`PlayerMotor` 已**彻底移除根运动** —— 不再实现 `OnAnimatorMove`，
+`applyRootMotion` 恒为 **false**（两个玩家预制体上都已改成 false，`Awake` 里另有一道防御性检查）。
 
-所以每段动画要想清楚：**这段位移由动画带（root motion），还是由代码带？**
+所以做动画时**不需要再考虑"这段位移由动画带还是由代码带"**，一律按 **in-place（原地）** 的标准做：
 
-| 动画类型 | 建议 | 理由 |
+| 动画类型 | 动画本身 | 位移由谁提供 |
 |---|---|---|
-| Death | **带根位移** | 现有代码就是 `applyRootMotion = true`，死亡倒地移位更自然 |
-| 攻击 | **不带（in-place）** | 位移由 `PlayerAttack` / `PlayerDash` 代码控制，动画再带会打架 |
-| Idle / Run | 不带 | 由 `PlayerMotor` 驱动 |
-| 敌人移动 | 不带 | ⚠️ M3 后由 `NavMeshAgent` 驱动，动画带位移会**抖动/瞬移** |
+| 攻击 | **原地** | `WeaponConfig` 的三轴曲线 → `PlayerMotor.ComputeCodeLunge`（走 `CharacterController`，**会被墙挡**） |
+| Idle / Run | 原地 | `PlayerMotor` 的输入速度 |
+| Dash | 原地 | `PlayerDash` → `PlayerMotor.StepMoveGrounded` |
+| Hit / Special | 原地 | 无（定身） |
+| Death | 原地（**倒地那一下的下沉由骨骼姿势自己完成**） | 无 |
+| 敌人移动 | 原地 | ⚠️ M3 后由 `NavMeshAgent` 驱动，动画带位移会**抖动/瞬移** |
 
-✅ **现成红利**：TKD 库里每个动作都有 **`_inplace` 版本**（34 个），**那就是去掉根位移的版本**，直接用能省掉调整工作。
+⭐ **为什么可以放心关掉**（2026-10-12 实测，Play 模式逐帧采样）：
+
+1. 这些 clip 的**整体水平位移全在 `RootT` 根曲线里，骨骼姿势并不含它** ——
+   攻击段 `RootT.z` 净 0.965~2.25 m，而 Hips 的世界位置只动 **0.098 m** ⇒ 关掉后**不会滑步**；
+2. 死亡动画的**倒地由骨骼姿势自己完成**（Hips 世界 Y 下沉 **1.004 m**），与根运动无关；
+3. `applyRootMotion` 取 true / false 时**骨骼姿势逐位相同** —— 它只决定「要不要把根位移写进 transform」。
+
+⚠️ **反过来要小心**：若哪天在 Inspector 里把某段动画的 `Apply Root Motion` 勾回来，动画的位移会
+**直接写 transform、绕过 `CharacterController`** ⇒ 跑动一圈前窜 **3.18 m**、冲刺 **4.84 m**，而且会**穿墙**。
+`PlayerMotor.Awake` 检测到它被打开会**报警并自动关闭**。
+
+✅ **现成红利**：TKD 库里每个动作都有 **`_inplace` 版本**（34 个），**那正是符合本规范的版本**，直接用。
 
 ### 2.4 ④ 时长要与代码参数对齐
 

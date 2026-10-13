@@ -6,7 +6,7 @@ AnimationClip:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: strafe_run_strafe_front
+  m_Name: P1Run
   serializedVersion: 7
   m_Legacy: 0
   m_Compressed: 0

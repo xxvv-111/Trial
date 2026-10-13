@@ -6,7 +6,7 @@ AnimationClip:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: hit_light_F_body
+  m_Name: P2Hit
   serializedVersion: 7
   m_Legacy: 0
   m_Compressed: 0

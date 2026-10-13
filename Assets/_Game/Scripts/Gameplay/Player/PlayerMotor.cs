@@ -5,10 +5,17 @@ using UnityEngine;
 namespace Game.Gameplay
 {
     /// <summary>
-    /// 玩家移动：读输入 → **按相机朝向换算方向** → CharacterController 移动 → 驱动动画混合树。
+    /// 玩家移动：读输入 → **按相机朝向换算"该转向哪里"** → 限速转向 → **朝角色正面位移** → 驱动动画混合树。
     ///
-    /// ⚠️ **移动是「相对相机」的**（W = 屏幕上方）。相机现在可被鼠标旋转，
+    /// ⚠️ **输入方向是「相对相机」的**（W = 屏幕上方）。相机可被鼠标旋转，
     ///    若用世界轴会变成「转视角后按 W 往斜里走」，手感直接崩。
+    ///
+    /// ⭐⭐ **位移方向 = 角色正面（`transform.forward`），不是输入方向**（2026-10-13 定案）。
+    ///    输入方向只负责回答"朝哪儿转"。两者必须分开，是因为输入方向是**瞬时**的（相机一转就变），
+    ///    而朝向要按 `turnSpeed` 慢慢转过去 —— 若位移直接跟输入，转身时就会出现
+    ///    "身体朝前、人却在往后滑"的倒滑感。改走正面之后，转身变成走一道弧线。
+    ///    ⚠️ 转弯半径 `r = v / ω`（ω = `turnSpeed` 的**弧度**值）。当前 720°/s 时：
+    ///      走路 2 m/s → r ≈ 0.16 m；跑步 6 m/s → r ≈ 0.48 m。调大 `turnSpeed` 可让转身更干脆。
     ///
     /// ⭐ **本类是玩家身上唯一调用 `CharacterController.Move` 的地方**
     ///    （"位置只有一个写入者"）。其它组件要位移就走 <see cref="StepMove"/> /
@@ -22,49 +29,22 @@ namespace Game.Gameplay
     ///    ⭐ 默认走 **方案 B（转向窗口）**：命中帧之前可转向、出手之后锁定（见 <see cref="CanTurnNow"/>）；
     ///    把 `gateTurnByHitFrame` 关掉即退回 **方案 A（整段都可转）**。
     ///
-    /// ⭐ **攻击的位移改用「动画根运动」**（2026-10-06，方案 B 的配套实现）：
-    ///    本类实现 <see cref="OnAnimatorMove"/> ⇒ **Animator 不再自己写 transform**，
-    ///    位移权 100% 收归本类；再由 <see cref="ComputeMoveDelta"/> 决定这一帧该走多少 ——
-    ///    攻击时取 <c>Animator.deltaPosition</c>（动作自带的前冲），平时取代码位移。
-    ///    ⚠️ **这就是"劫持根运动"**：`Apply Root Motion` 必须**保持勾选**（否则 <c>deltaPosition</c> 恒为 0），
-    ///       而"不想让它自动写位置"靠的就是"实现了 OnAnimatorMove"。
-    ///    ⚠️ 本组件被 `enabled = false` 时 OnAnimatorMove **不会**被调用，那时 Animator 会**恢复自动应用根运动**
-    ///       ⇒ 所以 <see cref="OnDisable"/> 里会把 `applyRootMotion` 关掉（否则冲刺会额外叠加 4.8 m 的根运动且绕过碰撞体）。
+    /// ⭐⭐ **位移 100% 由代码驱动，与动画根运动彻底无关**（2026-10-12 定案）：
+    ///    · 执行点 = <see cref="Update"/>，每帧**无条件**执行一次「<see cref="ComputeMoveDelta"/> + 贴地下压」；
+    ///    · 位移来源 = 代码（移动取输入速度，攻击取 <c>WeaponConfig</c> 的三轴曲线）；
+    ///    · ⛔ 本类**不再实现** <c>OnAnimatorMove</c>，`Apply Root Motion` 必须**关闭**（见 <see cref="Awake"/> 的防御检查）。
+    ///
+    ///    ❓ 关掉根运动为什么安全（2026-10-12 实测，Play 模式 + 手动 <c>Animator.Update</c> 逐帧采样）：
+    ///      ① 这些 clip 的**整体水平位移全在 `RootT` 根曲线里，骨骼姿势并不含它**
+    ///         —— 攻击段 RootT.z 净 0.965~2.25 m，而 Hips 的世界位置只动 0.098 m ⇒ 关掉后**不会滑步**；
+    ///      ② 死亡动画的**倒地由骨骼姿势自己完成**（Hips 世界 Y 下沉 1.004 m），与根运动无关；
+    ///      ③ `applyRootMotion` 取 true / false 时**骨骼姿势逐位相同** —— 它只决定「要不要把根位移写进 transform」。
+    ///    ⚠️ 但**两件事必须一起做**：删掉 <c>OnAnimatorMove</c> 后若仍让 `applyRootMotion` 开着，
+    ///      Unity 会**自动应用**根位移 ⇒ 跑动一圈前窜 3.18 m、冲刺 4.84 m，且绕过碰撞体穿墙。
+    ///
     /// ✅ 已消除（T2）：玩家身上曾同时有 Rigidbody + CapsuleCollider + CharacterController，
     ///    现在只剩 CharacterController 一个。
     /// </summary>
-    /// <summary>攻击期间的**位移来源**（见 <see cref="PlayerMotor"/> 上的 `attackDisplacement`）。</summary>
-    public enum AttackDisplacementMode
-    {
-        /// <summary>
-        /// ⭐ 代码驱动的前冲（2026-10-07 定案，**推荐**）：
-        /// 按武器配置的「每段总距离 + 进度曲线」精确推进，与动画根曲线无关。
-        /// </summary>
-        CodeLunge = 0,
-
-        /// <summary>劫持动画自带的根运动（<c>Animator.deltaPosition</c>）。上一版实现，保留用于对照。</summary>
-        RootMotion = 1,
-
-        /// <summary>攻击期间完全不位移（纯"定身"）。</summary>
-        None = 2,
-
-        /// <summary>
-        /// ⚠️ **不劫持**：让 Animator **自己**应用根运动（本项目最原始的形态，用于 A/B 对照）。
-        ///
-        /// 该模式下 <see cref="PlayerFSM"/> 会把 <see cref="PlayerMotor"/> <c>enabled = false</c> ——
-        /// 只有这样 <see cref="PlayerMotor.OnAnimatorMove"/> 才**不被调用**，位移权才交还给 Animator。
-        ///
-        /// ⚠️ **四个必然的副作用**（选了它就得接受）：
-        /// <list type="number">
-        ///   <item><b>攻击中完全不能转向</b> —— 组件被禁用，`Face()` 不跑（方案 B 的转向窗口一起失效）；</item>
-        ///   <item><b>前冲绕过 `CharacterController`</b> ⇒ <b>会穿墙</b>（正是 T27 的成因）；</item>
-        ///   <item><b>「只取正向增量」的过滤失效</b> ⇒ 动画根曲线的<b>回撤</b>会原样播放（"冲一下又被拉回"）；</item>
-        ///   <item>攻击期间的<b>贴地下压也停</b>（与 T1 同源）。</item>
-        /// </list>
-        /// </summary>
-        NativeRootMotion = 3,
-    }
-
     /// <summary>
     /// 垂直（Y 轴）位移的**施加方式** —— 见 <see cref="PlayerMotor"/> 的 `lungeVerticalMode`。
     /// </summary>
@@ -111,52 +91,49 @@ namespace Game.Gameplay
                  "开关只影响攻击期间的行为，其它状态不受影响。")]
         [SerializeField] private bool gateTurnByHitFrame = true;
 
-        [Tooltip("⭐ 攻击期间的位移**来源**（三选一）。\n" +
-                 "· CodeLunge【默认，推荐】= 代码驱动：按武器配置的「每段总距离 + 进度曲线」精确推进。\n" +
-                 "   距离精确可控、每次结果一致、曲线只影响形状，且**永远不会被动画拉回**。\n" +
-                 "· RootMotion = 劫持动画自带的根运动（上一版实现，保留用于对照）。\n" +
-                 "   实测各段自带水平位移：Attack1 1.259 / Attack2 0.884 / Attack3 0.988 / Attack4 2.255 m。\n" +
-                 "· None = 攻击期间完全不位移。")]
-        [SerializeField] private AttackDisplacementMode attackDisplacement = AttackDisplacementMode.CodeLunge;
-
-        [Tooltip("攻击根运动的缩放系数。1 = 原样；< 1 = 前冲更短（配合武器/节奏调）；> 1 = 更远。\n" +
-                 "⚠️ 各段本来就不一样（Attack4 约为 Attack2 的 2.5 倍），要逐段精调就得按段配曲线，这里只给一个总缩放。")]
-        [SerializeField] private float attackRootMotionScale = 1f;
-
-        [Tooltip("⭐【强烈建议保持勾选】丢弃根运动里**向后 / 侧向**的分量，只保留沿角色正前方的推进。\n" +
-                 "❓ 为什么需要它：这些攻击动画的根曲线是「冲出去 + 回撤」，逐帧累加 deltaPosition 会把回撤也放出来，\n" +
-                 "   表现就是「冲一下又被拉回来」。本项目实测（RootT.z 首→尾）：\n" +
-                 "     · Attack2 `2_atk_sword04` 净位移 **0**（冲到 0.875 m 又完全回到原处）\n" +
-                 "     · Attack1 中途回退 **0.29 m**、Attack3 中途回退 **0.68 m**\n" +
-                 "     · Attack4 单调（净 2.25 m），本身不拉回\n" +
-                 "⛔ 取消勾选 = 完全照抄动画（含回撤），用于对照排查。")]
-        [SerializeField] private bool attackRootMotionForwardOnly = true;
-
         [Tooltip("⭐ 允许曲线在**下降段**产生「向后退」的位移。\n" +
                  "✅ 开启（默认）= 曲线怎么画就怎么走：上升段前进、下降段后退。\n" +
                  "   例「踏步前斩 → 再后退半步」的画法：(0,0) → (0.35,1) → (0.7,0.55) → (1,0.55)\n" +
                  "   —— 前 35% 时间冲到最远，之后退回 45%，最后停住。\n" +
                  "⛔ 关闭 = 只前进不后退（下降段原地不动，角色停在最远处）。用于对照排查。\n" +
-                 "⚠️ 只影响 CodeLunge 模式。")]
+                 "⚠️ 只影响攻击位移。")]
         [SerializeField] private bool allowLungeBackstep = true;
 
         [Tooltip("⭐ 垂直（Y 轴）位移的施加方式。\n" +
                  "· SkeletonRoot【默认，推荐】= 偏移**骨骼根 `Armature` 的 localPosition.y**（纯视觉）。\n" +
                  "   向下沉照样生效（不会被地面挡）、不影响碰撞与判定盒。\n" +
                  "· Ignore = 不施加垂直位移（等于关掉 Y 轴通道）。\n" +
-                 "⚠️ **只有 CodeLunge 模式**会读这个开关（RootMotion / None / NativeRootMotion 都不走这里）。")]
+                 "⚠️ 仅在攻击位移（<see cref=\"ComputeCodeLunge\"/>）里被读取。")]
         [SerializeField] private VerticalLungeMode lungeVerticalMode = VerticalLungeMode.SkeletonRoot;
 
         private CharacterController _cc;
         private Animator _anim;
         private PlayerAttack _attack;//只用来读"本段是否已出手"（方案 B 的转向窗口判据）
-        private float speed;//移动速度（来自配置）
+        private float walkSpeed;//走路速度（来自配置）
+        private float runSpeed;//跑步速度（来自配置）
 
         /// <summary>本帧的「代码位移方向」（在 <see cref="Update"/> 里算好，供 <see cref="ComputeMoveDelta"/> 使用）。</summary>
         private Vector3 _moveDir;
 
-        /// <summary>一次性警告开关：见 <see cref="ComputeMoveDelta"/>（避免每帧刷屏）。</summary>
-        private bool _warnedRootMotionOff;
+        // ==================== 移动档位（走路 / 跑步）====================
+        //
+        // ⭐ 2026-10-13：移动从"单档"改成**双档**。
+        //   档位 = 有输入 & 是否按住加速键，三选一：
+        //     0          = 停下（无输入）
+        //     walkSpeed  = 走路（有输入、没按加速键）
+        //     runSpeed   = 跑步（有输入、按住加速键）
+        //
+        // ⚠️ 这两个值同时有两个用途，**必须一致**：
+        //   ① 决定实际位移速度（本类的 `_cc.Move`）；
+        //   ② 作为 Animator 混合树的输入参数（`speed`）—— 混合树的阈值就是 0 / walkSpeed / runSpeed。
+        //   所以配置一改，混合树的阈值也要跟着改，否则动画会混在错误的档位上（例如阈值还是 0/1/5 时，
+        //   走路会被混成"一半走路一半跑步"）。
+
+        /// <summary>本帧的目标移动速度（米/秒）：0 = 停 / walkSpeed = 走路 / runSpeed = 跑步。</summary>
+        private float _currentSpeed;
+
+        /// <summary>本帧是否处于**跑步档**（有输入 且 按住加速键）。跳跃据此挑动画。</summary>
+        private bool _isRunning;
 
         /// <summary>
         /// ⭐ **只转向模式**（攻击 / 施法这类"定身动作"用）。
@@ -197,27 +174,28 @@ namespace Game.Gameplay
 
         private void Awake()
         {
-            speed = config.moveSpeed;
+            walkSpeed = config.walkSpeed;
+            runSpeed = config.runSpeed;
             _anim = GetComponent<Animator>();
             _cc = GetComponent<CharacterController>();
             _attack = GetComponent<PlayerAttack>();//可能为 null（只影响方案 B 的窗口判据，见 CanTurnNow）
 
-            //⭐ 这一项是**两种位移模式共同的依赖**（不只是 RootMotion 模式）：
-            //   ① 本类实现了 `OnAnimatorMove` ⇒ Animator 把位移的**写入权**交给我们
-            //      （它不会自己写 transform，也就不会绕过 CharacterController 穿墙）；
-            //   ② 该回调的触发与「根运动是否开启」有关 —— 关掉根运动时不保证它还会被调用。
-            //      保险起见无论用哪种位移模式，这个勾都保持打开（关掉的风险是角色彻底动不了）。
-            if (_anim != null && !_anim.applyRootMotion)
+            //⭐ 位移已完全由代码驱动（见类注释）⇒ **必须关掉根运动**：
+            //   本类不再实现 `OnAnimatorMove`，若 `applyRootMotion` 还开着，
+            //   Unity 会把动画的根位移**自动写进 transform** ⇒ 跑动一圈前窜 3.18 m、冲刺 4.84 m，
+            //   而且是"直接改 transform"、**绕过 CharacterController**（穿墙）。
+            //   ⇒ 在 Awake 里做一道防御并把错误配置报出来（免得以后又被 Inspector 勾回去）。
+            if (_anim != null && _anim.applyRootMotion)
             {
-                Debug.LogWarning("[PlayerMotor] Animator 的 Apply Root Motion 未勾选 —— 位移回调（OnAnimatorMove）可能不再触发，角色将无法移动。"
-                               + "本组件已自动把它打开；若你确实不想让动画影响位移，请把 `attackDisplacement` 设为 CodeLunge 或 None，而不是关这里。", this);
-                _anim.applyRootMotion = true;
+                Debug.LogWarning("[PlayerMotor] Animator 的 Apply Root Motion 被打开了 —— 本项目已改为**纯代码驱动位移**，"
+                               + "根运动必须关闭（否则动画会自己把角色推着走、且绕过碰撞体）。已自动关闭；"
+                               + "请把预制体上的该项也改成关闭。", this);
+                _anim.applyRootMotion = false;
             }
 
-            //⭐ 本类在**唯一写入者**的前提下，位移依赖 `OnAnimatorMove` **每帧都被调用**。
-            //   而 Animator 被"剔除"（Culling）跳过更新时，这个回调就不会被调用 ⇒
-            //   角色会**时不时移不动**（典型现象：把镜头转开、角色跑出视野后卡住）。
-            //   玩家只有一个角色，锁定 AlwaysAnimate 最省心。
+            //⭐ Animator 被"剔除"（Culling）跳过更新时动画会停播（视觉上"角色不动了"）。
+            //   ⚠️ 2026-10-12 起位移**不再依赖** Animator 回调 ⇒ 剔除**不会**再导致"角色移不动"；
+            //   保留 AlwaysAnimate 只是为了动画本身的正确性。玩家只有一个角色，最省心。
             if (_anim != null && _anim.cullingMode != AnimatorCullingMode.AlwaysAnimate)
                 _anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
@@ -284,31 +262,18 @@ namespace Game.Gameplay
             _skeletonRoot.localPosition = lp;
         }
 
-        private void OnEnable()
-        {
-            //恢复"根运动数据可用"（被禁用期间会被本类的 OnDisable 关掉，原因见那里）
-            if (_anim != null) _anim.applyRootMotion = true;
-        }
-
         /// <summary>
-        /// ⚠️ **这一步是方案 B 的关键**：本组件被 <c>enabled = false</c>（冲刺 / 受击 / 施法 / 死亡）时，
-        /// Unity **不会**再调 <see cref="OnAnimatorMove"/> ⇒ Animator 会**恢复自动应用根运动**。
-        /// 那时位移本该只由代码（或完全不动）驱动，不关掉就会出现两个后果：
-        /// <list type="number">
-        ///   <item>冲刺 = 代码位移 4 m **加上** `roll_front` 自带的 **4.836 m**（实测），一冲 8.8 m；</item>
-        ///   <item>根运动是**直接写 transform**，**绕过 `CharacterController`** ⇒ 又变回"冲刺穿墙"（T27）。</item>
-        /// </list>
+        /// ⚠️ 只做一件事：**兜底还原垂直（Y 轴）偏移**。
+        ///
+        /// 若在攻击中途被禁用（受击 / 冲刺 / 死亡打断），<see cref="ComputeCodeLunge"/> 施加的垂直偏移会
+        /// **留在骨骼根上**（表现为角色一直半蹲着）—— 这里还原。
+        ///
+        /// ℹ️ 2026-10-12 起这里**不再开合 `applyRootMotion`**：根运动已彻底不用
+        ///   （`applyRootMotion` 恒为 false，见 <see cref="Awake"/>）；本组件被禁用时位移自然停
+        ///   （<see cref="Update"/> 不跑），也就不需要再防"Animator 自动应用位移"。
         /// </summary>
         private void OnDisable()
         {
-            //⚠️ 「原生根运动」模式**必须保持 applyRootMotion 开着** —— 那个模式的位移就是靠
-            //   Animator 自己应用根运动实现的，关掉等于把位移一起关了。
-            //   其余模式才需要在禁用时关掉它（否则冲刺会额外叠加 4.8 m 根运动、且绕过碰撞体）。
-            if (_anim != null && attackDisplacement != AttackDisplacementMode.NativeRootMotion)
-                _anim.applyRootMotion = false;
-
-            //⭐ 兜底：若在攻击中途被禁用（受击 / 冲刺 / 死亡打断），垂直偏移会**留在骨骼根上**
-            //   （表现为角色一直半蹲着）→ 这里还原。
             SetSkeletonVerticalOffset(0f);
         }
 
@@ -323,13 +288,21 @@ namespace Game.Gameplay
             Vector2 axis = input.Move;
             bool hasInput = axis.sqrMagnitude > 0.01f;
 
+            //⭐ 档位（走路 / 跑步）—— 刻意放在 `_facingOnly` 判断**之前**统一计算：
+            //   攻击中也要能知道"玩家此刻按不按加速键"，否则攻击中起跳会拿到过期的档位。
+            //   · 无输入           → 0（停下）
+            //   · 有输入、没按加速 → walkSpeed（走路）
+            //   · 有输入、按住加速 → runSpeed（跑步）
+            _isRunning = hasInput && input.SprintHeld;
+            _currentSpeed = !hasInput ? 0f : (_isRunning ? runSpeed : walkSpeed);
+
             Vector3 dir = CameraRelative(axis);
-            _moveDir = hasInput ? dir : Vector3.zero;//OnAnimatorMove 里要用
 
             if (_facingOnly)
             {
-                //⭐ 攻击中：**不产生代码位移**（位移改由动画根运动提供，见 ComputeMoveDelta），
+                //⭐ 攻击中：**不产生「输入位移」**（本帧位移改由武器的三轴曲线提供，见 ComputeCodeLunge），
                 //   但保留贴地下压 + 允许**限速**转向
+                _moveDir = Vector3.zero;//位移归武器曲线管，这里只让字段有个确定值
                 if (hasInput && CanTurnNow()) Face(dir, attackTurnSpeed);
 
                 //⚠️ 刻意**不写** "speed" 动画参数：现在攻击期间该参数保持进入攻击前的水平，
@@ -338,17 +311,36 @@ namespace Game.Gameplay
             }
             else
             {
-                //朝向：转向移动方向（不是转向相机方向）
+                //⭐ ① 朝向：转向**输入方向**（相机相对），角速度上限 `turnSpeed`。
                 if (hasInput) Face(dir, turnSpeed);
 
-                //驱动动画混合树
-                _anim.SetFloat("speed", hasInput ? speed : 0f, 0.15f, Time.deltaTime);
+                //⭐⭐ ② 位移方向 = **转向之后的角色正面**，不再是输入方向。（2026-10-13 定案）
+                //
+                //   为什么必须改：输入方向是**瞬时**的（相机一转、方向键一变就立刻改），
+                //   而朝向要按 `turnSpeed` 慢慢转过去。两者解耦 ⇒ 突然按反方向时，
+                //   位移当帧就掉头、身体却还朝着原来那边 ⇒ "身体朝前、人却在往后滑"的倒滑感。
+                //   取 `transform.forward` 之后，位移方向与朝向**永远是同一个**：
+                //   转身时走一道弧线，而不是当帧掉头。
+                //
+                //   ⚠️ **顺序不能反**：必须在 `Face()` **之后**读 `transform.forward`，
+                //      否则拿到的是"转身之前"的朝向，等于没改。
+                //   ⚠️ 转弯半径 r = v / ω（ω = turnSpeed 的**弧度**值 = turnSpeed × π / 180）。
+                //      当前 turnSpeed = 720°/s（ω ≈ 12.57 rad/s）时：
+                //        走路 2 m/s → r ≈ 0.16 m；跑步 6 m/s → r ≈ 0.48 m。
+                //      想让转身更干脆就调大 `turnSpeed`（半径与偏移反比缩小）。
+                //   ℹ️ 攻击位移（`_facingOnly` 走武器曲线）与冲刺（`PlayerDash` 自带 forward）不受影响。
+                _moveDir = hasInput ? transform.forward : Vector3.zero;
+
+                //驱动动画混合树。⭐ 喂的是**实际速度**（0 / walkSpeed / runSpeed），
+                //   与混合树阈值一一对应 ⇒ 走路就播走路、跑步就播跑步。
+                _anim.SetFloat("speed", _currentSpeed, 0.15f, Time.deltaTime);
             }
 
-            //⭐ 兜底：没有 Animator / 没挂控制器时 `OnAnimatorMove` 不会被调用，
-            //   位移就没人执行了（角色彻底动不了）→ 这时退回在 Update 里走同一条计算。
-            //   正常情况（有控制器）**只有 OnAnimatorMove 那个写入者**，不会重复位移。
-            if (!HijackActive)
+            //⭐ **唯一的位移执行点**。必须放在本方法末尾：`_moveDir` 与转向都在上面算好了，
+            //   这一帧的位移直接用它们，做到"算完就走、同帧一致"。
+            //   ℹ️ 2026-10-12 之前这一步在 `OnAnimatorMove` 里（靠实现该回调夺走 Animator 的位移权）；
+            //      现在改到 Update 里**无条件执行** ⇒ 位移与动画彻底解耦，不再依赖任何 Animator 回调。
+            if (_cc != null && _cc.enabled)
                 _cc.Move(ComputeMoveDelta() + Vector3.down * (groundStickSpeed * Time.deltaTime));
         }
 
@@ -361,18 +353,10 @@ namespace Game.Gameplay
         /// <summary>
         /// 本帧的**位移增量**（不含贴地下压）—— ⭐ **唯一的位移计算出口**。
         ///
-        /// · 攻击中（<see cref="_facingOnly"/>）：取**动画的根运动** <c>deltaPosition</c>（动作自带的前冲）。
-        /// · 平时：取代码位移（相机相对方向 × 移动速度）。
-        ///
-        /// ⚠️ <c>deltaPosition</c> 是**世界空间**的**本帧增量**（不是总位移），所以直接给 `CharacterController.Move`。
-        /// ⚠️ Y 分量一律清零 —— 交给贴地下压/重力，否则根运动的抬升会把人顶到半空。
-        /// </summary>
-        /// <summary>
-        /// 本帧的**位移增量**（不含贴地下压）—— ⭐ **唯一的位移计算出口**。
-        ///
-        /// · 攻击中（<see cref="_facingOnly"/>）：按 <see cref="attackDisplacement"/> 三选一
-        ///   （代码前冲 / 根运动 / 不动）。
-        /// · 平时：取代码位移（相机相对方向 × 移动速度）。
+        /// · 平时（Idle / Run / Hit / Special / Death）：取代码位移（**角色正面** × 移动速度）。
+        ///   正面方向由 <see cref="Update"/> 里的 <c>Face()</c> 先转好（见类注释的"位移方向 = 角色正面"）。
+        ///   ℹ️ Dash 不走这里 —— 它由 <c>PlayerDash.LateUpdate</c> 调 <see cref="StepMoveGrounded"/>。
+        /// · 攻击中（<see cref="_facingOnly"/>）：走 <see cref="ComputeCodeLunge"/>（武器三轴曲线）。
         /// </summary>
         private Vector3 ComputeMoveDelta()
         {
@@ -380,22 +364,13 @@ namespace Game.Gameplay
             {
                 //⚠️ 非攻击时**必须**把垂直偏移还原，否则"攻击中沉下去、收招后一直半蹲着"。
                 SetSkeletonVerticalOffset(0f);
-                return _moveDir * (speed * Time.deltaTime);
+
+                //⭐ 速度取**本帧算好的档位**（`_currentSpeed`：0 / 走路 / 跑步），
+                //   这样"松开加速键 → 当帧就降到走路速度"，不会有滞后一帧的顿挫。
+                return _moveDir * (_currentSpeed * Time.deltaTime);
             }
 
-            switch (attackDisplacement)
-            {
-                case AttackDisplacementMode.None:
-                    SetSkeletonVerticalOffset(0f);
-                    return Vector3.zero;
-
-                case AttackDisplacementMode.RootMotion:
-                    SetSkeletonVerticalOffset(0f);
-                    return ComputeRootMotionDelta();
-
-                default:
-                    return ComputeCodeLunge();
-            }
+            return ComputeCodeLunge();
         }
 
         /// <summary>
@@ -500,70 +475,6 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// **根运动分支**（上一版实现，保留用于对照）：直接把动画的 <c>deltaPosition</c> 当位移。
-        ///
-        /// ⚠️ <c>deltaPosition</c> 是**世界空间**的**本帧增量**（不是总位移），所以能直接喂 `CharacterController.Move`。
-        /// ⚠️ Y 分量一律清零 —— 交给贴地下压 / 重力，否则根运动的抬升会把人顶到半空。
-        /// ⚠️ 这些攻击动画的根曲线是「冲出去 + 回撤」，见 <see cref="attackRootMotionForwardOnly"/>。
-        /// </summary>
-        private Vector3 ComputeRootMotionDelta()
-        {
-            if (_anim == null) return Vector3.zero;
-
-            if (!_anim.applyRootMotion && !_warnedRootMotionOff)
-            {
-                _warnedRootMotionOff = true;
-                Debug.LogWarning("[PlayerMotor] attackDisplacement = RootMotion，但 Animator 的 Apply Root Motion 被关掉了 —— "
-                               + "deltaPosition 恒为 0，攻击将**完全没有位移**。", this);
-            }
-
-            Vector3 rm = _anim.deltaPosition;
-            rm.y = 0f;
-
-            if (attackRootMotionForwardOnly)
-            {
-                //⭐ 只保留「沿角色正前方」的推进量：
-                //   ① 向后的帧直接丢弃 —— 否则动画的**回撤**会把角色拖回来（本项目 Attack2 净位移为 0、
-                //      Attack1/3 中途各有 0.29 / 0.68 m 回退，实测）；
-                //   ② 侧向分量也一并丢掉（用投影而不是原向量），避免前冲时横向飘。
-                float forward = Vector3.Dot(rm, transform.forward);
-                if (forward <= 0f) return Vector3.zero;
-                return transform.forward * (forward * attackRootMotionScale);
-            }
-
-            return rm * attackRootMotionScale;
-        }
-
-        /// <summary>
-        /// ⭐ **劫持根运动的实现**（方案 B 的核心，一行代码都没有"应用根运动"的味道，作用却在这里）：
-        ///
-        /// **只要本组件实现了这个方法，Animator 就 <b>不再</b> 自己把根运动写进 transform**
-        /// （Unity 的行为：谁实现 `OnAnimatorMove`，位移的"执行权"就归谁）。
-        /// 于是位移权 100% 收归本类 —— 满足「位置只有一个写入者」，
-        /// 同时 `deltaPosition` 仍然可读（因为 `applyRootMotion` 是开的），
-        /// 我们就能**选择性地**用动画位移（只用在攻击段），并把 Y 掐掉、做缩放、过碰撞体。
-        ///
-        /// ⚠️ 少了这个方法的后果（就是"直接勾 Apply Root Motion"的做法）：
-        ///    Animator 会用**直接写 transform** 的方式移动，绕过 `CharacterController` ⇒ 攻击前冲 / 冲刺都会**穿墙**。
-        /// </summary>
-        private void OnAnimatorMove()
-        {
-            if (_cc == null || !_cc.enabled) return;
-
-            Vector3 stick = Vector3.down * (groundStickSpeed * Time.deltaTime);
-            _cc.Move(ComputeMoveDelta() + stick);
-        }
-
-        /// <summary>
-        /// 劫持是否真的生效 —— 需要 Animator 存在、启用、且挂着控制器。
-        /// 不满足时 <see cref="OnAnimatorMove"/> 不会被调用，此时由 <see cref="Update"/> 兜底位移（否则角色彻底动不了）。
-        /// </summary>
-        private bool HijackActive
-        {
-            get { return _anim != null && _anim.enabled && _anim.runtimeAnimatorController != null; }
-        }
-
-        /// <summary>
         /// 把输入(Vector2)换算成世界方向：**以相机为参照系**。
         /// axis.y = 前/后（屏幕上下），axis.x = 左/右（屏幕左右）。
         /// </summary>
@@ -616,23 +527,26 @@ namespace Game.Gameplay
             return _attack.CanTurn;
         }
 
+        // ==================== 对外的移动档位查询（供 PlayerFSM / PlayerJump 用） ====================
+
+        /// <summary>
+        /// 本帧的目标移动速度（米/秒）：0 = 停 / <c>walkSpeed</c> = 走路 / <c>runSpeed</c> = 跑步。
+        ///
+        /// ⭐ 用途：<see cref="PlayerJump.BeginJump"/> 拿它当**起跳瞬间的水平速度**
+        ///   （静止起跳 = 0 → 原地跳；走路起跳 = 走速；跑步起跳 = 跑速）。
+        /// ⚠️ 与"实际位移了多少"不是一回事 —— 攻击中（`_facingOnly`）本值有档位但不产生输入位移。
+        /// </summary>
+        public float CurrentSpeed => _currentSpeed;
+
+        /// <summary>本帧是否处于**跑步档**（有移动输入 且 按住加速键）。<see cref="PlayerFSM"/> 据此挑"站跳 / 跑跳"动画。</summary>
+        public bool IsRunning => _isRunning;
+
         // ==================== 对外的位移入口（供其它组件发起一次性位移） ====================
         //
         // ⭐ **位置只有一个写入者**：本类是玩家身上唯一调 CharacterController.Move 的地方。
         //    其它组件（目前是 PlayerDash）要位移时**必须**走下面这两个方法，
         //    ❌ 不要自己写 `transform.position +=` —— 那是绕过碰撞体的**直接改坐标**，
         //       会穿墙、会陷进碰撞体里。2026-10-06 修的"冲刺穿墙"就是这个问题。
-
-        /// <summary>
-        /// 是否使用「**原生根运动**」（Animator 自己应用位移）—— 见 <see cref="AttackDisplacementMode.NativeRootMotion"/>。
-        ///
-        /// ⚠️ 该模式下 <see cref="PlayerFSM"/> 会把本组件 <c>enabled = false</c>：**必须如此**，
-        ///    因为只要本组件启用着，<see cref="OnAnimatorMove"/> 就会夺走位移的写入权。
-        /// </summary>
-        public bool UsesNativeRootMotion
-        {
-            get { return attackDisplacement == AttackDisplacementMode.NativeRootMotion; }
-        }
 
         /// <summary>
         /// 开关 **只转向模式**（由 <see cref="PlayerFSM"/> 在攻击这类"定身动作"期间调用）。
@@ -656,13 +570,14 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 纯水平位移（不贴地）。
+        /// 纯水平位移（不贴地），返回 <see cref="CollisionFlags"/>（跳跃用它检测落地）。
         /// ⚠️ 必须在有 `CharacterController` 时调用；<paramref name="delta"/> 是**本帧位移量**（已含 deltaTime）。
+        /// 返回值可以忽略 —— <see cref="PlayerDash"/> 就是只管位移不看碰撞。
         /// </summary>
-        public void StepMove(Vector3 delta)
+        public CollisionFlags StepMove(Vector3 delta)
         {
-            if (_cc == null || !_cc.enabled) return;
-            _cc.Move(delta);
+            if (_cc == null || !_cc.enabled) return 0;
+            return _cc.Move(delta);
         }
 
         /// <summary>
@@ -673,6 +588,22 @@ namespace Game.Gameplay
         public void StepMoveGrounded(Vector3 delta)
         {
             StepMove(delta + Vector3.down * (groundStickSpeed * Time.deltaTime));
+        }
+
+        /// <summary>
+        /// **只做贴地下压、不产生任何水平位移** —— 落地后摇这类"定身、但仍要踩住地面"的场合用。
+        ///
+        /// ⭐ 为什么非要有这个方法：调用方（<see cref="PlayerJump"/> 的落地后摇）期间本组件是 **disabled** 的，
+        ///    <see cref="Update"/> 不跑 ⇒ 全工程唯一那处贴地下压也停了 ⇒ 角色会浮在原地
+        ///    （斜坡、台阶边缘上尤其明显）。这里把贴地动作单独暴露出来，让调用方代为执行。
+        ///
+        /// ⚠️ 与 <see cref="SetFacingOnly"/> 的区别：那个是"不移动、但**仍可**用 <c>attackTurnSpeed</c> 转向"；
+        ///    本方法只管贴地，**朝向一动不动**（后摇要的是完全定身）。
+        /// ⚠️ 与 <see cref="StepMoveGrounded"/> 的区别：那个是"水平位移 + 贴地"，本方法是"0 水平位移 + 贴地"。
+        /// </summary>
+        public void StepStickToGround()
+        {
+            StepMove(Vector3.down * (groundStickSpeed * Time.deltaTime));
         }
     }
 }

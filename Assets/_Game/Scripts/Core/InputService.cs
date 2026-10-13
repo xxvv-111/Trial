@@ -82,6 +82,31 @@ namespace Game.Core
             get { return GameplayInputEnabled && _controls.Player.Dash.triggered; }
         }
 
+        /// <summary>跳跃键（空格）。2026-10-13 新增，与 Dash 同一套模式。</summary>
+        public bool JumpPressedThisFrame
+        {
+            get { return GameplayInputEnabled && _controls.Player.Jump.triggered; }
+        }
+
+        /// <summary>
+        /// 加速键（左 Shift / 手柄左摇杆按下）**当前是否按住** —— 用于「走路 ↔ 跑步」的档位切换。
+        ///
+        /// ⚠️ 与上面的 <c>*PressedThisFrame</c> 有两点不同，别改成一样的写法：
+        /// <list type="bullet">
+        ///   <item>这是**持续按住**的读法（<c>IsPressed</c>，不是 <c>triggered</c>）——
+        ///         走路/跑步是"按住期间保持"的状态，不是"按一下触发一次"的动作；</item>
+        ///   <item>**不参与输入缓冲** —— 缓冲是给"按一下、可能延后执行"的动作用的（攻击/冲刺/跳跃），
+        ///         一个持续按住的键缓存起来没有意义。</item>
+        /// </list>
+        ///
+        /// ℹ️ 判空 <c>_controls != null</c> 的原因见 <see cref="OnDestroy"/>：销毁时它会被清空，
+        ///    而本属性可能还会被跑一帧。
+        /// </summary>
+        public bool SprintHeld
+        {
+            get { return GameplayInputEnabled && _controls != null && _controls.Player.Sprint.IsPressed(); }
+        }
+
         public bool AttackPressedThisFrame
         {
             get { return GameplayInputEnabled && _controls.Player.Attack.triggered; }
@@ -142,6 +167,7 @@ namespace Game.Core
 
         private float _attackAt = float.NegativeInfinity;
         private float _dashAt = float.NegativeInfinity;
+        private float _jumpAt = float.NegativeInfinity;
         private float _specialAt = float.NegativeInfinity;
 
         private void Update()
@@ -154,6 +180,7 @@ namespace Game.Core
 
             if (_controls.Player.Attack.triggered) _attackAt = Time.unscaledTime;
             if (_controls.Player.Dash.triggered) _dashAt = Time.unscaledTime;
+            if (_controls.Player.Jump.triggered) _jumpAt = Time.unscaledTime;
             if (_controls.Player.Special.triggered) _specialAt = Time.unscaledTime;
         }
 
@@ -163,6 +190,9 @@ namespace Game.Core
         /// <summary>缓冲里是否有尚未被消费的冲刺输入。只读。</summary>
         public bool HasBufferedDash { get { return Buffered(_dashAt); } }
 
+        /// <summary>缓冲里是否有尚未被消费的跳跃输入。只读。2026-10-13 新增。</summary>
+        public bool HasBufferedJump { get { return Buffered(_jumpAt); } }
+
         /// <summary>缓冲里是否有尚未被消费的特殊攻击输入。只读。</summary>
         public bool HasBufferedSpecial { get { return Buffered(_specialAt); } }
 
@@ -171,6 +201,9 @@ namespace Game.Core
 
         /// <summary>消费掉缓冲的冲刺输入。</summary>
         public void ConsumeDash() { _dashAt = float.NegativeInfinity; }
+
+        /// <summary>消费掉缓冲的跳跃输入。</summary>
+        public void ConsumeJump() { _jumpAt = float.NegativeInfinity; }
 
         /// <summary>消费掉缓冲的特殊攻击输入。</summary>
         public void ConsumeSpecial() { _specialAt = float.NegativeInfinity; }
@@ -186,6 +219,7 @@ namespace Game.Core
         {
             _attackAt = float.NegativeInfinity;
             _dashAt = float.NegativeInfinity;
+            _jumpAt = float.NegativeInfinity;
             _specialAt = float.NegativeInfinity;
         }
 

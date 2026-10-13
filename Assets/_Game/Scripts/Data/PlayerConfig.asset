@@ -12,11 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bd004290b90f634dac1b05fcd64f4b1, type: 3}
   m_Name: PlayerConfig
   m_EditorClassIdentifier: 
-  moveSpeed: 6
+  walkSpeed: 2
+  runSpeed: 6
   dashSpeed: 10
   dashTimer: 0.5
   dashDelay: 0.1
   iFrameTime: 0.5
+  jumpTime: 0.96
+  jumpHeight: 0.8
+  landRecoverTime: 0.37
+  jumpAirSpeed: 8
   maxHp: 100
   hitInvulnTime: 0.8
   comboWindow: 1

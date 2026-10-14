@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2bd004290b90f634dac1b05fcd64f4b1, type: 3}
+  m_Name: Player2Config
+  m_EditorClassIdentifier: 
+  walkSpeed: 4
+  runSpeed: 6
+  dashSpeed: 10
+  dashTimer: 0.5
+  dashDelay: 0.1
+  iFrameTime: 0.5
+  jumpTime: 0.96
+  jumpHeight: 0.8
+  landRecoverTime: 0.37
+  jumpAirSpeed: 8
+  maxHp: 100
+  hitInvulnTime: 0.8
+  comboWindow: 1
+  attackRange: 2.5
+  attackDamage: 0c0000000f0000000a00000014000000
+  maxMana: 100
+  specialManaCost: 30

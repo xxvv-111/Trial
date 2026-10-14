@@ -7,7 +7,7 @@
 | 项 | 值 |
 |---|---|
 | 版本 | v0.1（草案，待你确认标 ⚠️ 的假设） |
-| 日期 | 2026-10-09 |
+| 日期 | 2026-10-09；**2026-10-15 补写 §5.4 Boss（招式表 / 状态机 / 韧性条 / Animator 连线）** |
 | 类型 | **3D 动作 RPG（ARPG）** —— 第三人称斜俯视 · 后置跟随（口径见 `GDD.md` §1） |
 | 第一阶段目标 | **打通"中枢 → 战斗 → 掉落 → 成长 → 回中枢"的完整闭环** |
 | 相关文档 | `GDD.md`（总策划）、`ROADMAP.md` §14（ARPG 扩展排期）、`ANIM-GUIDE.md`（手 K 动画）、`NAVMESH-GUIDE.md`（寻路）、`PROJECT-CONTEXT.md`（现状与坑） |
@@ -429,20 +429,42 @@ PlayerLevel     : 运行时等级/经验；订阅 GameEvents.EnemyKilled → 加
 
 #### 5.4.1 需求 → 设计映射
 
-| 你的需求 | 设计 | 备注 |
+| 需求（✅ 2026-10-15 定稿） | 设计 | 备注 |
 |---|---|---|
-| 初见动画 | `BossIntro` 状态：进 Boss 区 → 相机接管 → 播初见 clip → 切 `Idle` | 期间玩家输入可控（或锁），见下 |
-| 三种普通攻击 | ① **横扫**（近距，扇形判定）② **砸地**（中距，圆形 AOE）③ **投射**（远距，弹幕） | 与 `GDD.md` §7.2 的决策表一致 |
-| 远距离**突刺追击** | `LungeThrust`：玩家距离 > 阈值 → 前摇预警 → 长距离直线突刺 → 判定 → 后摇 | ⚠️ 第一阶段**不做瞬移**（GDD 里的 TeleportDash 降级为后续） |
-| 移动 / 待机 / 死亡 | `Move`（追击走位）/ `Idle`（选招思考）/ `Death`（长演出 + 触发胜利） | 死亡要**延迟隐藏**（复用 `EnemyHealth._deathHideDelay` 的做法） |
+| 战斗范围 / 攻击范围 | 直接复用 `EnemyAIConfig.aggroRange` / `attackRange`（**水平距离**判定） | ⚠️ Boss 4.47 m 高，必须用水平距离；用 3D 距离会让"攻击范围"永远判不中 |
+| 未进战斗待机 | `NIdle`（动画 `N_idle`） | 玩家进入战斗范围即转 `CombatIdle` |
+| 靠近玩家 | `Chase`（动画 `walkfront`），走 `EnemyLocomotion.ChaseTarget` | — |
+| 三段普通攻击 | `Attack`：**a / b / c 带权随机**（`attackWeightA/B/C`） | 出手帧用动画事件 `TickAttack()` 开**当前招式**对应的判定体 |
+| **b → c 二连段** | 选中 b 时按 `comboChance` 概率接一段 c | ⚠️ `AttackC` 触发器被"单出 c"与"二连第二段"**共用**；接 c 前必须复位 `AttackB` 残留触发器，否则 `hit` 播完会"诈尸"补挥 |
+| 攻击 CD（时长随机） | `attackCdMin` ~ `attackCdMax` 随机；⭐ **进入动画第一帧就开始计时** | 计时挂在 `OnAIUpdate`（**与状态无关**）⇒ 破韧打断也不会漏掉 CD |
+| CD 期间的行为 | **始终面向玩家 + `walkleft` 侧移绕圈**（`strafeRadius`，方向可随机） | 用 `EnemyLocomotion.BackstepTo` 而非 `MoveToOrStep`，否则会背对玩家走开 |
+| 特殊攻击（**双 CD 归零**才触发） | `Special`：近距 → **sa1**（`SpecialNear`，原地不移动）；远距 → **sa2**（`SpecialFar`，先追后打） | ⭐ **优先级必须高于普通攻击**，否则普攻会在 CD 归零那一帧抢走窗口 |
+| sa2 的"追击 + 攻击"在同一动画里 | 追击段位移由**代码**在 `specialApproachTime` 内推进 | ⚠️ 本工程**根运动全局关闭** ⇒ 做这条动画时**追击段只做姿态、不要放位移**，否则动画位移 + 代码位移叠加，Boss 会冲过玩家 |
+| **韧性条（破韧）** | 受击累积削韧 = 伤害 × `poisePerDamageMultiplier`（默认 **2**）→ 满则 `Hit` 硬直**打断一切** | 破韧后 `poiseBreakImmunityTime`（0.6 s）免疫；韧性自然回复默认关闭 |
+| 脱战 | 离开战斗范围超过 `disengageTime` → `NIdle`，并清空双 CD 与韧性 | 不补这条的话 Boss 会在 `walkleft` 里绕着空气转 |
+| 死亡 | `Death`（`IsDead = true` + 锁死状态机）→ `GameEvents.RaiseBossDied()` | ⚠️ 要**延迟隐藏**（复用 `EnemyHealth._deathHideDelay` 的做法） |
+| ⏸️ 初见动画 / 2 阶段 | **后续**，V1 不做 | 相机接管仍要自己写轻量 `CameraCue`（工程**无 Cinemachine**） |
 
-#### 5.4.2 状态机（复用现有基类，**不要新写一套**）
+#### 5.4.2 状态机（✅ 2026-10-15 已实现；复用现有基类，**不要新写一套**）
+
+✅ **已落地**：`Assets/_Game/Scripts/Gameplay/Enemy/BossController.cs`（7 状态，`EnemyStateMachine<EState>` 表驱动）
+＋ `Assets/_Game/Scripts/Data/BossConfig.cs`（`BossConfig : EnemyAIConfig`）。与 `GDD.md` §7.3 是同一份口径。
 
 ```
-Idle ──评估──> Approach | MeleeSweep | SlamAOE | Projectile | LungeThrust
-任意招式 ──后摇结束──> Cooldown ──> Idle
-任意 ──HP ≤ 50% ──> PhaseTransition（短无敌 + 表现）──> Phase2
-任意 ──HP ≤ 0 ──> Death ──> GameEvents.RaiseBossDied()
+NIdle      ──玩家进战斗范围────────────────> CombatIdle
+CombatIdle ──双 CD 归零────────────────────> Special（优先级最高）
+           ──普攻 CD 就绪 & 在攻击范围──────> Attack（a / b / c 带权随机）
+           ──普攻 CD 就绪 & 不在攻击范围────> Chase
+           ──普攻 CD 未就绪────────────────> 原地绕玩家侧移（walkleft，始终面向玩家）
+           ──离开战斗范围 > disengageTime──> NIdle（清双 CD 与韧性）
+Chase      ──双 CD 归零────────────────────> Special
+           ──进攻击范围────────────────────> Attack（CD 未就绪则回 CombatIdle）
+           ──否则──────────────────────────> walkfront 正面接近
+Attack     ──动画播完──────────────────────> CombatIdle（b 命中 comboChance 则先接 c）
+Special    ──动画播完──────────────────────> CombatIdle
+Hit        ──动画播完──────────────────────> CombatIdle（不在战斗范围则 NIdle）
+任意        ──韧性条削满───────────────────> Hit（打断一切）──> CombatIdle
+任意        ──HP ≤ 0───────────────────────> Death（锁死状态机）──> GameEvents.RaiseBossDied()
 ```
 
 **技术建议**
@@ -451,12 +473,12 @@ Idle ──评估──> Approach | MeleeSweep | SlamAOE | Projectile | LungeThr
 |---|---|---|
 | 1 | 继承 **`EnemyStateMachine<TState>`**（纯 C# 表驱动基类，M3.2 已落地） | 加第四次"状态集合 + 转移条件 + 数值"即可；报告里是"架构红利"的实证 |
 | 2 | 复用 **`EnemyAIController`**（非泛型共用层）+ **`EnemyLocomotion`**（移动分层） | 别再写一遍寻路/受体/感知 |
-| 3 | ⚠️ **Boss 不被打断**：`EnemyAIController` 已有 `canBeInterrupted` 开关 | GDD §6.1 明确"小怪会打断、Boss 不会" → 只闪白不硬直 |
+| 3 | 🔄 **Boss 平时不被打断，但韧性条削满会破韧**：`canBeInterrupted` 仍设 **false**（普通受击只闪白），另订阅 `EnemyHealth.Damaged` 累积削韧 | ⚠️ **2026-10-15 口径变更**：原为"Boss 只闪白、不引入硬直条" → 现引入**韧性条（破韧）**，见 GDD §6.1 / §7.3 |
 | 4 | **初见动画的相机接管**：⚠️ 工程**未安装 Cinemachine** | 建议自己写一个轻量 `CameraCue`（拿 `CameraFollow` 的引用 → 临时切到"看向 Boss 的机位" → 播完切回），**不要**为一段动画引入新包 |
 | 5 | 招式出手**用动画事件**（同 `TickAttack`） | 与既有口径一致；前摇 → 事件开判定体 → 后摇 |
 | 6 | **判定体复用 `Hitbox` / `HitboxController`**（敌我共用） | GDD 设计支柱第 4 条"敌我同规则" |
 | 7 | Boss 招式动画：⚠️ **`Boss_Crichton` 的 FBX 内 0 动画** | 需手 K 或重定向。⚠️ 用重定向时**剑必须跟着手走**（Prop1 已在右手下，但招式动画的骨骼曲线要覆盖到剑） |
-| 8 | 招式数值进 **`BossConfig`（SO）** | `GDD.md` §11.1 已列为"待新增" |
+| 8 | 招式数值进 **`BossConfig`（SO）** ✅ **已建**：`Assets/_Game/Scripts/Data/BossConfig.cs` | 字段清单见 §5.4.4 |
 
 #### 5.4.3 初见演出的实现建议（⚠️ 最容易翻车的一处）
 
@@ -465,12 +487,84 @@ Idle ──评估──> Approach | MeleeSweep | SlamAOE | Projectile | LungeThr
 - ⚠️ **演出必须可跳过**（按任意键 / ESC），否则重复挑战时会很烦。
 - ⚠️ **演出结束后要保证状态干净**：输入恢复、`timeScale` 还原、相机回位。建议把这三件事写在**同一个** `EndIntro()` 里（幂等）。
 
+#### 5.4.4 数值配置与 Animator 连线（✅ 2026-10-15 已实现）
+
+⚠️ **所有数字都在 SO 里填，代码里不许出现具体数值**（§6 的既定口径）。下表列出的是**字段清单**，默认值只是占位。
+
+**`BossConfig : EnemyAIConfig` 字段**
+
+| 分组 | 字段 | 含义 |
+|---|---|---|
+| 继承 | `hp` / `aggroRange` / `attackRange` / `moveSpeed` / `damage` / `flashTime` | 血量 / **战斗范围** / **攻击范围** / 追击速度 / 伤害 / 闪白时长 |
+| 继承 | `canBeInterrupted` | ⚠️ **必须 false** —— Boss 的打断只走韧性条，不走普通受击 |
+| 脱战 | `disengageTime` | 离开战斗范围多久回 `N_idle`（0 = 永不脱战） |
+| 移动 | `turnSpeed` / `strafeRadius` / `randomStrafeDirection` | 转身速度（建议 240，别用默认 720）/ 绕圈半径（0 = 不绕）/ 绕圈方向是否随机 |
+| 普攻 CD | `attackCdMin` / `attackCdMax` / `attackTimeout` | CD 随机区间 / 兜底超时（建议 = 最长攻击动画 + 0.5） |
+| 三选一 | `attackWeightA` / `attackWeightB` / `attackWeightC` / `attackHitboxActiveTime` | 三段权重（全 0 退化为等概率）/ 判定体开启时长 |
+| 二连段 | `comboChance` / `comboHitboxActiveTime` | 接 c 的概率 / 第二段判定体时长 |
+| 特殊攻击 | `specialCd` / `specialTimeout` / `specialNearMaxDistance` / `specialFarStopDistance` / `specialApproachTime` / `specialApproachSpeed` / `specialKeepFacingPlayer` / `specialHitboxActiveTime` | 特殊 CD / 兜底 / 近远分界 / sa2 停靠距离 / **sa2 追击时长** / **sa2 追击速度** / 追击时是否面朝玩家 / 判定体时长 |
+| 韧性 | `maxPoise` / `poisePerDamageMultiplier` / `poiseRecoverPerSecond` / `poiseRecoverDelay` / `hitTimeout` / `poiseBreakImmunityTime` | 韧性上限 / **削韧倍率（默认 2）** / 自然回复速度（默认 0） / 回复延迟 / 硬直兜底超时 / **破韧免疫期** |
+| 调试 | `drawGizmos` | Scene 视图画战斗 / 攻击 / 特殊攻击距离圈 |
+
+**韧性条 UI**：订阅 `BossController.PoiseChanged(cur, max)` 事件，或直接读 `BossController.Poise01`（0..1）。
+
+**Animator 参数（10 个，逐字与代码一致）**：`Speed`(Float) / `Strafe`(Bool) / `InCombat`(Bool) / `AttackA`(Trigger) / `AttackB`(Trigger) / `AttackC`(Trigger) / `SpecialNear`(Trigger) / `SpecialFar`(Trigger) / `Hit`(Trigger) / `IsDead`(Bool)。
+
+> ⚠️ 基类的 `PlayHitAnim` / `PlayDeathAnim` 引用的是名为 `Attack` 的参数，Boss 用不上，**不要调它们**。
+> ⚠️ 每段攻击 / 特殊攻击动画的**命中帧必须挂动画事件 `TickAttack`**（无参）—— 漏挂是**静默**的：打不出伤害但不报错。可选在 b 的后摇起点挂 `OnActionEnd` 让二连段提前接上。
+
+**Animator 状态机连线**（9 个顶层状态，其中 `Locomotion` 是含 3 个状态的子状态机）
+
+| 状态 | 动画 | 循环 |
+|---|---|---|
+| `N_idle` | N_idle | ✅ |
+| `Locomotion`（子状态机）→ `CombatIdle` / `WalkFront` / `WalkLeft` | 战斗待机 / walkfront / walkleft | ✅ |
+| `AttackA` / `AttackB` / `AttackC` | a / b / c | ❌ |
+| `SpecialNear` / `SpecialFar` | sa1 / sa2 | ❌ |
+| `Hit` | hit | ❌ |
+| `Death` | 死亡动画 | ❌ |
+
+| 从 → 到 | 条件 | Has Exit Time | Duration |
+|---|---|---|---|
+| `Entry → CombatIdle` | — | 关 | — |
+| `CombatIdle → WalkFront` | `Speed > 0.1` 且 `Strafe == false` | 关 | 0.15 |
+| `CombatIdle → WalkLeft` | `Speed > 0.1` 且 `Strafe == true` | 关 | 0.15 |
+| `WalkFront → WalkLeft` / `WalkLeft → WalkFront` | `Strafe` 取反 | 关 | 0.15 |
+| `WalkFront / WalkLeft → CombatIdle` | `Speed < 0.1` | 关 | 0.15 |
+| `N_idle → Locomotion` | `InCombat == true` | 关 | 0.25 |
+| `Locomotion → N_idle` | `InCombat == false` | 关 | 0.25 |
+| `AnyState → AttackA / AttackB / AttackC` | 各自的 `Attack*` 触发器 | 关 | 0.1 |
+| `AnyState → SpecialNear / SpecialFar` | 各自的触发器 | 关 | 0.1 |
+| `AnyState → Hit` | `Hit` 触发器 | 关 | **0.05**（破韧要快） |
+| `AnyState → Death` | `IsDead == true` | 关 | 0.1 |
+| `AttackA / B / C`、`Special*`、`Hit` → `Locomotion` | — | **开，Exit Time 0.9~0.95** | 0.15 |
+| `AttackB → AttackC` | `AttackC` 触发器 | 关 | 0.1 |
+
+> ⚠️ **`AttackB → AttackC` 这条必须排在 `AttackB → Locomotion` 上面** —— Unity 按列表**从上到下**取第一条满足条件的转移，排反了二连段永远接不出来。
+> ⚠️ 所有 **Any State** 转移都要**取消勾选 `Can Transition To Self`**，否则动作播到一半会自我重入、从头开始（看起来像抽搐）。
+> ⚠️ 动作 → `Locomotion` 的 Exit Time **别设到 0.6 以下**：脚本判"动作结束"是 `normalizedTime >= 1`，设太低会出现"脚本还在攻击状态、动画已经回移动"的错位感。
+> 📌 `Hit` 的 `Interruption Source` 建议设为 **Current State**，让破韧能打断正在播的动作。
+
+**预制体还要补**（`Boss_Crichton.prefab` 目前**只有 `Animator`**）
+
+1. `EnemyHealth` —— `_config` 指向 **BossConfig**（血量从这里读）
+2. `BossController` —— `_config` 指向**同一个** BossConfig
+3. `HitboxController`
+4. 4 个判定体子物体：`Hitbox_AttackA` / `Hitbox_AttackB` / `Hitbox_AttackC` / `Hitbox_Special`，各挂 `Hitbox`（`_team = Enemy`、`_targetLayers` 勾 Player 层 = 8）。**建议挂在武器挂点 `Bip001-Prop1` 下**，判定盒才会跟着剑走
+5. ⚠️ **`CapsuleCollider` + `NavMeshAgent`** —— 两样现在都没有，`EnemyLocomotion` 会退化成 transform 直线，Boss 会**穿墙**
+
+> ⚠️ 韧性条属于**新增战斗机制**，落地时同步改了 `GDD.md` §6.1 / §7.3 / §7.4 / §15.2（原文写的是"不引入硬直条 / 破防"）。
+
 ### 5.5 验收
 
 - [ ] 两种小怪行为符合设计（近战追、远程保持距离且**倒退**）
 - [ ] 击杀必掉魔晶，拾取后 UI 计数变化
 - [ ] 局内升级触发时生命/攻击**立刻**变化
-- [ ] Boss：初见动画 → 三种攻击各能观测到 → 远离时被突刺追 → 击败后 `BossDied` 触发胜利结算
+- [ ] Boss：进战斗范围转战斗待机 → `walkfront` 靠近 → **a / b / c 三段**各能观测到 → b 有一定概率接出 **c 二连**
+- [ ] Boss：攻击 CD 期间持续面向玩家并 `walkleft` 绕圈；两条 CD 归零时**优先**打出特殊攻击（近距 sa1 / 远距 sa2）
+- [ ] Boss：削满韧性 → `hit` **破韧硬直打断动作** → 硬直后有免疫期、不会连续硬直
+- [ ] Boss：长时间离开战斗范围能脱战回 `N_idle`（双 CD 与韧性清零）
+- [ ] ⏸️ Boss：初见动画 → 击败后 `BossDied` 触发胜利结算（**初见动画为后续**）
 
 ---
 
@@ -493,6 +587,9 @@ Idle ──评估──> Approach | MeleeSweep | SlamAOE | Projectile | LungeThr
 | **锻炼单价** | 30 魔晶 / 次，上限 10 次 | **新增** |
 | **法术解锁价** | 60 魔晶 | **新增** |
 | Boss 生命 | 600（≈ 小怪 20 倍） | GDD §7.1 草案 |
+| **Boss 韧性上限** | 100 | **新增**（`BossConfig.maxPoise`） |
+| **Boss 削韧倍率** | ×2（削韧 = 伤害 × 2） | **新增**（`BossConfig.poisePerDamageMultiplier`） |
+| **Boss 破韧免疫期** | 0.6 s | **新增**（`BossConfig.poiseBreakImmunityTime`） |
 
 ---
 
@@ -535,7 +632,7 @@ Idle ──评估──> Approach | MeleeSweep | SlamAOE | Projectile | LungeThr
 | `ExpCurve` | 局内经验曲线 | `float[]` 或 `AnimationCurve` | 做进资产，别写公式 |
 | `LevelGrowth` | 每级成长 | `List<StatModifier>` | 复用 §5.3.3 的同类结构 |
 | `QuestConfig` | 任务定义 | id / 标题 / 目标类型 / 数量 / 奖励列表 | |
-| `BossConfig` | Boss 数值与招式 | HP / 各招伤害 · 判定形状 · 前摇 · 冷却 / 阶段阈值 | `GDD.md` §11.1 已列为待新增 |
+| `BossConfig` | Boss 数值与招式 | HP / 各招伤害 · 判定形状 · 前摇 · 冷却 / **韧性条** | ✅ **已建 `BossConfig : EnemyAIConfig`（2026-10-15）**，字段清单见 §5.4.4 |
 | `EncounterConfig` | 区域敌人配置 | 区域 id → 敌人列表 | 让 `RoomController` 不写死 |
 
 > 现有已就绪的 SO（`PlayerConfig` / `EnemyAIConfig` / `EnemyCasterConfig` / `WeaponConfig`）**继续用**，不重做。

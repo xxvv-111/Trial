@@ -36,6 +36,19 @@ namespace Game.Gameplay
         /// </summary>
         public event Action<EnemyHealth, int> Damaged;
 
+        /// <summary>
+        /// 血量变化通知。参数 = (当前血量, 血量上限)。
+        ///
+        /// ✅ **2026-10-15 新增**：血条 UI 用的就是它 ——
+        ///   小怪头顶血条（<c>Game.UI.EnemyHealthBar</c>）与 Boss 屏幕血条
+        ///   （<c>Game.UI.BossHealthBar</c>）都订阅这个事件。
+        ///
+        /// 为什么不用 <see cref="Damaged"/> 顶替：<c>Damaged</c> 只在「挨打」时广播，
+        /// 而血条还需要在 **启用/满血重置**（<see cref="OnEnable"/>）时同步一次 —— 敌人被
+        /// SetActive 复用时（房间重开 / 对象池），血条必须跟着回到满格，否则会停在上一轮的空血。
+        /// </summary>
+        public event Action<int, int> HpChanged;
+
         [SerializeField] private EnemyAIConfig _config;
 
         [Tooltip("死亡后延迟多少秒才隐藏物体（留时间给死亡动画播完）。\n" +
@@ -60,6 +73,8 @@ namespace Game.Gameplay
 
             _hidingScheduled = false;//被复用复活时，别继承上一次的隐藏倒计时
             _hideAtUnscaled = 0f;
+
+            RaiseHpChanged();//血条跟着回到满格（复用复活的关键一步）
         }
 
         public void TakeDamage(int damage)
@@ -69,10 +84,17 @@ namespace Game.Gameplay
             CurHp -= damage;
             if (CurHp < 0) CurHp = 0;
 
+            RaiseHpChanged();//先刷新血条，再走受击/死亡流程
+
             //先通知受击（AI 要立刻进入硬直/闪白），再判断死亡
             if (Damaged != null) Damaged(this, damage);
 
             if (CurHp <= 0) Die();
+        }
+
+        private void RaiseHpChanged()
+        {
+            if (HpChanged != null) HpChanged(CurHp, MaxHp);
         }
 
         private void Die()

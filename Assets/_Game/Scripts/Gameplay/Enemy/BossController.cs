@@ -98,6 +98,24 @@ namespace Game.Gameplay
         /// <summary>当前韧性占比（0..1），UI 也可以直接读。</summary>
         public float Poise01 { get { return PoiseMax <= 0f ? 0f : Mathf.Clamp01(_poise / PoiseMax); } }
 
+        /// <summary>
+        /// 进入 / 退出**战斗**的通知（true = 进入战斗）。
+        ///
+        /// <para>✅ **2026-10-15 新增**：Boss 屏幕血条（<c>Game.UI.BossHealthBar</c>）订阅它，
+        /// 用来决定「Boss 血条什么时候出现在屏幕上」—— 平时（N_idle）不显示，
+        /// 玩家走进战斗范围、Boss 进入 CombatIdle 的那一刻才显示。</para>
+        ///
+        /// <para>⚠️ 每次进入战斗待机都会广播一次 true（例如攻击完回到待机也会再发），
+        /// 订阅方要自己做成**幂等**的（已经在显示就别再播一次动画）。</para>
+        /// </summary>
+        public event Action<bool> CombatChanged;
+
+        /// <summary>当前是否处于战斗（不在 N_idle，且还没死）。UI 订阅事件后可以先读它同步初值。</summary>
+        public bool InCombat
+        {
+            get { return _fsm != null && !_fsm.Is(EState.NIdle) && !_fsm.Is(EState.Death); }
+        }
+
         // ==================== 配置取值（配置没挂时给安全默认，避免 NRE） ====================
 
         /// <summary>Boss 专用配置。<c>_config</c> 不是 BossConfig 时为 null（会在 Awake 里报错）。</summary>
@@ -193,6 +211,8 @@ namespace Game.Gameplay
             SetAnimBool(P_Strafe, false);
             SetAnimFloat(P_Speed, 0f);
             _outOfRangeT = 0f;
+
+            RaiseCombat(false);//UI：Boss 血条收起
         }
 
         private void UpdateNIdle()
@@ -216,6 +236,8 @@ namespace Game.Gameplay
                 _strafeDir = (UnityEngine.Random.value < 0.5f) ? -1 : 1;
             else
                 _strafeDir = 1;
+
+            RaiseCombat(true);//UI：Boss 血条出场
         }
 
         private void UpdateCombatIdle()
@@ -555,6 +577,8 @@ namespace Game.Gameplay
 
             _fsm.LockStateMachine();//死后不再接受任何状态切换
 
+            RaiseCombat(false);//UI：Boss 血条该退场了（BossHealthBar 会留一小段延迟让玩家看到打空的血条）
+
             //GameManager 在等这个事件弹结算面板（见 GameEvents / GameManager）
             GameEvents.RaiseBossDied();
         }
@@ -588,6 +612,12 @@ namespace Game.Gameplay
 
             _poise = clamped;
             if (PoiseChanged != null) PoiseChanged(_poise, PoiseMax);
+        }
+
+        /// <summary>广播战斗状态变化（见 <see cref="CombatChanged"/>）。</summary>
+        private void RaiseCombat(bool inCombat)
+        {
+            if (CombatChanged != null) CombatChanged(inCombat);
         }
 
         // ==================== 动画事件入口 ====================

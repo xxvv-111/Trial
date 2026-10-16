@@ -46,6 +46,7 @@ namespace Game.Gameplay
         //    AttackA/B/C 三个独立触发器，所以那两方法**不要用**（用了只会刷一条"参数不存在"警告）。
         private const string P_Speed = "Speed";             // Float  实际水平速度，驱动 待机↔walkfront
         private const string P_Strafe = "Strafe";           // Bool   true → 用 walkleft
+        private const string P_WalkDir = "WalkDir";         // Float  侧移方向：+1 = 正向，-1 = 倒放（walk_left 状态的 Speed 由它驱动）
         private const string P_InCombat = "InCombat";       // Bool   N_idle ↔ 战斗状态
         private const string P_AttackA = "AttackA";         // Trigger
         private const string P_AttackB = "AttackB";         // Trigger
@@ -54,6 +55,9 @@ namespace Game.Gameplay
         private const string P_SpecialFar = "SpecialFar";   // Trigger  sa2（先追击再打）
         private const string P_Hit = "Hit";                 // Trigger  破韧硬直
         private const string P_IsDead = "IsDead";           // Bool
+
+        /// <summary>Animator 里的**状态名**（注意不是参数名）—— 读动画进度时要拿它比对。Boss 的三段普攻状态叫 a1 / a2 / a3。</summary>
+        private const string S_AttackB = "a2";
 
         [Header("Boss 判定体名（对应预制体下的子物体名）")]
         [Tooltip("三选一攻击各自的判定体。用动画事件的 TickAttack() 按当前招式自动开对应的那个。")]
@@ -89,6 +93,12 @@ namespace Game.Gameplay
         private float _outOfRangeT;    //连续离开战斗范围的秒数
         private int _strafeDir = 1;    //+1 / -1，绕圈方向
 
+        /// <summary>
+        /// 本次特殊攻击是不是**远距的 sa2**（<c>false</c> = 近距的 sa1，原地出招）。
+        /// 只用来决定"sa2 是否全程允许转向"，见 <see cref="CanTurn"/>。在 <see cref="EnterSpecial"/> 里赋值。
+        /// </summary>
+        private bool _specialIsFar;
+
         // ==================== 特殊攻击的追击段 ====================
         private float _approachT;      //sa2 追击段剩余秒数（0 = 不追了）
 
@@ -122,9 +132,13 @@ namespace Game.Gameplay
         protected BossConfig BossCfg { get { return _config as BossConfig; } }
 
         private float CfgTurnSpeed { get { return BossCfg != null ? BossCfg.turnSpeed : 240f; } }
-        private float CfgStrafeRadius { get { return BossCfg != null ? BossCfg.strafeRadius : 5f; } }
+        //注：踱步改成"纯切向"后不再需要固定半径，原先的 CfgStrafeRadius 已删除
+        //（BossConfig.strafeRadius 字段保留未用，将来若要"保持固定距离"可以再拿回来）。
         private float CfgAttackCdMin { get { return BossCfg != null ? BossCfg.attackCdMin : 1.5f; } }
         private float CfgAttackCdMax { get { return BossCfg != null ? BossCfg.attackCdMax : 3f; } }
+
+        /// <summary>连段窗口（0~1，b 动作的进度比例）。见 <see cref="BossConfig.comboWindowStart"/>。</summary>
+        private float CfgComboWindow { get { return BossCfg != null ? Mathf.Clamp01(BossCfg.comboWindowStart) : 0.55f; } }
         private float CfgAttackTimeout { get { return BossCfg != null ? BossCfg.attackTimeout : 4f; } }
         private float CfgSpecialCd { get { return BossCfg != null ? BossCfg.specialCd : 14f; } }
         private float CfgSpecialTimeout { get { return BossCfg != null ? BossCfg.specialTimeout : 6f; } }
@@ -210,6 +224,7 @@ namespace Game.Gameplay
             SetAnimBool(P_InCombat, false);
             SetAnimBool(P_Strafe, false);
             SetAnimFloat(P_Speed, 0f);
+            SetAnimFloat(P_WalkDir, 1f);//侧移方向复位，避免下次以"倒放"起步
             _outOfRangeT = 0f;
 
             RaiseCombat(false);//UI：Boss 血条收起
@@ -264,7 +279,7 @@ namespace Game.Gameplay
                 _outOfRangeT = 0f;
             }
 
-            Loco.FaceTarget(Target, CfgTurnSpeed);//始终面向玩家
+            TurnTowardTarget();//始终面向玩家（CombatIdle 属 Locomotion 三状态 ⇒ 允许转向）
 
             //⭐ 判定顺序：特殊攻击优先 → 普通攻击 → 绕圈等 CD。
             //   否则普通攻击会在 CD 刚归零的那一帧把窗口抢走，特殊攻击几乎永远轮不到。
@@ -281,28 +296,92 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 保持 <c>strafeRadius</c> 半径、面朝玩家绕圈。
-        /// 用 <see cref="EnemyLocomotion.BackstepTo"/> 而不是 MoveToOrStep：
-        /// 后者会把转向权交还 NavMeshAgent（朝行进方向转身）⇒ 变成背对玩家走开。
+        /// 攻击 CD 期间的「踱步」：绕玩家侧移，全程面朝玩家、播 <c>walk_left</c>。
+        ///
+        /// <para><b>方向取法</b>（2026-10-16 按用户给的算法简化）：把「玩家 → Boss」的水平单位向量
+        /// 绕 Y 轴转 90°（<c>_strafeDir</c> ±1 决定顺/逆时针），得到的就是圆周切线方向。
+        /// 这与旧版「把半径向量转 Δθ 再重新投回固定半径」在数学上等价，只是不再强制保持固定半径
+        /// —— 反正只有玩家在攻击范围内时才踱步，距离自然落在 3.6~4 m 附近。
+        /// （旧版半径投影的唯一作用是把"沿切线走"带来的外飘按回圆上，实测外飘仅约 1.5 cm/s，
+        ///  一次 CD（1.5~3 s）也就 2~5 cm，可以忽略；因此 <c>strafeRadius</c> 现已不再被使用。）</para>
+        ///
+        /// <para><b>左右方向的动画映射</b>（2026-10-16 新增）：动画里侧移只有 <c>walk_left</c> 一条 clip，
+        /// 所以向**自身右侧**侧移时要把这条 clip <b>倒放</b>（状态速度取负）。方向由 <see cref="P_WalkDir"/>
+        /// 参数交给 Animator（见方法内注释），否则两个方向都播正向 ⇒ 必然有一半时间在"倒着滑步"。</para>
+        ///
+        /// <para>⚠️ 两个坑，踩住任何一个都会表现成「站桩不动」：
+        /// ① <b>不能走 <c>SetDestination</c></b>：每帧步长只有 ~5 cm，会落进
+        ///    <c>agent.stoppingDistance</c>（= attackRange 4 × 0.9 = 3.6 m）之内，
+        ///    Agent 直接判定「已到达」⇒ 一步不走；
+        /// ② <b>动画 <c>walk_left</c> 的转移条件是 <c>Speed &gt; 0.1</c></b>，而 Speed 取自实际速度，
+        ///    所以速度必须真的被上报（见 <c>EnemyLocomotion.CurrentSpeed</c> 里的 _manualMove 分支）。
+        /// </para>
         /// </summary>
         private void StrafeAroundTarget()
         {
-            float radius = CfgStrafeRadius;
-            if (radius <= 0.1f) { SetAnimBool(P_Strafe, false); Loco.Stop(); return; }
+            Vector3 toBoss = transform.position - Target.position;
+            toBoss.y = 0f;
+            if (toBoss.sqrMagnitude < 0.0001f) return;//与玩家重合时跳过这一帧，避免除零
 
-            Vector3 rel = transform.position - Target.position;
-            rel.y = 0f;
-
-            //线速度换算成角速度：ω = v / r
-            float angDeg = MoveSpeed / Mathf.Max(0.5f, radius) * Mathf.Rad2Deg * Time.deltaTime * _strafeDir;
-
-            Vector3 nextRel = Quaternion.AngleAxis(angDeg, Vector3.up) * rel;
-            if (nextRel.sqrMagnitude < 0.0001f) return;//与玩家重合时跳过一帧，避免除零
-
-            Vector3 nextPos = Target.position + nextRel.normalized * radius;
+            //玩家→Boss 的水平单位向量，绕 Y 轴转 ±90° ⇒ 圆周切线（绕玩家转圈的方向）
+            Vector3 tangent = Quaternion.AngleAxis(90f * _strafeDir, Vector3.up) * toBoss.normalized;
+            Vector3 step = tangent * (MoveSpeed * Time.deltaTime);
 
             SetAnimBool(P_Strafe, true);
-            Loco.BackstepTo(nextPos, Target, CfgTurnSpeed);
+
+            //⭐ 侧移左右方向（2026-10-16）：动画里只有一条 walk_left，向右侧移必须把它**倒放**。
+            //   换算依据：tangent = AngleAxis(90° × _strafeDir, up) × (boss − player)，而 Boss 永远面朝玩家,
+            //   「boss − player」正是它的**背后**方向；Unity 的 AngleAxis(90°, up) 把 forward 转到 right
+            //   （等价 Euler(0,90,0) 朝 +X，即俯视顺时针）⇒
+            //       _strafeDir = +1 → 走向自身**左**侧 → walk_left 正向（WalkDir = +1）
+            //       _strafeDir = -1 → 走向自身**右**侧 → walk_left 倒放（WalkDir = -1）
+            //   ⚠️ 若实测左右反了，把下面这行的判断翻过来即可（一行）。
+            //   ⚠️ 前提：Animator 里要有 Float 参数 WalkDir，且 walk_left 状态的 Speed 勾了
+            //      "Parameter" = WalkDir；否则本行只会触发一条"参数不存在"的警告，不会报错。
+            SetAnimFloat(P_WalkDir, _strafeDir < 0 ? -1f : 1f);
+
+            Loco.OrbitTo(transform.position + step, Target, CfgTurnSpeed);
+
+            StrafeProbe();//⚠️ 临时诊断（验完删）
+        }
+
+        // ==================== 临时诊断（验完删） ====================
+        // 目的：把"到底有没有进入踱步 / 走了多远"变成 Console 里能看的数字，不必靠肉眼判断。
+        // 用法：进 Play、站到 Boss 攻击范围内，看 Console 里 [Boss] 开头的行。
+
+        private Vector3 _probePrev;
+        private float _probeAccum;
+        private float _probeLastFrame = -1f;
+        private float _probeNextLog = -1f;
+
+        private void StrafeProbe()
+        {
+            if (_probeLastFrame < 0f)
+            {
+                Debug.Log(string.Format(
+                    "[Boss] 踱步开始：dist={0:F2} 普攻CD={1:F2} strafeDir={2} onNavMesh={3} Speed={4:F2}",
+                    HorizontalDistanceToTarget, _atkCd, _strafeDir, Loco.UsesNavMesh, Loco.CurrentSpeed), this);
+                _probeAccum = 0f;
+                _probeNextLog = Time.time + 1f;
+            }
+            else
+            {
+                //中间断过（跑去 Chase/Attack 了）就不把那段位移算进来
+                if (Time.time - _probeLastFrame > 0.2f) { _probeAccum = 0f; _probeNextLog = Time.time + 1f; }
+                else _probeAccum += Vector3.Distance(_probePrev, transform.position);
+            }
+
+            _probePrev = transform.position;
+            _probeLastFrame = Time.time;
+
+            if (Time.time >= _probeNextLog)
+            {
+                Debug.Log(string.Format(
+                    "[Boss] 踱步实测：约 1 秒走了 {0:F2} m（期望 ≈ {1:F1} m）dist={2:F2} Speed={3:F2}",
+                    _probeAccum, MoveSpeed, HorizontalDistanceToTarget, Loco.CurrentSpeed), this);
+                _probeAccum = 0f;
+                _probeNextLog = Time.time + 1f;
+            }
         }
 
         // ==================== Chase（walkfront 靠近玩家） ====================
@@ -310,6 +389,7 @@ namespace Game.Gameplay
         private void EnterChase()
         {
             SetAnimBool(P_Strafe, false);
+            SetAnimFloat(P_WalkDir, 1f);//离开侧移，方向复位
             Loco.Resume();
         }
 
@@ -355,7 +435,7 @@ namespace Game.Gameplay
 
         private void EnterAttack()
         {
-            Loco.Stop();
+            Loco.Stop();//⭐ 停下的同时**朝向就锁在这里**（Attack 不在 Locomotion 三状态里 ⇒ 全程不转向）
 
             //⭐ 需求：CD 在「进入动画的第一时间」开始算 —— 就在这里，不是等动画播完
             _atkCd = UnityEngine.Random.Range(Mathf.Min(CfgAttackCdMin, CfgAttackCdMax),
@@ -391,25 +471,77 @@ namespace Game.Gameplay
 
         private void UpdateAttack()
         {
-            Loco.FaceTarget(Target, CfgTurnSpeed);//攻击期间只转身、不位移
+            //⚠️ 攻击期间**不转向**（2026-10-16 需求）：朝向在 EnterAttack 那一刻就锁死，a1/a2/a3 全程
+            //   用"起手时的朝向"出招，玩家绕到背后就打空。原来这里有一行
+            //   `Loco.FaceTarget(Target, CfgTurnSpeed)`，现按需求删除 —— 要转向必须先回到
+            //   Locomotion 三状态（idle / walk_left / walk_front，见 CanTurn）。
+
+            //⭐⭐ 连段窗口（2026-10-16 新增）：**b 还在播的时候就发 c**，不要等 ActionFinished()。
+            //   为什么要提前：b 的出转移（a2 → Locomotion）ExitTime = 0.79，播到 79% 动画就回 Locomotion 了
+            //   （Speed≈0 ⇒ 选 idle）；而 ActionFinished() 读的是"当前状态"的 normalizedTime，
+            //   那时当前状态已经是**循环的 idle** ⇒ 要等它播满一整圈（1.8 s）或撞 4 s 兜底超时。
+            //   结果就是观感「b 收招 → 站 idle 约 1.8 s → 才出 c」。
+            //   现在播到 comboWindowStart 就把 AttackC 发出去 ⇒ 命中控制器里现成的 `a2 → a3` 专线
+            //   （条件 AttackC、HasExitTime = 0），0.25 s 平滑接上，中间完全不回 Locomotion。
+            if (_comboPending && !_comboFired && InComboWindow())
+            {
+                FireComboC(fromWindow: true);
+                return;
+            }
 
             //⚠️ ActionFinished() 内部会累加 _actT，**一帧只能调一次**（调两次会双倍计时）
             bool finished = ActionFinished();
 
-            //b 播完 → 抽中二连段则接第二段 c，否则正常收招
+            //兜底：万一连段窗口没抓到（比如 a2 被别的东西提前切走），仍按老逻辑在动作结束时接上 c，
+            //      只是会有一次"回 idle 再起手"的顿挫 —— 总比整段连击丢掉好。
             if (finished && _comboPending && !_comboFired)
             {
-                _comboFired = true;
-                _curHitbox = _hitboxC;
-                _curHitboxTime = BossCfg != null ? BossCfg.comboHitboxActiveTime : 0.25f;
-                //⚠️ 先把 B 的残留触发器复位再触发 C，避免复用到下个动作
-                ResetAnimTrigger(P_AttackB);
-                SetAnimTrigger(P_AttackC);
-                BeginAction(CfgAttackTimeout);
+                FireComboC(fromWindow: false);
                 return;
             }
 
             if (finished) _fsm.Change(EState.CombatIdle);
+        }
+
+        /// <summary>
+        /// b 是否已经播到「可以接 c」的进度。
+        /// ⚠️ 三条都必须满足：① 不在过渡中（过渡时读到的 normalizedTime 是别的状态的）；
+        /// ② 当前状态**确实是 a2**（否则读到的是 idle 等循环 clip 的进度，会误判）；
+        /// ③ 进度 ≥ <see cref="CfgComboWindow"/>。
+        /// </summary>
+        private bool InComboWindow()
+        {
+            if (Anim == null) return false;
+            if (Anim.IsInTransition(0)) return false;
+
+            AnimatorStateInfo si = Anim.GetCurrentAnimatorStateInfo(0);
+            if (si.shortNameHash != Animator.StringToHash(S_AttackB)) return false;
+
+            return si.normalizedTime >= CfgComboWindow;
+        }
+
+        /// <summary>接上二连段的第二段 c：换判定体、复位 b 的触发器、发 AttackC、重新计时。</summary>
+        /// <param name="fromWindow">true = 由连段窗口提前触发；false = 动作结束后的兜底触发。</param>
+        private void FireComboC(bool fromWindow)
+        {
+            //⚠️ 临时诊断（验完删）：确认这次二连段是「窗口」触发（无顿挫）还是「兜底」触发（会先回 idle）
+            if (Anim != null && !Anim.IsInTransition(0))
+            {
+                AnimatorStateInfo dbg = Anim.GetCurrentAnimatorStateInfo(0);
+                Debug.Log(string.Format(
+                    "[Boss] 二连段触发：{0}｜当前状态 hash={1}，进度={2:F2}，窗口阈值={3:F2}",
+                    fromWindow ? "窗口（平滑接招）" : "兜底（会先回 idle）",
+                    dbg.shortNameHash, dbg.normalizedTime, CfgComboWindow), this);
+            }
+
+            _comboFired = true;
+            _curHitbox = _hitboxC;
+            _curHitboxTime = BossCfg != null ? BossCfg.comboHitboxActiveTime : 0.25f;
+
+            //⚠️ 先把 b 的残留触发器复位再触发 c，避免复用到下个动作
+            ResetAnimTrigger(P_AttackB);
+            SetAnimTrigger(P_AttackC);
+            BeginAction(CfgAttackTimeout);
         }
 
         private void ExitAttack()
@@ -440,7 +572,7 @@ namespace Game.Gameplay
 
         private void EnterSpecial()
         {
-            Loco.Stop();
+            Loco.Stop();//⭐ 朝向锁在这里（例外：sa2 全程放行，在 CanTurn 里，见 UpdateSpecial 开头注释）
 
             //⭐ 同样在进入动画的第一时间重置两个 CD
             _spCd = CfgSpecialCd;
@@ -451,7 +583,13 @@ namespace Game.Gameplay
             _curHitboxTime = BossCfg != null ? BossCfg.specialHitboxActiveTime : 0.35f;
 
             float nearMax = BossCfg != null ? BossCfg.specialNearMaxDistance : 6f;
-            if (HorizontalDistanceToTarget <= nearMax)
+            float dist = HorizontalDistanceToTarget;
+
+            //⭐ 记下"这次是 sa2 还是 sa1"：sa2 **全程**允许转向（追击段 + 出招段），sa1 全程不转。
+            //   ⚠️ 判据必须与下面挑动画的判据完全一致，否则会出现"走了 sa2 的动画却按 sa1 的规则锁朝向"。
+            _specialIsFar = dist > nearMax;
+
+            if (dist <= nearMax)
             {
                 _approachT = 0f;
                 SetAnimTrigger(P_SpecialNear);//sa1：原地
@@ -467,6 +605,13 @@ namespace Game.Gameplay
 
         private void UpdateSpecial()
         {
+            //⚠️ 特殊攻击的转向规则（2026-10-16 用户口径）：**sa2 全程允许转向**，sa1 全程不转。
+            //   · sa2 = 远距"先追后打"：追击段（_approachT > 0，位移由代码逐帧朝玩家推进）+ 出招段都跟转，
+            //     否则玩家横向绕圈时会看到"斜着平移"、出招也会打偏。
+            //   · sa1 = 近距原地出招：朝向保持起手方向，玩家绕背就该打空（出招有承诺）。
+            //   判据写在 CanTurn 里（`_specialIsFar`），这里只管每帧调一次唯一的转向入口。
+            TurnTowardTarget();
+
             //---- sa2 追击段：位移由代码推进（根运动全局关闭，动画里那段不带位移）----
             if (_approachT > 0f && Target != null)
             {
@@ -491,14 +636,7 @@ namespace Game.Gameplay
                         float step = Mathf.Min(speed * Time.deltaTime, Mathf.Max(0f, toTarget.magnitude - stopDist));
                         transform.position += toTarget.normalized * step;
                     }
-
-                    bool keepFacing = BossCfg == null || BossCfg.specialKeepFacingPlayer;
-                    if (keepFacing) Loco.FaceTarget(Target, CfgTurnSpeed);
                 }
-            }
-            else
-            {
-                Loco.FaceTarget(Target, CfgTurnSpeed);
             }
 
             if (ActionFinished()) _fsm.Change(EState.CombatIdle);
@@ -507,6 +645,7 @@ namespace Game.Gameplay
         private void ExitSpecial()
         {
             _approachT = 0f;
+            _specialIsFar = false;//离开特殊攻击 ⇒ 收回 sa2 的转向例外（回到"只允许 Locomotion 三状态转向"）
             if (Hitboxes != null) Hitboxes.DisableAllHitboxes();
             ResetAnimTrigger(P_SpecialNear);
             ResetAnimTrigger(P_SpecialFar);
@@ -522,7 +661,7 @@ namespace Game.Gameplay
 
         private void EnterHit()
         {
-            Loco.Stop();
+            Loco.Stop();//破韧硬直期间不转向（hit 不在 Locomotion 三状态里）
             if (Hitboxes != null) Hitboxes.DisableAllHitboxes();
 
             _comboPending = false;
@@ -573,6 +712,7 @@ namespace Game.Gameplay
 
             SetAnimBool(P_Strafe, false);
             SetAnimFloat(P_Speed, 0f);
+            SetAnimFloat(P_WalkDir, 1f);//侧移方向复位
             SetAnimBool(P_IsDead, true);
 
             _fsm.LockStateMachine();//死后不再接受任何状态切换
@@ -680,6 +820,71 @@ namespace Game.Gameplay
             if (Anim.IsInTransition(0)) return false;//过渡中读到的 normalizedTime 是别的状态的，不判
 
             return Anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1f;
+        }
+
+        // ==================== 转向许可（2026-10-16 需求） ====================
+
+        /// <summary>
+        /// 本状态是否允许**转向**。需求：Boss 只在 Animator 的 <c>Locomotion</c> 子状态机的**三个状态**里
+        /// 能调整朝向 —— 也就是下面这三个行为状态（与动画状态是 1:1 对应的）：
+        /// <list type="bullet">
+        ///   <item><see cref="EState.NIdle"/> ↔ 动画 <c>idle</c>（未进战斗）</item>
+        ///   <item><see cref="EState.CombatIdle"/> ↔ 动画 <c>idle</c> / <c>walk_left</c>（战斗待机 / 踱步）</item>
+        ///   <item><see cref="EState.Chase"/> ↔ 动画 <c>walk_front</c>（追击）</item>
+        /// </list>
+        ///
+        /// <para>其余状态一律**锁死朝向**：<see cref="EState.Attack"/>（a1/a2/a3）、<see cref="EState.Special"/>
+        /// （仅 sa1）、<see cref="EState.Hit"/>（hit）、<see cref="EState.Death"/>（dead）—— 动作一起手就不再
+        /// 跟转，玩家绕到背后会**打空**，这是「出招有承诺」的动作游戏手感（也是打击感的前提）。</para>
+        ///
+        /// <para>⭐ <b>唯一例外（2026-10-16 用户口径）</b>：<b>sa2「先追后打」全程允许转向</b> ——
+        /// 追击段（位移是逐帧朝玩家推进的，不跟转就会"斜着平移"）和出招段一样跟转，保证打得准。
+        /// 判据是 <c>_specialIsFar</c>（在 <see cref="EnterSpecial"/> 里用与挑动画**同一个**距离阈值判定）；
+        /// <b>sa1（近距原地）不在例外里</b>，仍全程锁死朝向。开关沿用
+        /// <see cref="Game.Data.BossConfig.specialKeepFacingPlayer"/>（默认 true = 跟转；设 false 则 sa2 也不转，
+        /// 追击段表现成"背对玩家冲过去"）。</para>
+        ///
+        /// <para>⚠️ 为什么用**行为状态**判断、而不是去问 Animator 当前在哪个状态：0.25 s 的过渡融合期间
+        /// <c>GetCurrentAnimatorStateInfo</c> 读到的是哪个状态并不确定（连段窗口那段代码就吃过这个亏，
+        /// 见 <see cref="InComboWindow"/> 的注释）。而这里行为状态与实际动画是 1:1 的，判起来既确定又便宜。</para>
+        ///
+        /// <para>⚠️ 用的是**白名单**：将来新加的状态默认**不能**转向，要转向就得先加进这里。</para>
+        /// </summary>
+        private bool CanTurn
+        {
+            get
+            {
+                if (_fsm == null) return false;
+
+                //Locomotion 三状态：动画 idle / walk_left / walk_front
+                if (_fsm.Is(EState.NIdle) || _fsm.Is(EState.CombatIdle) || _fsm.Is(EState.Chase)) return true;
+
+                //⭐ sa2 例外（见上方注释）：远距特殊攻击**全程**允许转向；sa1 不放行
+                if (_fsm.Is(EState.Special))
+                {
+                    bool keepFacing = BossCfg == null || BossCfg.specialKeepFacingPlayer;
+                    return keepFacing && _specialIsFar;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// **唯一的转向入口**：允许时把朝向拧向玩家（<see cref="CanTurn"/> 为准），否则什么都不做。
+        ///
+        /// <para>⚠️ 以后凡是要"让它转过来"的地方，一律调本方法，**不要**直接调 <c>Loco.FaceTarget</c>
+        /// —— 否则会绕开上面的规则（攻击/特殊/硬直会莫名其妙又能转向）。</para>
+        ///
+        /// <para>⚠️ 注意 <c>Loco.ChaseTarget / MoveToOrStep</c> 会把转向权交还给 NavMeshAgent（由它朝
+        /// 行进方向转），这条路径只出现在 <see cref="EState.Chase"/> 里，本来就属于允许转向的状态。</para>
+        /// </summary>
+        private void TurnTowardTarget()
+        {
+            if (Target == null) return;
+            if (!CanTurn) return;
+
+            Loco.FaceTarget(Target, CfgTurnSpeed);
         }
 
         // ==================== 距离（水平） ====================

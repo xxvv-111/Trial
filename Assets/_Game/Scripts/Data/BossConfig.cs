@@ -77,6 +77,13 @@ namespace Game.Data
         [Tooltip("选中 b 之后，接第二段 c 的概率。1 = 每次都接（bc 二连），0 = b 永远单独出。")]
         public float comboChance = 0.4f;
 
+        [Range(0f, 1f)]
+        [Tooltip("⭐ 连段窗口：b 的动画播到**这个进度**（0~1，占 b 动作的比例）时就把 c 发出去，\n" +
+                 "让 Animator 走现成的 `a2 → a3` 转移平滑接上，中间不会回 Locomotion 站一下。\n" +
+                 "太小 = 前摇还没做完就接招（看着急、判定重叠）；太大 = 会撞上 b 自己的出转移\n" +
+                 "（a2 → Locomotion 的 ExitTime = 0.79）而错过窗口。建议 0.5 ~ 0.65。")]
+        public float comboWindowStart = 0.55f;
+
         [Tooltip("二连段的第二段 c 开判定体后持续多少秒（通常比单出 c 短一点）。")]
         public float comboHitboxActiveTime = 0.25f;
 
@@ -104,7 +111,9 @@ namespace Game.Data
         [Tooltip("sa2 追击段的移动速度（米/秒）。一般比普通追击快，做出「突进」的感觉。")]
         public float specialApproachSpeed = 7f;
 
-        [Tooltip("sa2 追击段是否**面朝玩家**直线推进（true）；false = 朝行进方向（背对玩家冲过去）。")]
+        [Tooltip("sa2（远距特殊攻击）是否**全程跟转朝向玩家**（true）：追击段 + 出招段都跟转，保证不「斜着平移」、打得准。\n" +
+                 "false = 全程不转（追击段的位移仍朝玩家推进，但朝向保持起手方向）。\n" +
+                 "⚠️ 只影响 sa2；sa1（近距原地）永远不转向。")]
         public bool specialKeepFacingPlayer = true;
 
         [Tooltip("特殊攻击判定体开启后持续多少秒。")]

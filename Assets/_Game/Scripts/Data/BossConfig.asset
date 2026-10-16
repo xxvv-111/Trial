@@ -43,14 +43,15 @@ MonoBehaviour:
   turnSpeed: 240
   strafeRadius: 5
   randomStrafeDirection: 1
-  attackCdMin: 1.5
-  attackCdMax: 3
+  attackCdMin: 2
+  attackCdMax: 6
   attackTimeout: 4
   attackWeightA: 1
   attackWeightB: 1
   attackWeightC: 1
   attackHitboxActiveTime: 0.25
-  comboChance: 0.4
+  comboChance: 0.5
+  comboWindowStart: 0.55
   comboHitboxActiveTime: 0.25
   specialCd: 14
   specialTimeout: 6

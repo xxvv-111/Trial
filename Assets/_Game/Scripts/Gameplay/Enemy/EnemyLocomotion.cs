@@ -70,6 +70,8 @@ namespace Game.Gameplay
         /// ⚠️ 两种驱动方式要分别取：
         ///   · 走 Agent：<c>agent.velocity</c> 是真实瞬时速度 —— 起步/刹车/被 RVO 挤到时都能如实反映。
         ///     若改用"是否收到过 MoveTo 指令"当判据，敌人被同伴挤住时会出现"原地跑"。
+        ///   · 手动推进（<see cref="OrbitTo"/>）：<c>Move()</c> 不会更新 <c>agent.velocity</c>，
+        ///     所以也必须走下面那条"最近有没有挪过"的判据（见 <see cref="_manualMove"/>）。
         ///   · 无 Agent（直线位移兜底）：没有速度概念，用"最近有没有真的走过"近似成满速或 0 ——
         ///     带 0.15 s 宽限是因为 <see cref="DirectStep"/> 只在状态机每帧调过来时才执行，
         ///     而读速度发生在同一帧更早的位置（否则永远读到 0）。
@@ -78,7 +80,7 @@ namespace Game.Gameplay
         {
             get
             {
-                if (_agent != null && _agent.isOnNavMesh)
+                if (_agent != null && _agent.isOnNavMesh && !_manualMove)
                 {
                     Vector3 v = _agent.velocity;
                     return new Vector2(v.x, v.z).magnitude;
@@ -97,6 +99,17 @@ namespace Game.Gameplay
         private bool _keepFacing;
         private Transform _faceTarget;
         private float _faceDegPerSec = 720f;
+
+        /// <summary>
+        /// true = 本帧位置由 <see cref="OrbitTo"/> 用 <c>agent.Move</c> **手动推进**，
+        /// 不是 Agent 自己沿路径走的。
+        ///
+        /// <para>⚠️ 为什么必须记这个标记：<c>agent.velocity</c> 只在 Agent 沿路径行走时才更新，
+        /// 用 <c>Move()</c> 推的时候它一直是 0 ⇒ <see cref="CurrentSpeed"/> 得改走
+        /// "最近有没有真的挪过"那条判据（与无 Agent 的兜底路径共用），
+        /// 否则动画层永远读到 Speed = 0，绕圈时进不了 walk_left、只会原地播放（2026-10-16 修）。</para>
+        /// </summary>
+        private bool _manualMove;
 
         // ==================== 追击 ====================
 
@@ -119,6 +132,7 @@ namespace Game.Gameplay
         {
             _keepFacing = false;
             _faceTarget = null;
+            _manualMove = false;
 
             if (MoveTo(worldPoint)) return;
             DirectStep(worldPoint);
@@ -139,9 +153,69 @@ namespace Game.Gameplay
             _keepFacing = true;
             _faceTarget = faceTarget;
             _faceDegPerSec = degreesPerSecond;
+            _manualMove = false;
 
             if (MoveTo(worldPoint)) return;
             DirectStep(worldPoint);
+        }
+
+        /// <summary>
+        /// ⭐ **定点绕行（绕玩家踱步用）**：朝 <paramref name="worldPoint"/> 走一小步，
+        /// 全程保持面朝 <paramref name="faceTarget"/> —— 并且**绕开 Agent 的寻路与停止距离**。
+        ///
+        /// <para>为什么不直接用 <see cref="BackstepTo"/>：它最后走的是 <c>agent.SetDestination</c>，
+        /// 于是吃 <c>agent.stoppingDistance</c> 的判定。<b>只要目标点落在停止距离之内，
+        /// Agent 就认为"已经到了"、一动不动</b>。而绕圈每帧的目标点只在前方几厘米处
+        /// （半径 5 m、ω = 3/5 = 0.6 rad/s ⇒ 每帧 ≈ 5 cm），必然小于停止距离（4 × 0.9 = 3.6 m）
+        /// ⇒ 绕圈永远不产生位移，动画也停在 idle（2026-10-16 定位到的根因）。</para>
+        ///
+        /// <para>本方法不设 destination，直接按 <c>_speed</c> 朝目标点推进一小步
+        /// （步长 = <c>_speed × Time.deltaTime</c>，且不超过到目标点的距离）——
+        /// 几何上精确、帧率无关。有 Agent 时用 <c>agent.Move</c>（与 <see cref="Retreat"/> 同一套做法：
+        /// 不忽略碰撞、也不会被推出导航网格）；没有 Agent 就退回直接位移。</para>
+        ///
+        /// <para>⚠️ 手动推进期间 Agent 自己的路径跟随会被停掉（<c>isStopped = true</c>）；
+        /// 走出本模式时（<see cref="MoveToOrStep"/> / <see cref="BackstepTo"/> /
+        /// <see cref="Stop"/> / <see cref="Resume"/> / <see cref="Retreat"/>）会自动恢复寻路。</para>
+        /// </summary>
+        public void OrbitTo(Vector3 worldPoint, Transform faceTarget, float degreesPerSecond = 720f)
+        {
+            bool entering = !_manualMove;//本次是否是"刚进入手动推进模式"
+
+            _keepFacing = true;
+            _faceTarget = faceTarget;
+            _faceDegPerSec = degreesPerSecond;
+            _manualMove = true;
+            _hasDestination = false;//回到寻路模式时必须重新 SetDestination
+
+            if (UsesNavMesh)
+            {
+                //清掉上一状态（Chase 等）留下的路径，否则 Agent 会一边走旧路径一边被我们推
+                if (entering) _agent.ResetPath();
+
+                //⚠️ 不能在这里 isStopped = true：部分 Unity 版本下 Agent 停止时 Move() 不生效
+                //   （2026-10-16 排查「不踱步」时踩到）。改成"清路径 + 保持未停止"，
+                //   没有 destination 就不会自己移动，也不会挡住 Move()。
+                if (_agent.isStopped) _agent.isStopped = false;
+
+                if (_agent.updateRotation) _agent.updateRotation = false;
+            }
+
+            Vector3 dir = worldPoint - _self.position;
+            dir.y = 0f;
+
+            if (dir.sqrMagnitude > 0.000001f)
+            {
+                float step = Mathf.Min(_speed * Time.deltaTime, dir.magnitude);//别越过目标点
+                Vector3 delta = dir.normalized * step;
+
+                _lastStepTime = Time.time;//手动推进没有 agent.velocity，只能用"刚挪过"判据
+
+                if (UsesNavMesh) _agent.Move(delta);
+                else _self.position += delta;//无 Agent 兜底，与 DirectStep 同一套做法
+            }
+
+            if (_faceTarget != null) FacePoint(_faceTarget.position, _faceDegPerSec);
         }
 
         /// <summary>走到某个世界坐标点。返回 false 表示没在用 Agent（调用方需自行决定兜底方式）。</summary>
@@ -206,6 +280,7 @@ namespace Game.Gameplay
             //解除"保持面朝目标"模式。⚠️ 只解除模式、**不动朝向** ⇒ 停下后仍然面朝刚才的目标
             _keepFacing = false;
             _faceTarget = null;
+            _manualMove = false;
 
             if (_agent == null || !_agent.isOnNavMesh) return;
 
@@ -220,6 +295,7 @@ namespace Game.Gameplay
 
             _keepFacing = false;
             _faceTarget = null;
+            _manualMove = false;
 
             if (_agent == null || !_agent.isOnNavMesh) return;
 
@@ -272,6 +348,7 @@ namespace Game.Gameplay
 
             _keepFacing = false;//击退不受"保持面朝目标"模式约束
             _faceTarget = null;
+            _manualMove = false;
 
             Vector3 delta = -_self.forward * distance;
 

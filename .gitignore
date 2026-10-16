@@ -144,3 +144,37 @@ Thumbs.db
 # ===== 2026-10-11 状态更正：上面「只剩原始安装包」的两个目录已在本地删除 =====
 # /Assets/UNT-0034/（157.9 MB）与 /Assets/刀剑攻击动画/（412.9 MB）已从本地删除，
 # 针对它们的规则保留作历史记录（对不存在的路径是空操作）。
+
+# ===== 2026-10-16 新增：中文字体只留 Sarasa Gothic 一套（其余 ~360 MB 不进仓库）=====
+# Assets/1_Asset/4_Font/ 一共 ~383 MB（5 套 SDF + 5 个源字体），游戏里只用得到
+# sarasa-gothic-sc-regular 一套 —— 它被挂成 TextMesh Pro 的 LiberationSans SDF 的中文 fallback。
+# 另外四套（STFANGSO 134 MB / songti 134 MB + 18 MB / sarasa-mono ×2 各 2.2 MB + 26 MB）无任何资产引用，
+# 明确排除；将来要换字体再单独决定。
+# ⚠️ 两个必须同进同出的点：
+#   ① Dynamic 图集（m_AtlasPopulationMode: 1）**运行时也要源 .ttf** 才能生成新字形
+#      ⇒ 光提交 *SDF.asset 是不够的（换机器会缺字），源字体必须一起进仓库；
+#   ② sarasa-gothic-sc-regular SDF.asset 里的材质引用的是
+#      Assets/0_Script/ThirdParty/Battlehub/ThirdParty/TextMesh Pro/Resources/Shaders/TMP_SDF.shader
+#      ⇒ 那个 33 KB 目录是**它的依赖**，不能排除。
+/Assets/1_Asset/4_Font/STFANGSO SDF.asset
+/Assets/1_Asset/4_Font/STFANGSO SDF.asset.meta
+/Assets/1_Asset/4_Font/STFANGSO.TTF
+/Assets/1_Asset/4_Font/STFANGSO.TTF.meta
+/Assets/1_Asset/4_Font/songti SDF.asset
+/Assets/1_Asset/4_Font/songti SDF.asset.meta
+/Assets/1_Asset/4_Font/songti.ttc
+/Assets/1_Asset/4_Font/songti.ttc.meta
+/Assets/1_Asset/4_Font/sarasa-mono-sc-regular SDF.asset
+/Assets/1_Asset/4_Font/sarasa-mono-sc-regular SDF.asset.meta
+/Assets/1_Asset/4_Font/sarasa-mono-sc-regular.ttf
+/Assets/1_Asset/4_Font/sarasa-mono-sc-regular.ttf.meta
+/Assets/1_Asset/4_Font/sarasa-mono-sc-bold SDF.asset
+/Assets/1_Asset/4_Font/sarasa-mono-sc-bold SDF.asset.meta
+/Assets/1_Asset/4_Font/sarasa-mono-sc-bold.ttf
+/Assets/1_Asset/4_Font/sarasa-mono-sc-bold.ttf.meta
+
+# ===== 2026-10-16 新增：中文宋体导入包原件（59 MB，只用来导入一次）=====
+# Assets/字体格式/新款unity中文宋体导入即可.unitypackage 是导入用的包（同目录 必看.txt 只是店铺推广），
+# 资产已经解到 Assets/1_Asset/4_Font/ 里了，包本身不需要留在仓库里。
+/Assets/字体格式/
+/Assets/字体格式.meta

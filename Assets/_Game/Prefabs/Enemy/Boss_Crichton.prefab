@@ -1050,12 +1050,13 @@ GameObject:
   - component: {fileID: 8751397965148334218}
   - component: {fileID: 1012169697392793916}
   - component: {fileID: 3652543736517097633}
-  - component: {fileID: 3782395597493684055}
   - component: {fileID: 4408944561784337847}
   - component: {fileID: 5062634762048543010}
   - component: {fileID: 8908255865543089997}
   - component: {fileID: 6328474380985133498}
   - component: {fileID: 55020948644317216}
+  - component: {fileID: 972486416338297193}
+  - component: {fileID: 7797665373185673925}
   m_Layer: 6
   m_Name: Boss_Crichton
   m_TagString: Untagged
@@ -1122,83 +1123,6 @@ MonoBehaviour:
   - m_Rig: {fileID: 0}
     m_Active: 1
   m_Effectors: []
---- !u!114 &3782395597493684055
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3366179715882225114}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b2d8418b0b9634b1892b0268dd9c2743, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  boneShape: 1
-  drawBones: 1
-  drawTripods: 0
-  boneSize: 1
-  tripodSize: 1
-  boneColor: {r: 1, g: 0.7975935, b: 0, a: 0.5}
-  m_Transforms:
-  - {fileID: 6891671127567334959}
-  - {fileID: 8222286085944632267}
-  - {fileID: 4911029109824588409}
-  - {fileID: 6428121818960845870}
-  - {fileID: 7935289226070739223}
-  - {fileID: 3400189154060841990}
-  - {fileID: 9106037304583844327}
-  - {fileID: 8023662342828134282}
-  - {fileID: 5480176592689276615}
-  - {fileID: 5185161751131643622}
-  - {fileID: 7244630381285615979}
-  - {fileID: 8828475510768790675}
-  - {fileID: 8868579713603601094}
-  - {fileID: 7782156489559558343}
-  - {fileID: 6876275335050391590}
-  - {fileID: 4618725286489349392}
-  - {fileID: 2317811809855433671}
-  - {fileID: 5485348144065783807}
-  - {fileID: 5128148563218717776}
-  - {fileID: 8351166089737009471}
-  - {fileID: 3175451872572205079}
-  - {fileID: 5139161174993586364}
-  - {fileID: 4060179280726140180}
-  - {fileID: 7131590100766672741}
-  - {fileID: 8186374270784880046}
-  - {fileID: 6858684489427668402}
-  - {fileID: 6997583305997254240}
-  - {fileID: 8375164365943416583}
-  - {fileID: 9057617315601372374}
-  - {fileID: 2365922611509786239}
-  - {fileID: 8616508552595653987}
-  - {fileID: 6245271105591248456}
-  - {fileID: 9102698867695304064}
-  - {fileID: 5801814687351909105}
-  - {fileID: 6681279990693823577}
-  - {fileID: 4915480428983085951}
-  - {fileID: 3396423219579200100}
-  - {fileID: 7589669427410654995}
-  - {fileID: 1065120095027663632}
-  - {fileID: 3285365447755764219}
-  - {fileID: 5842601724386850198}
-  - {fileID: 2364997608662936642}
-  - {fileID: 8325352976228470953}
-  - {fileID: 5889697111913576791}
-  - {fileID: 4913297164321294139}
-  - {fileID: 6513138952699861847}
-  - {fileID: 5651454727292897042}
-  - {fileID: 1762857511408259083}
-  - {fileID: 5869323993675480757}
-  - {fileID: 1897917995422058037}
-  - {fileID: 5857066133665604942}
-  - {fileID: 6691365772849135351}
-  - {fileID: 7016053775499653873}
-  - {fileID: 7785863261556088936}
-  - {fileID: 5754469160595859534}
-  - {fileID: 2807567714866214078}
-  - {fileID: 7510882423661112536}
-  - {fileID: 3331546790311607572}
 --- !u!114 &4408944561784337847
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1296,6 +1220,109 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
+--- !u!114 &972486416338297193
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3366179715882225114}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2d8418b0b9634b1892b0268dd9c2743, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  boneShape: 1
+  drawBones: 1
+  drawTripods: 0
+  boneSize: 1
+  tripodSize: 1
+  boneColor: {r: 1, g: 0.9505099, b: 0, a: 0.5}
+  m_Transforms:
+  - {fileID: 6891671127567334959}
+  - {fileID: 8222286085944632267}
+  - {fileID: 4911029109824588409}
+  - {fileID: 6428121818960845870}
+  - {fileID: 7935289226070739223}
+  - {fileID: 3400189154060841990}
+  - {fileID: 9106037304583844327}
+  - {fileID: 8023662342828134282}
+  - {fileID: 5480176592689276615}
+  - {fileID: 5185161751131643622}
+  - {fileID: 7244630381285615979}
+  - {fileID: 8828475510768790675}
+  - {fileID: 8868579713603601094}
+  - {fileID: 7782156489559558343}
+  - {fileID: 6876275335050391590}
+  - {fileID: 4618725286489349392}
+  - {fileID: 2317811809855433671}
+  - {fileID: 5485348144065783807}
+  - {fileID: 5128148563218717776}
+  - {fileID: 8351166089737009471}
+  - {fileID: 3175451872572205079}
+  - {fileID: 5139161174993586364}
+  - {fileID: 4060179280726140180}
+  - {fileID: 7131590100766672741}
+  - {fileID: 8186374270784880046}
+  - {fileID: 6858684489427668402}
+  - {fileID: 6997583305997254240}
+  - {fileID: 8375164365943416583}
+  - {fileID: 9057617315601372374}
+  - {fileID: 2365922611509786239}
+  - {fileID: 8616508552595653987}
+  - {fileID: 6245271105591248456}
+  - {fileID: 9102698867695304064}
+  - {fileID: 5801814687351909105}
+  - {fileID: 6681279990693823577}
+  - {fileID: 4915480428983085951}
+  - {fileID: 3396423219579200100}
+  - {fileID: 7589669427410654995}
+  - {fileID: 1065120095027663632}
+  - {fileID: 3285365447755764219}
+  - {fileID: 5842601724386850198}
+  - {fileID: 2364997608662936642}
+  - {fileID: 8325352976228470953}
+  - {fileID: 5889697111913576791}
+  - {fileID: 4913297164321294139}
+  - {fileID: 6513138952699861847}
+  - {fileID: 5651454727292897042}
+  - {fileID: 1762857511408259083}
+  - {fileID: 5869323993675480757}
+  - {fileID: 1897917995422058037}
+  - {fileID: 5857066133665604942}
+  - {fileID: 6691365772849135351}
+  - {fileID: 7016053775499653873}
+  - {fileID: 7785863261556088936}
+  - {fileID: 5754469160595859534}
+  - {fileID: 2807567714866214078}
+  - {fileID: 7510882423661112536}
+  - {fileID: 3331546790311607572}
+--- !u!114 &7797665373185673925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3366179715882225114}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_comment: 
+  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  m_stiffnessForce: 1
+  m_gravityPower: 0
+  m_gravityDir: {x: 0, y: -1, z: 0}
+  m_dragForce: 0.4
+  m_center: {fileID: 0}
+  RootBones:
+  - {fileID: 5128148563218717776}
+  - {fileID: 1762857511408259083}
+  - {fileID: 5651454727292897042}
+  m_hitRadius: 0.02
+  ColliderGroups: []
+  m_updateType: 0
 --- !u!1 &3366319461337315171
 GameObject:
   m_ObjectHideFlags: 0
@@ -1597,6 +1624,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8754541993537690981}
   - component: {fileID: 246160429351283429}
+  - component: {fileID: 3217065740535667499}
   m_Layer: 0
   m_Name: Boss_Crichton_SKEL
   m_TagString: Untagged
@@ -1733,6 +1761,29 @@ SkinnedMeshRenderer:
     m_Center: {x: -0.036735177, y: -0.28457552, z: -0.32134777}
     m_Extent: {x: 2.2351494, y: 0.84431785, z: 1.632199}
   m_DirtyAABB: 0
+--- !u!114 &3217065740535667499
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4692821763106785873}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_comment: 
+  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  m_stiffnessForce: 1
+  m_gravityPower: 0
+  m_gravityDir: {x: 0, y: -1, z: 0}
+  m_dragForce: 0.4
+  m_center: {fileID: 0}
+  RootBones: []
+  m_hitRadius: 0.02
+  ColliderGroups: []
+  m_updateType: 0
 --- !u!1 &4793930867854313885
 GameObject:
   m_ObjectHideFlags: 0

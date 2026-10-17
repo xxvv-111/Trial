@@ -55,7 +55,7 @@ namespace Game.Data
         [Header("普通攻击 · 三轴位移（代码驱动）")]
         [Tooltip("4 段攻击各自的前冲**距离**（米）—— **仅在 lungeCurve 留空时**当兜底幅度用。\n" +
                  "画了 Z 轴曲线就以曲线的峰值为准，这个数值只作为策划案上的读数参考。\n" +
-                 "实测值（= 各段动画根运动只取正向增量的结果）= 1.25 / 0.88 / 0.95 / 2.25 m。")]
+                 "实测值（= 各段动画根运动只取正向增量的结果）＝ 1.2535 / 0.9168 / 1.2187 / 2.0847 m（Player2 的 P2Attack1~4）。")]
         public float[] lungeDistance = { 1.25f, 0.88f, 0.95f, 2.25f };
 
         [Tooltip("4 段各自的位移**时长**（秒）—— 三条曲线共用的时间轴长度，默认 = 各段动画时长（实测）。\n" +
@@ -70,33 +70,38 @@ namespace Game.Data
                  "⭐ 曲线**下降段 = 向后退**（由 PlayerMotor 的 allowLungeBackstep 控制，默认允许）；\n" +
                  "   曲线终点值 = 最后停在离起点多少米处（0 = 退回起点，与动画 Attack2 的根曲线一致）。\n" +
                  "⛔ 留空 = 回落到「lungeDistance × 默认前快后缓曲线（归一化时间）」。\n" +
-                 "⚠️ 逐帧实测值见 `.workbuddy/attack-z-per-frame.md`（第一列是秒，第三列是米，直接照抄）。")]
+                 "⚠️ 逐帧实测值见 `.workbuddy/p2-attack-xyz-per-frame.md`（第一列是秒，第三列是米，直接照抄）。\n" +
+                 "ℹ️ 2026-10-17 起本资产按 **Player2 的 P2Attack1~4** 拟合（Player1 的旧表仍在 `attack-z-per-frame.md`）；"
+                 + "⚠️ 两个角色的 PlayerAttack 共用同一份 WeaponConfig，所以投放到 Tavern 的 Player1 也会用这套 P2 曲线。")]
         public AnimationCurve[] lungeCurve;
 
         [Header("普通攻击 · 横向位移（X 轴，可留空）")]
         [Tooltip("4 段攻击各自的**横向幅度**（米，正 = 角色自身右侧）—— **仅在 lungeLateralCurve 留空时**当兜底用。\n" +
-                 "实测峰值（RootT.x）= 0.077 / 0.129 / 0.156 / 0.088 m —— 幅度很小，\n" +
-                 "是挥砍时身体重心的小幅横摆；画大了会像「平移」而不是「挥砍」。")]
+                 "实测峰值（RootT.x）＝ 0.077 / 0.293 / 0.229 / 0.131 m（Player2）。\n" +
+                 "⚠️ 段 2 的 0.29 m 已经不算「小幅横摆」了，画大了会像「平移」而不是「挥砍」——以曲线为准。")]
         public float[] lungeLateral = { 0f, 0f, 0f, 0f };
 
         [Tooltip("4 段各自的**横向（X）位移曲线**：横轴 = **秒**，纵轴 = **米**（正 = 角色右侧，负 = 左侧）。\n" +
                  "⭐ 与 Z 轴同口径：曲线值就是位移量。**允许负值**（左右摇摆本来就要两边走）。\n" +
-                 "⚠️ 逐帧实测值见 `.workbuddy/attack-x-per-frame.md`。")]
+                 "⚠️ 逐帧实测值见 `.workbuddy/p2-attack-xyz-per-frame.md`。")]
         public AnimationCurve[] lungeLateralCurve;
 
         [Header("普通攻击 · 垂直位移（Y 轴，可留空）")]
         [Tooltip("4 段攻击各自的**垂直幅度**（米，正 = 向上）—— **仅在 lungeVerticalCurve 留空时**当兜底用。\n" +
-                 "实测（RootT.y）= -0.20 / -0.18 / -0.20 / -0.29 m：**全是向下沉**，也就是攻击时的「下蹲/压身」。\n" +
+                 "实测（RootT.y）＝ -0.199 / -0.321 / +0.278 / -0.217 m（Player2）。\n" +
+                 "⚠️ 段 1/2/4 是攻击时的「下蹲/压身」，但 **段 3 终值 +0.278 m（动画结束在抬高姿态）**，\n" +
+                 "   所以旧结论「全是向下沉」只对前两段成立。\n" +
                  "⚠️ 2026-10-07 实测确认：这个下沉**只存在于根曲线**（骨骼姿势只额外贡献 0.02~0.05 m），\n" +
                  "   而「劫持根运动」会把 Y 分量丢掉 ⇒ 之前角色攻击时**少了这 0.2 m 的下沉**（腿已经把脚收回去了，\n" +
                  "   所以看起来像踮脚）。补上这一段即可还原。\n" +
-                 "✅ 脚不会穿地：脚踝静止高度 0.148 m，动画里脚最低只到 -0.145 m ⇒ 仍在地面之上。")]
+                 "⚠️ 旧记录「脚不会穿地（脚踝 0.148 m / 动画最低 -0.145 m）」是 **Player1** 的实测；\n" +
+                 "   Player2 的段 2 下沉 **-0.321 m**，比 Player1 更深，是否会踩穿地面**未实测**——见到脚陷进地里就把该段 Y 曲线整体抬高。")]
         public float[] lungeVertical = { 0f, 0f, 0f, 0f };
 
         [Tooltip("4 段各自的**垂直（Y）位移曲线**：横轴 = **秒**，纵轴 = **米**（正 = 向上）。\n" +
                  "⭐ 该通道由 `PlayerMotor` **直接偏移骨骼根（Armature）的 localPosition.y**，\n" +
                  "   是**纯视觉**位移：不经过 CharacterController，所以不会被地面挡住、也不影响碰撞与寻路。\n" +
-                 "⚠️ 逐帧实测值见 `.workbuddy/attack-y-per-frame.md`。")]
+                 "⚠️ 逐帧实测值见 `.workbuddy/p2-attack-xyz-per-frame.md`（其中「实际生效值」一列 = exitTime 处的读数）。")]
         public AnimationCurve[] lungeVerticalCurve;
 
         [Header("普通攻击 · 判定盒（与 §8 的 hitbox 联动）")]

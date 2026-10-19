@@ -178,3 +178,12 @@ Thumbs.db
 # 资产已经解到 Assets/1_Asset/4_Font/ 里了，包本身不需要留在仓库里。
 /Assets/字体格式/
 /Assets/字体格式.meta
+
+# ===== 2026-10-20 新增：魔剑士动画包（412 MB，外部动画资源，不进仓库）=====
+# 与 Polygonmaker / LeartesStudios / Top-Down Interiors 同口径：体积远超 GitHub 单文件限制。
+/Assets/魔剑士动画/
+/Assets/魔剑士动画.meta
+
+# Unity 自动生成的计费（IAP）模式配置，不属于项目资产
+/Assets/Resources/BillingMode.json
+/Assets/Resources/BillingMode.json.meta

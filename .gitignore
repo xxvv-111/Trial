@@ -123,12 +123,18 @@ Thumbs.db
 /Assets/刀剑攻击动画/
 /Assets/刀剑攻击动画.meta
 
-# ===== 2026-10-10 状态更正：上面三个动画包已在本地删除 =====
-# /Assets/TKDstyle_AnimSet/（257 MB）、/Assets/Magical-Knight_Set/（790 MB）、
-# /Assets/Rapier_Anim_Set/（793 MB）已从本地删除；针对它们的规则保留作历史记录
-# （对不存在的路径是空操作）。
-# ✅ 安全前提：这三包**游戏真正用到的动画早已抽成独立 .anim**，存放在
-#    Assets/_Game/Art/Animations/{Player,Enemy}/ 下，**不依赖包内资源** ⇒ 可以整包不要。
+# ===== 2026-10-20 状态核对：动画包全部不进仓库（合计约 2.4 GB）=====
+# 目录                        体积     当前状态
+#   Assets/魔剑士动画           412 MB   存在，已忽略（规则见文末）
+#   Assets/刀剑攻击动画         413 MB   存在，已忽略（里面只有 .unitypackage 原件）
+#   Assets/Rapier_Anim_Set      793 MB   存在，已忽略（2026-10-20 本地已恢复副本）
+#   Assets/Magical-Knight_Set   790 MB   存在，已忽略（2026-10-20 本地已恢复副本）
+#   Assets/TKDstyle_AnimSet     257 MB   已从本地删除（规则保留作历史记录）
+# ✅ 安全前提：游戏真正用到的动画早已抽成独立 .anim，存放在
+#    Assets/_Game/Art/Animations/{Player,Enemy}/ 下，**不依赖这些包内资源**
+#    （已实测全工程无 .prefab/.controller/.anim 引用它们的 GUID）。
+# ⚠️ 新增动画包时：必须同时补「目录 + .meta」两条规则，并用 git check-ignore 验证
+#    （只写目录不写 .meta，Unity 仍会跟踪那份 meta；中文目录名尤其容易写漏）。
 
 # ===== 2026-10-11 新增：开发过程产生的临时图片（不进仓库）=====
 # 这两张留在 Assets/_Game/Art/Materials/ 下的 png 不是资产 —— 没有任何材质/预制体/场景引用它们，
@@ -181,6 +187,7 @@ Thumbs.db
 
 # ===== 2026-10-20 新增：魔剑士动画包（412 MB，外部动画资源，不进仓库）=====
 # 与 Polygonmaker / LeartesStudios / Top-Down Interiors 同口径：体积远超 GitHub 单文件限制。
+# 全部动画包的清单与状态见上面「2026-10-20 状态核对」一段。
 /Assets/魔剑士动画/
 /Assets/魔剑士动画.meta
 

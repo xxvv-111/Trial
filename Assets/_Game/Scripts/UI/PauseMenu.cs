@@ -95,6 +95,29 @@ namespace Game.UI
         }
 
         /// <summary>
+        /// 重开当前场景。挂到暂停面板的「重新开始」按钮上。
+        ///
+        /// ⚠️ **为什么不复用 `GameManager.RestartRun()`**：`Tavern` 这类场景里**没有 GameManager**
+        ///    （它是安全区，不跑战斗结算）。原先酒馆暂停面板的三个按钮都指向 GameManager 的方法，
+        ///    而场景里没有那个对象 ⇒ Inspector 里显示 **Missing**、点了没反应（2026-10-20 修复）。
+        ///    所以酒馆走本方法（纯 `LoadScene`），Castle 仍可以用 GameManager.RestartRun（带统计重置）。
+        ///
+        /// ⚠️ 顺序与 <see cref="BackToMainMenu"/> 一致：**先**还原 timeScale 与输入，**再**切场景。
+        ///    `Time.timeScale` 是全局状态，带着 0 进新场景会导致"看着正常但时间冻结"。
+        /// </summary>
+        public void RestartScene()
+        {
+            Time.timeScale = 1f;
+
+            if (InputService.Instance != null)
+                InputService.Instance.SetGameplayInputEnabled(true);
+
+            IsPaused = false;
+
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        /// <summary>
         /// 回到主菜单。挂到「回到主菜单」按钮上。
         ///
         /// ⚠️⚠️ **顺序不能反**：必须**先**还原 `Time.timeScale` 与输入，**再** `LoadScene`。

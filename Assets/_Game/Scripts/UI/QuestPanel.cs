@@ -18,8 +18,21 @@ namespace Game.UI
     public class QuestPanel : UIWindow
     {
         [Header("占位内容（接入 QuestService 后整段删除）")]
-        [Tooltip("用来显示占位任务的 TMP 文本。留空则不填。")]
+        [Tooltip("单块文本容器。⚠️ 分栏布局下**留空**（改用下面的 _entryLabels / _detailBody）。")]
         [SerializeField] private TextMeshProUGUI _placeholderText;
+
+        [Header("分栏布局（2026-10-20 重构）")]
+        [Tooltip("左侧任务条目的文本，按顺序填（第 1 个对应 _placeholderQuests[0]）。留空则退回单块文本模式。")]
+        [SerializeField] private TextMeshProUGUI[] _entryLabels;
+
+        [Tooltip("右侧详情：任务标题。")]
+        [SerializeField] private TextMeshProUGUI _detailTitle;
+
+        [Tooltip("右侧详情：任务描述。")]
+        [SerializeField] private TextMeshProUGUI _detailBody;
+
+        [Tooltip("右侧详情：目标一行。")]
+        [SerializeField] private TextMeshProUGUI _detailGoal;
 
         [Tooltip("占位任务条目，一行一条。")]
         [SerializeField]
@@ -43,7 +56,29 @@ namespace Game.UI
         /// <summary>⚠️ 占位实现 —— 接入 QuestService 后整段删除。</summary>
         private void BuildPlaceholder()
         {
-            if (_placeholderText == null || _placeholderQuests == null) return;
+            if (_placeholderQuests == null || _placeholderQuests.Length == 0) return;
+
+            // ===== 分栏模式：左列条目 + 右侧详情 =====
+            if (_entryLabels != null && _entryLabels.Length > 0)
+            {
+                for (int i = 0; i < _entryLabels.Length; i++)
+                {
+                    if (_entryLabels[i] == null) continue;
+                    _entryLabels[i].text = i < _placeholderQuests.Length ? _placeholderQuests[i] : string.Empty;
+                }
+
+                if (_detailTitle != null) _detailTitle.text = _placeholderQuests[0];
+            }
+
+            if (_detailBody != null)
+                _detailBody.text = "钟楼已经三天没有敲响。守夜人说，\n"
+                                 + "城堡深处有点不对劲 —— 先去看看。";
+
+            if (_detailGoal != null)
+                _detailGoal.text = "目标　抵达城堡大厅";
+
+            // ===== 兼容旧结构：单块文本 =====
+            if (_placeholderText == null) return;
 
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < _placeholderQuests.Length; i++)

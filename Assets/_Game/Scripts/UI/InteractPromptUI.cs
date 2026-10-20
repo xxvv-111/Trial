@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using Game.Core;
 using Game.Gameplay;
 
 namespace Game.UI
@@ -7,11 +8,17 @@ namespace Game.UI
     /// <summary>
     /// 交互提示条：在屏幕上显示"按 F 查看告示栏"。
     ///
-    /// ⚠️ **事件驱动，不是轮询**：订阅 <see cref="InteractionDetector.TargetChanged"/>，
+    /// ⚠️ **正文是事件驱动，不是轮询**：订阅 <see cref="InteractionDetector.TargetChanged"/>，
     ///    只在**目标变化的那一帧**改文字。若改成每帧 `text = ...`，会持续产生字符串分配
     ///    （GC），这是新手最常见的性能问题来源。
     ///
+    /// ⚠️ <see cref="Update"/> 里只做一件很轻的事：**面板打开时把提示条藏起来**
+    ///    —— 否则暂停菜单 / 任务面板背后会露出"按 F 查看告示栏"，很出戏。
+    ///    判据用 `InputService.GameplayInputEnabled`：暂停面板与 UIWindow 打开时都会把它关掉，
+    ///    一处判据覆盖所有弹窗。**只在状态变化的那一帧 SetActive**，不产生 GC。
+    ///
     /// 挂法：挂在提示条 Panel 自己身上即可，<c>_panel</c> 留空 = 用自身。
+    /// ⚠️ **该 Panel 必须保持 active**（否则本脚本的 Start 不执行、收不到事件、提示条永不出现）。
     /// </summary>
     public class InteractPromptUI : MonoBehaviour
     {
@@ -40,17 +47,42 @@ namespace Game.UI
 
         private InteractionDetector _detector;
 
+        /// <summary>当前交互目标（null = 附近没有可交互物）。</summary>
+        private IInteractable _target;
+
+        private GameObject Panel { get { return _panel != null ? _panel : gameObject; } }
+
         private void Start()
         {
             // ⚠️ 用 FindFirstObjectByType 而不是 FindObjectOfType：后者在 Unity 6 已标记过时。
             //    只找一次 —— 检测器是场景里的常驻对象，不需要每帧找。
             _detector = FindFirstObjectByType<InteractionDetector>();
             if (_detector != null)
+            {
                 _detector.TargetChanged += OnTargetChanged;
-            else
-                Debug.LogWarning("[InteractPromptUI] 场景里没有 InteractionDetector，提示条不会显示。");
 
-            Refresh(null);//初始隐藏
+                //⚠️⚠️ **订阅后必须主动同步一次当前目标**（2026-10-20 补）：
+                //   检测器可能在**本脚本 Start 之前**就已经 Rescan 过一次（进场时玩家就站在触发器里），
+                //   那次 `TargetChanged` 没有订阅者 ⇒ 事件丢失 ⇒ 提示条永远不出现。
+                //   直接读一次 `CurrentTarget` 补上，成本为零。
+                Refresh(_detector.CurrentTarget);
+            }
+            else
+            {
+                Debug.LogWarning("[InteractPromptUI] 场景里没有 InteractionDetector，提示条不会显示。");
+                Refresh(null);//初始隐藏
+            }
+        }
+
+        private void Update()
+        {
+            //只在"面板开关"状态变化的那一帧改 SetActive，稳定零分配
+            InputService input = InputService.Instance;
+            bool blocked = input != null && !input.GameplayInputEnabled;
+
+            bool want = _target != null && !blocked;
+            GameObject panel = Panel;
+            if (panel != null && panel.activeSelf != want) panel.SetActive(want);
         }
 
         private void OnDestroy()
@@ -66,14 +98,21 @@ namespace Game.UI
 
         private void Refresh(IInteractable target)
         {
-            GameObject panel = _panel != null ? _panel : gameObject;
-            panel.SetActive(target != null);
+            _target = target;
+            GameObject panel = Panel;
+            if (panel != null) panel.SetActive(target != null && IsGameplayInputOn());
 
             if (_text == null || target == null) return;
 
             _text.text = _format
                 .Replace("{key}", _keyLabel)
                 .Replace("{action}", target.Prompt);
+        }
+
+        private static bool IsGameplayInputOn()
+        {
+            InputService input = InputService.Instance;
+            return input == null || input.GameplayInputEnabled;
         }
     }
 }

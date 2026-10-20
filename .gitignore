@@ -194,3 +194,15 @@ Thumbs.db
 # Unity 自动生成的计费（IAP）模式配置，不属于项目资产
 /Assets/Resources/BillingMode.json
 /Assets/Resources/BillingMode.json.meta
+
+# ===== 2026-10-20 新增：雪山森林资源包（合计 3.6 GB，不进仓库）=====
+# Winter Environment - Nature Pack 1.5 解包后体积：
+#   Assets/ANGRY MESH/      1.9 GB（贴图 / 网格 / Prefab / URP shader）
+#   Assets/雪山森林场景/      1.7 GB（原始 .unitypackage + 主图）
+# 与 Polygonmaker / LeartesStudios / Top-Down Interiors 同口径：远超 GitHub 单仓限制，本地保留即可。
+# ⚠️ Assets/Scenes/Forest.unity 引用了 ANGRY MESH 里的材质与预设，
+#    拉下仓库后需要另外获取该资源包，否则 Forest 场景会缺失资源。
+/Assets/ANGRY MESH/
+/Assets/ANGRY MESH.meta
+/Assets/雪山森林场景/
+/Assets/雪山森林场景.meta

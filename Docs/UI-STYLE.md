@@ -90,6 +90,50 @@
 1. 操作提示、版本号、版权：16px，冷灰 `alpha 170~190`，不加背景
 2. 不用分隔线（v3 的 Divider 已删除）
 
+### 5.5 键位面板（2026-10-20 定稿）
+
+样板：`MainMenu` → `Canvas/Panel_Keybinds`
+
+1. **结构**：`Panel_Keybinds`（铺满全屏、纯色 `#030405` `alpha 0.93`、`raycastTarget = true` 当模态）
+   → `Content`（900×800、居中）
+   ⚠️ 遮罩 alpha 别低于 0.9 —— 0.86 时身后的「开始游戏 / 退出游戏」还是很抢眼，会和面板正文抢焦点
+2. **不做面板框**：暗场本身就是背景，**没有底板 / 描边 / 圆角** —— 和 v4 主菜单同一套语言
+3. **标题**：`按键说明` 38px 暖白、字距 14；英文副标 `CONTROLS` 15px 冷灰、字距 18
+4. **两条细线**夹住表格：上下各一条 2px、宽 760、`rgba(140,133,120,0.30)`；
+   ⚠️ **行与行之间不加线**（加了立刻变表格控件）
+5. **每行**：步进 44px，动作名 22px 暖白左对齐、键名 22px 冷灰（`0.72,0.69,0.63`）右对齐，两列共用 760 宽
+6. **分组标题**：18px、字距 8、`0.66,0.62,0.55`（`行动` / `战斗`）
+7. **「返回」**：沿用 §5.3 的文字按钮，摆在 `(0, -354)`
+8. **节点命名**（改键的实现约定，别乱改）：
+   `Content/Row_<Id>/Label`（中文名）+ `Content/Row_<Id>/Key`（键名）。
+   Id = `Move / Sprint / Jump / Dash / Look / Zoom / Attack / Special / Interact / Pause`
+9. 面板**预设 inactive**，由 `KeybindPanel`（挂 `Canvas`，不在面板里）开关；
+   `ESC` 关闭。⚠️ 组件必须挂在**常驻激活**的物体上，挂在面板自己身上会连 `Update` 一起停掉
+
+### 5.6 游戏内 UI（2026-10-20 · 酒馆样板）
+
+样板：`Tavern` → `Canvas_InteractPromot` 三块。生成器 `Tools/UI/生成酒馆 UI（全部）`。
+**比主菜单复杂，但不多加一个装饰元素** —— 复杂度全部来自「分栏」和「信息层」。
+
+1. **交互提示条（HUD）**：屏幕下方居中 `(0,-330)`、`280×64`。
+   结构 = `[F]` 键帽（44×44 **四边 1px 细线** + 居中字母）+ 右侧文案（24px 暖白左对齐）。
+   底 = 纯色 `#050504` `alpha 0.55` 的**扁条**，只保证 3D 背景上可读，**不构成面板**。
+   ⚠️ 文案模板只留 `{action}`：键名已经由键帽画出来了，再拼一次 `F` 就重复了。
+   ⚠️ 节点**必须保持 active**（`InteractPromptUI` 在这上面，inactive 就不执行 `Start`）。
+2. **弹窗骨架**：全屏遮罩 `#030405` `alpha 0.93` + `Content`（任务 1100×640 / 暂停 900×620）。
+   顶部 `标题(34px 字距 14) + 副标(14px 字距 18) + Line_Head(2px, 宽 960/900)`，
+   底部 `Line_Foot` 同宽 + 一个文字按钮 + 右下 `ESC xx` 提示。
+3. **分栏**：左列 = 「选什么」，右列 = 「它的内容」，中间 **1px 竖线**（`HairLine`）切。
+   列宽 460，左右列中心 `∓250`（任务）/ 左 `-250`、右 `+180`（暂停，因为左列是 300 宽按钮）。
+4. **列表条目**：`序号(16px 冷灰) + 标题(22px) + 状态(15px 右对齐)`，行高 40、步进 44。
+   **选中态不用颜色区分，用"左侧 2px 竖条 + 文字提亮到暖白"**（金色禁用）。
+5. **暂停菜单的竖排按钮**：`240~300×56`，**左对齐**，左侧 2px 竖线当 `targetGraphic`，
+   hover 只提亮那条线；文字左 padding 22。与主菜单的「底部下划线 + 居中对齐」区分开
+   —— **竖排用侧线、横排用底线**，这是同一套语言里的两种姿态。
+6. ⚠️ **弹窗打开时要藏掉 HUD**：`InteractPromptUI.Update` 用
+   `InputService.GameplayInputEnabled` 判断（暂停与 `UIWindow` 打开时都会被关掉），
+   一处判据覆盖所有弹窗；只在状态变化那一帧 `SetActive`，零分配。
+
 ---
 
 ## 6. 禁止清单（踩过的坑）
@@ -108,10 +152,21 @@
 
 1. **图层顺序**：`BG_Backdrop`（截图，`preserveAspect = false`）→ `BG_Scrim` → 标题 → 按钮 → 页脚
 2. 背景图轻微拉伸优于留黑边：原图 2095×1234（1.697）拉到 1920×1080（1.778），横向 4.5%，看不出来
-3. **中文字体**：
-   - 直接 `lbl.font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/1_Asset/4_Font/sarasa-gothic-sc-regular SDF.asset")`
-   - ⚠️ 该资产是 Dynamic 模式，**图集 1024 曾是瓶颈**（占 88.6% 后新字生成失败 → 显示 □）
-   - 出现 □ 时跑 `Tools/UI/修复中文字体（TMP Fallback）`（扩到 2048 + 开多图集 + 清空动态字形）
+3. **中文字体（2026-10-20 更正，之前写反了）**：
+   - ⚠️⚠️ **绝不要把 TMP 的 `font` 直指 `sarasa-gothic-sc-regular SDF`** —— 实测整段中文渲染成
+     **实心方块**（同一条文字挂 `LiberationSans` 走 fallback 就完全正常）
+   - ✅ 一律用 `TMP_Settings.defaultFontAsset`（= `LiberationSans SDF`），中文靠它的 fallback 链：
+     `LiberationSans SDF` → `LiberationSans SDF - Fallback` → `sarasa-gothic-sc-regular SDF`
+   - **原因**：sarasa 自带材质 `sarasa-gothic-sc-regular Atlas Material` 用的是
+     `Assets/0_Script/ThirdParty/Battlehub/ThirdParty/TextMesh Pro/Resources/Shaders/TMP_SDF.shader`
+     里**非 Mobile** 的 `TextMeshPro/Distance Field` 变体，URP 下画不出字形；
+     项目里能正常出字的材质用的都是 `Mobile/Distance Field` 变体。**两份 shader 同名不同文件**
+     （memory 里记的"`Shader.Find` 命中不确定"那个坑，就是它）
+   - **字形数据不用怀疑**：出问题时实测过 —— 字符表 174 条 / 字形表 174 条一一对应、
+     图集 2048² Alpha8 占用 27.4%、`按/键/说/明` 每个都有 6000+ 带 alpha 的像素、`textInfo.isVisible` 全为 true
+     ⇒ **数据全对，是渲染端画不出来**。所以看到方块先查字体引用，别去查图集
+   - 排查顺序：① TMP 的 `font` 是否被指到了 sarasa；② `LiberationSans SDF` 的 fallback 列表是否为空
+   - 历史：图集曾是 1024²，108 个字形占 88.6% 后新字生成失败 → □；现为 2048² + 多图集（这条保留）
 4. 贴图导入：`Sprite (Single)`、`Alpha Is Transparency`、关 mipmap、`Max Size 4096`、`CompressedHQ`
 5. 相机 `Clear Flags = SolidColor`、背景近黑 `#030405`（防背景图边缘露色）
 

@@ -17,19 +17,37 @@ RPG 层（酒馆 4 个 NPC 面板 + 魔晶 + 法术槽）**一行代码都没写
 
 ## 1. 现状盘点
 
-### 1.1 MainMenu.unity（3 个节点，全部可用）
+### 1.1 MainMenu.unity（✅ 2026-10-20：设置按钮已启用 + 键位面板落地）
 
-1. `Canvas` → `Text_Title`（标题）/ `Button_Start` / `Button_Quit`
+1. `Canvas` → `Text_Title`（标题）/ `Button_Start` / `Button_Settings` / `Button_Quit`
 2. 脚本 `UI/MainMenu.cs`：`StartGame()` 直接 `LoadScene("Tavern")`，`QuitGame()` 退出
-3. ⚠️ 没有加载过程、没有武器/角色选择、没有设置入口
+3. `Canvas/Panel_Keybinds`（键位说明，**预设 inactive**），脚本 `UI/KeybindPanel.cs` 挂在 `Canvas` 上：
+   `Button_Settings.OnClick → Open()`、面板内 `Button_Close.OnClick → Close()`、`ESC` 关闭
+4. ⚠️ 目前只有**键位展示**，**不能改键**；改键功能见 §3.6
+5. ⚠️ 仍没有加载过程、没有武器/角色选择
 
-### 1.2 Tavern.unity（1 个 Canvas，3 个面板）
+### 1.2 Tavern.unity（1 个 Canvas，3 块 UI —— ✅ 2026-10-20 全部重做为 v4 风格）
 
 1. `Canvas_InteractPromot`（⚠️ 拼写如此，别改名，脚本按名字找）
-2. `Panel_InteractPrompt` + `Text`（⚠️ 用的是旧 `Text`，不是 TMP）
-3. `Panel_QuestPanel`：标题 / 内容 / 关闭按钮，预设 **inactive**
-4. `PausePanel`：标题 / 继续 / 重开 / 回主菜单，预设 **inactive**
-5. 脚本：`InteractPromptUI`（订阅 `InteractionDetector.TargetChanged`）、`QuestPanel`（**假数据占位**）、`PauseMenu`
+2. **`Panel_InteractPrompt`**（HUD 提示条，**必须保持 active**）：`KeyCap`（1px 方框 + `F`）+ `Text`（TMP）
+   —— ⚠️ 原先的旧 `UI.Text` 已换成 `TextMeshProUGUI`
+3. **`Panel_QuestPanel`**（弹窗，预设 **inactive**）：`Content` 下一整套分栏 ——
+   标题 `任务` / `QUESTS` → 左列 `文本列表`+`Row_Quest_1/2`（序号 + 标题 + 状态 + 选中竖条）/
+   中缝 `Divider_Vertical` / 右列 `详情` + `Text_DetailTitle` + `Text_DetailBody` + `Text_DetailGoal` /
+   底部 `Line_Foot` + `Button_Close` + `ESC 关闭`
+4. **`PausePanel`**（弹窗，预设 **inactive**）：`Content` 下 ——
+   标题 `暂停` / `PAUSED` → 左列竖排 `继续游戏 / 重新开始 / 返回主菜单`（左侧 2px 竖线 + 左对齐）/
+   中缝 `Divider_Vertical` / 右列 `当前位置` + `酒馆` + `TAVERN · 安全区域` + 操作提示 5 行 /
+   底部 `Line_Foot` + `ESC 继续游戏`
+5. 脚本：`InteractPromptUI`（订阅 `InteractionDetector.TargetChanged`，**Start 里还会主动同步一次**
+   —— 检测器可能在它之前就 Rescan 过，那次事件没订阅者会丢）、`QuestPanel`（**假数据占位**，
+   已支持分栏：`_entryLabels[] / _detailTitle / _detailBody / _detailGoal`）、`PauseMenu`
+6. 生成器：`Tools/UI/生成酒馆 UI（全部）` + 三个分项 → `Assets/_Game/Editor/TavernUIBuilder.cs`，
+   公共 helper 在 `Assets/_Game/Editor/UIBuilderKit.cs`
+7. ✅ 顺手修掉两个**旧 bug**：
+   - 暂停面板三个按钮原先全接 `GameManager`，而 **Tavern 没有 GameManager** ⇒ `Missing`、点了没反应。
+     现在改接 `PauseMenu` 自己（新增 `RestartScene()`）
+   - `Interactable.prompt` 是英文（`Check` / `Go`），配合中文格式串会变成"按 F Check" ⇒ 已本地化
 
 ### 1.3 Castle.unity（1 个 Canvas，10 个 HUD/面板）
 
@@ -162,8 +180,14 @@ public event Action<int, float, float> SpecialCooldownChanged; // slot, remain, 
 
 ### 3.6 设置 / 操作说明（P1）
 
-1. 设置：3 个 `Slider` + 1 个 `Dropdown`（分辨率，可选），值存 `PlayerPrefs`，等 `AudioManager` 落地再接线
-2. 操作说明：一个静态 `Panel` + 图文，从主菜单和 `PausePanel` 两个入口进
+1. **操作说明（键位表）：✅ 2026-10-20 已完成** —— `MainMenu/Canvas/Panel_Keybinds` + `KeybindPanel`，
+   生成器 `Tools/UI/生成键位面板 (MainMenu)`，视觉规范见 `UI-STYLE.md` §5.5。
+   键位数值全部从 `Assets/InputSystem_Actions.inputactions` 的**实际绑定**抄的，改键位后记得同步这张表
+2. **改键功能（未做）**：行节点已按 `Content/Row_<Id>/Key` 命名，`KeybindPanel.FindKeyLabel(id)` 是现成入口；
+   真正改键必须走 Input System 的 `PerformInteractiveRebinding()` —— ⚠️ 它要临时禁用 `Player` action map，
+   否则按下的键会同时触发角色动作
+3. 设置：3 个 `Slider` + 1 个 `Dropdown`（分辨率，可选），值存 `PlayerPrefs`，等 `AudioManager` 落地再接线
+4. 操作说明建议**同时**放进 `PausePanel`（从暂停界面也能看），复用同一个面板预设
 
 ---
 

@@ -56,7 +56,16 @@ public static class SaveSelfTest
         src.progress.learnedSpellIds.Add("spell_fireball");
         src.progress.equipmentLevels.Add(new EquipmentSave { equipmentId = "sword_01", level = 3 });
         src.progress.trainingCounts.Add(new TrainingSave { statId = "str", count = 7 });
-        src.progress.quests.Add(new QuestSave { questId = "q_001", status = QuestStatus.Active, progress = 2 });
+        src.progress.quests.Add(new QuestSave
+        {
+            questId = "q_001",
+            status = QuestStatus.Active,
+            objectives =
+            {
+                new ObjectiveSave { objectiveId = "reach_castle", progress = 1 },
+                new ObjectiveSave { objectiveId = "kill_swordsman", progress = 2 },
+            }
+        });
         src.progress.stats.clears = 4;
         src.progress.stats.deaths = 9;
         src.progress.stats.bestTime = 62.5f;
@@ -74,7 +83,10 @@ public static class SaveSelfTest
             if (back.progress.learnedSpellIds.Count != 1 || back.progress.learnedSpellIds[0] != "spell_fireball") problems.Add("法术");
             if (back.progress.equipmentLevels.Count != 1 || back.progress.equipmentLevels[0].level != 3) problems.Add("装备等级");
             if (back.progress.trainingCounts.Count != 1 || back.progress.trainingCounts[0].count != 7) problems.Add("锻炼次数");
-            if (back.progress.quests.Count != 1 || back.progress.quests[0].progress != 2 || back.progress.quests[0].status != QuestStatus.Active) problems.Add("任务");
+            if (back.progress.quests.Count != 1 || back.progress.quests[0].status != QuestStatus.Active) problems.Add("任务状态");
+            else if (back.progress.quests[0].objectives.Count != 2
+                     || back.progress.quests[0].objectives[0].progress != 1
+                     || back.progress.quests[0].objectives[1].progress != 2) problems.Add("多目标进度");
             if (back.progress.stats.clears != 4 || back.progress.stats.deaths != 9 || Math.Abs(back.progress.stats.bestTime - 62.5f) > 0.001f) problems.Add("统计");
         }
         Check("A1 满数据往返字段一致", problems.Count == 0, string.Join(" / ", problems));
@@ -233,11 +245,17 @@ public static class SaveSelfTest
             status == LoadStatus.Ok && badEnum.progress.quests.Count == 1 && badEnum.progress.quests[0].status == QuestStatus.Locked,
             status + " 实际=" + (badEnum.progress.quests.Count > 0 ? ((int)badEnum.progress.quests[0].status).ToString() : "无元素"));
 
-        status = Load("{\"version\":1,\"progress\":{\"quests\":[null,{\"questId\":\"a\",\"status\":2}]}}", out var nullElem);
-        Check("E4 null 元素被剔除", status == LoadStatus.Ok && nullElem.progress.quests.Count == 1, status + " 数量=" + nullElem.progress.quests.Count);
+        status = Load("{\"version\":1,\"progress\":{\"quests\":[null,{\"questId\":\"a\",\"status\":2,\"objectives\":[null,{\"objectiveId\":\"x\",\"progress\":1}]}]}}", out var nullElem);
+        var objectivesOk = nullElem.progress.quests.Count == 1
+                           && nullElem.progress.quests[0].objectives != null
+                           && nullElem.progress.quests[0].objectives.Count == 1;
+        Check("E4 null 元素被剔除（任务与目标各一层）", status == LoadStatus.Ok && objectivesOk,
+            status + " 任务数=" + nullElem.progress.quests.Count);
 
-        status = Load("{\"version\":1,\"progress\":{\"quests\":[{\"questId\":\"dup\",\"progress\":1},{\"questId\":\"dup\",\"progress\":2}]}}", out var dup);
-        Check("E5 重复 questId 去重", status == LoadStatus.Ok && dup.progress.quests.Count == 1 && dup.progress.quests[0].progress == 2, status + " 数量=" + dup.progress.quests.Count);
+        status = Load("{\"version\":1,\"progress\":{\"quests\":[{\"questId\":\"dup\",\"objectives\":[{\"objectiveId\":\"a\",\"progress\":1}]},{\"questId\":\"dup\",\"objectives\":[{\"objectiveId\":\"a\",\"progress\":2}]}]}}", out var dup);
+        Check("E5 重复 questId 去重",
+            status == LoadStatus.Ok && dup.progress.quests.Count == 1 && dup.progress.quests[0].objectives[0].progress == 2,
+            status + " 数量=" + dup.progress.quests.Count);
     }
 
     // ═══════════════════════ F 原子写（5） ═══════════════════════
@@ -303,7 +321,12 @@ public static class SaveSelfTest
         var sys = new SaveSystem(store, TestPath);
         var file = SaveSystem.CreateDefault();
         file.progress.magicCrystal = 42;
-        file.progress.quests.Add(new QuestSave { questId = "q_bom", status = QuestStatus.Active, progress = 1 });
+        file.progress.quests.Add(new QuestSave
+        {
+            questId = "q_bom",
+            status = QuestStatus.Active,
+            objectives = { new ObjectiveSave { objectiveId = "kill_swordsman", progress = 1 } }
+        });
         sys.Save(file);
         return store.GetRaw(TestPath);
     }

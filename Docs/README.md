@@ -20,7 +20,7 @@
 | 8 | [UI-PLAN.md](UI-PLAN.md) | **UI 现状与制作计划**：三场景 UI 盘点、缺口按 P0/P1/P2 分级、技能栏 / 结算统计 / 酒馆 NPC 面板的逐项搭法、统一规范与 10 条坑 | **要动 UI 前先看**；想知道"还差哪些界面、先做哪个"时看 |
 | 9 | [UI-STYLE.md](UI-STYLE.md) | **UI 风格规范（v4 电影感）**：配色 / 字体 / 布局 / 组件规范 / 遮罩做法 / 禁止清单 / 中文字体坑 | **做任何新界面前先看**，保证各个界面风格统一 |
 | 10 | [SAVE-SYSTEM.md](SAVE-SYSTEM.md) | **存档系统**（✅ **运行时层已落地**，2026-10-22）：`PlayerProgress` 全字段、JSON + 原子写（`.tmp` → `File.Replace` 留 `.bak`）、尾部 `#crc32` 校验行、降级链 主档→`.bak`→默认、`ProgressService` 跨场景单例（自动创建）、标脏 0.5 s 防抖、30 项自测 | **做持久化、或接任务系统前必读**；想知道"存档到底存了什么、为什么这么设计"看 §3/§4 |
-| 11 | [QUEST-SYSTEM.md](QUEST-SYSTEM.md) | **任务系统**：对原规划的 **3 处修订 + 4 处补缺**、`QuestConfig` / `QuestStatus` 状态机、3 种目标类型（击杀 / Boss / 到达场景）、事件推进、与大门和 `SceneCatalog` 联动 | **做任务系统前必读**；也记着"为什么不能直接开写 QuestService" |
+| 11 | [QUEST-SYSTEM.md](QUEST-SYSTEM.md) | **任务系统**（✅ 4 项设计**已拍板**，2026-10-22）：`QuestConfig{prerequisites, objectives[]}` / `QuestStatus` 状态机、**多目标任务**（3 种目标类型：击杀 / Boss / 到达场景）、**前置任务链**、**动态列表 UI**、回酒馆点交付、事件推进、与大门和 `SceneCatalog` 联动 | **做任务系统前必读**；§8 是已定结论，§9 是落地顺序 |
 
 ## 一句话现状
 

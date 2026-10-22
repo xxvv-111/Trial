@@ -68,7 +68,8 @@ public class PlayerProgress
     public StatsSave stats = new StatsSave();
 }
 
-[Serializable] public class QuestSave   { public string questId; public QuestStatus status; public int progress; }
+[Serializable] public class QuestSave   { public string questId; public QuestStatus status; public List<ObjectiveSave> objectives; }
+[Serializable] public class ObjectiveSave { public string objectiveId; public int progress; }
 [Serializable] public class EquipmentSave { public string equipmentId; public int level; }
 [Serializable] public class TrainingSave  { public string statId; public int count; }
 [Serializable] public class StatsSave     { public int clears; public int deaths; public float bestTime; }

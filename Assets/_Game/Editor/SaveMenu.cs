@@ -49,7 +49,16 @@ public static class SaveMenu
         file.progress.learnedSpellIds.Add("spell_fireball");
         file.progress.equipmentLevels.Add(new EquipmentSave { equipmentId = "sword_01", level = 3 });
         file.progress.trainingCounts.Add(new TrainingSave { statId = "str", count = 5 });
-        file.progress.quests.Add(new QuestSave { questId = "quest_smith", status = QuestStatus.Active, progress = 2 });
+        file.progress.quests.Add(new QuestSave
+        {
+            questId = "quest_smith",
+            status = QuestStatus.Active,
+            objectives =
+            {
+                new ObjectiveSave { objectiveId = "reach_castle", progress = 1 },
+                new ObjectiveSave { objectiveId = "kill_swordsman", progress = 2 },
+            }
+        });
         file.progress.stats.clears = 1;
 
         if (system.Save(file, "Tavern", 120f))

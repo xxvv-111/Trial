@@ -62,6 +62,16 @@ namespace Game.Save
     {
         public string questId;
         public QuestStatus status;
+
+        // 一条任务 = 1~N 个目标，全部完成才可交付。
+        // ⚠️ 按 objectiveId 与配置对齐，**不要用下标** —— 往配置中间插一个目标会让旧档进度错位。
+        public List<ObjectiveSave> objectives = new List<ObjectiveSave>();
+    }
+
+    [Serializable]
+    public class ObjectiveSave
+    {
+        public string objectiveId;
         public int progress;
     }
 

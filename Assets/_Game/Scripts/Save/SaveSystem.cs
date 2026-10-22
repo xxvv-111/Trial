@@ -293,11 +293,19 @@ namespace Game.Save
 
             for (var i = 0; i < p.quests.Count; i++)
             {
-                var s = (int)p.quests[i].status;
+                var q = p.quests[i];
+                if (q.objectives == null) q.objectives = new List<ObjectiveSave>();
+                q.objectives.RemoveAll(o => o == null || string.IsNullOrEmpty(o.objectiveId));
+                Dedupe(q.objectives, o => o.objectiveId);
+
+                for (var k = 0; k < q.objectives.Count; k++)
+                    if (q.objectives[k].progress < 0) q.objectives[k].progress = 0;   // 手改档可能写出负数
+
+                var s = (int)q.status;
                 if (s < 0 || s > (int)QuestStatus.Completed)
                 {
-                    Debug.LogWarning($"[Save] 任务 {p.quests[i].questId} 的状态值 {s} 越界，已归零为 Locked");
-                    p.quests[i].status = QuestStatus.Locked;
+                    Debug.LogWarning($"[Save] 任务 {q.questId} 的状态值 {s} 越界，已归零为 Locked");
+                    q.status = QuestStatus.Locked;
                 }
             }
         }

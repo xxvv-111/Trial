@@ -30,18 +30,22 @@
 
 ### 2.1 本阶段做
 
-- 目标类型 **3 种**：`KillCount{ enemyId }` / `KillBoss` / `ReachScene{ sceneName }`
-- 完整闭环：**酒馆接取 → 前往目标场景 → 进度推进 → 回酒馆交付 → 发奖励**
+- ⭐ **一条任务 = 一组小目标**（2026-10-22 拍板）：`QuestConfig.objectives` 是列表，每个目标仍是
+  `KillCount{ enemyId }` / `KillBoss` / `ReachScene{ sceneName }` 三种之一；**全部目标完成**才算可交付。
+  「到达场景」因此不再是一种"任务类型"，而是复合任务里的一步（例：先到城堡 → 再杀 5 名剑兵 → 回酒馆交付）。
+- ⭐ **前置任务链**（2026-10-22 拍板）：`QuestConfig.prerequisites` 列出必须先完成的任务，全部 `Completed`
+  才从 `Locked` 变 `Available`；留空 = 无条件。**可以同时接多条**，多目标并行推进。
+- 完整闭环：**酒馆接取 → 前往目标场景 → 目标逐个推进 → 回酒馆交付 → 发奖励 → 解锁下游任务**
 - 任务进度**进存档**，退出游戏再进不丢
 - 接取任务后**酒馆大门的目标场景随任务地点变化**
-- 任务面板显示**真实数据**（列表 + 详情 + 按钮状态）
+- 任务面板**动态列表**（2026-10-22 拍板）：不再固定 2 槽，用 `Row_Quest.prefab` 实例化，条目数随任务数走
 
 ### 2.2 本阶段不做（明确挂起）
 
-- 任务前置链 / 任务图（A 完成才能接 B）
+- ~~任务前置链~~ / ~~动态列表~~ —— **2026-10-22 改为本阶段做**（见 §2.1 / §8）
 - 对话与叙事（`PHASE1-DESIGN` §1.2 已排除）
 - 限时任务 / 失败条件 / 放弃任务
-- 动态列表（见 §3 缺口 3 的取舍）
+- 任务分支（同一前置可以解锁多条任务，但**不按玩家选择分叉**）
 
 ---
 
@@ -68,14 +72,25 @@
 - `ProgressService`：**唯一**持久化出口，持有 `PlayerProgress`（含 `quests`），负责落盘
 - `QuestService`：**纯逻辑**，订阅事件、推进进度、判定可交付，**绝不碰文件**
 
-### 3.3 矛盾 3：目标类型漏了"到达场景"
+### 3.3 矛盾 3：目标不是"一个"，而是"一串"（2026-10-22 升级）
 
-§4.3.4 只列了「击杀 N 只」「击败 Boss」两种。但：
+§4.3.4 只列了「击杀 N 只」「击败 Boss」两种，且默认一条任务只有一个目标 —— 于是"前往城堡"只能
+被做成一条独立任务，而**用户反馈「到达场景型目标太简单，不配单独成任务」**。
 
-- `QuestPanel` 的占位数据第一条就是 **「前往城堡」**（到达场景型）
-- 2026-10-22 的新需求「接取任务后大门目标随任务地点变」本质上也是它
+**修订（2026-10-22 拍板）**：任务的目标从**单个**改为**列表**：
 
-**修订**：补第 3 种 `ReachScene{ sceneName }`。实现极便宜 —— 监听场景加载完成即可。
+```csharp
+public List<QuestObjective> objectives;   // 一条任务 1~N 个目标，全部完成才可交付
+```
+
+三个直接后果：
+
+1. `ReachScene` 从"任务类型"降级为"目标类型"，典型用法是复合任务的第 1 步：
+   `[到达 Castle] → [击杀 5 名 swordsman]`。这样"跑图"不再是独立任务，而是复合任务的开场。
+2. **目标必须有稳定 id**（`objectiveId`）：存档按 id 记进度，将来往列表中间插一个目标，
+   不会把其它目标的进度冲掉。
+3. 存档结构从 `progress: int` 变成 `objectives: List<{objectiveId, progress}>`。
+   ⚠️ **现在正是改的时机** —— 存档层刚落地、业务尚未接入、不存在任何玩家旧档，改结构成本为零。
 
 ### 3.4 缺口 1：敌人没有 id
 
@@ -97,13 +112,17 @@
 **修订**：事件退化成**脏通知** `QuestsChanged()`，UI 收到后主动向 `QuestService` 拉
 `IReadOnlyList<QuestState>` 重建列表。**不要**为每种变化定义一种事件。
 
-### 3.6 缺口 3：UI 只有 2 个任务槽
+### 3.6 缺口 3：UI 只有 2 个任务槽 → **已决定做动态列表**
 
 实测 `QuestPanel._entryLabels` 就是 **2 个**元素（`Row_Quest_1` / `Row_Quest_2`）。
 
-**取舍**（待拍板，见 §8）：
-- **方案 A（推荐 V1）**：固定 2 槽 + 限制"同时最多接 2 条"，零架构成本
-- **方案 B**：做 `Row_Quest.prefab` + 动态实例化 + 对象池，一步到位但要多写一层列表管理
+**2026-10-22 拍板：走方案 B（动态列表）**。理由不是"以后可能更多"，而是**前置链一进来就必然超过 2 条**：
+玩家同时要看得到「已接 2 条 + 可接 1 条 + 锁着 2 条」，2 个槽位连列表都列不全。
+
+做法：把现有两行抽成 `Row_Quest.prefab`（复用 `UIBuilderKit` 的排版），`QuestPanel` 持有
+`List<Row_Quest>`，用实例化 + 回收；条目数不超过池容量时只切 `SetActive`，不反复 `Instantiate`。
+
+⚠️ 锁着的任务**要显示但置灰**（附一行"需先完成：XXX"），不要隐藏 —— 否则玩家不知道后面还有内容。
 
 ### 3.7 缺口 4：「接取 / 交付」这个动作没有设计
 
@@ -131,22 +150,34 @@
 [CreateAssetMenu(fileName = "QuestConfig", menuName = "Game/QuestConfig")]
 public class QuestConfig : ScriptableObject
 {
-    public string questId;          // 唯一，⭐ 存档里存的就是它，定下别改
-    public string title;            // 列表与详情标题
+    public string questId;              // 唯一，⭐ 存档里存的就是它，定下别改
+    public string title;                // 列表与详情标题
     [TextArea] public string description;
 
-    public QuestObjectiveType objectiveType;
-    public string targetId;         // KillCount → enemyId；ReachScene → sceneName；KillBoss → 留空
-    public int    needCount = 1;    // KillCount 用；其余填 1
+    // ⭐ 前置任务：列出的任务全部 Completed 才可从 Locked → Available；空 = 无条件
+    public List<string> prerequisites = new List<string>();
 
-    public string targetScene;      // 任务地点（对应 SceneCatalog 的 sceneName），大门会切到这里
+    // ⭐ 一条任务 = 1~N 个目标，全部完成才 ReadyToTurnIn
+    public List<QuestObjective> objectives = new List<QuestObjective>();
+
+    public string targetScene;          // 任务地点（对应 SceneCatalog 的 sceneName）；可空 = 不动大门
     public List<QuestReward> rewards;   // 魔晶 / 装备等级 / 解锁法术
+}
+
+[Serializable]
+public class QuestObjective
+{
+    public string objectiveId;          // ⭐ 稳定 id（例 "kill_swordsman"）；存档按它记进度，别改
+    public QuestObjectiveType type;
+    public string targetId;             // KillCount → enemyId；ReachScene → sceneName；KillBoss → 留空
+    public int needCount = 1;           // KillCount 用；其余填 1
+    public string hint;                 // 详情面板那一行文案，如"击杀 5 名剑兵"
 }
 
 public enum QuestObjectiveType { KillCount = 0, KillBoss = 1, ReachScene = 2 }
 ```
 
-> **枚举 + 参数**，不要为每种任务写一个类 —— 原规划这条是对的，保留。
+> **枚举 + 参数**，不要为每种目标写一个类 —— 原规划这条是对的，保留。
 > 加新目标类型 = 加枚举项 + 在 `QuestService` 加一个 `case`。
 
 ### 4.2 运行时：`QuestState`
@@ -155,16 +186,26 @@ public enum QuestObjectiveType { KillCount = 0, KillBoss = 1, ReachScene = 2 }
 public class QuestState
 {
     public string questId;
-    public QuestStatus status;   // Locked / Available / Active / ReadyToTurnIn / Completed
+    public QuestStatus status;              // Locked / Available / Active / ReadyToTurnIn / Completed
+    public List<ObjectiveState> objectives; // 与 QuestConfig.objectives 按 objectiveId 对齐
+    public QuestConfig Config;              // 运行时按 questId 查表得到（不存盘）
+
+    public bool AllObjectivesDone { get; }  // 所有 objectives 都 progress >= need
+}
+
+public class ObjectiveState
+{
+    public string objectiveId;
     public int progress;
-    public QuestConfig Config;   // 运行时按 questId 从任务表查出来的引用（不存盘）
+    public int need;
 }
 ```
 
 ### 4.3 存档：`QuestSave`
 
-见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §3 —— 只存 `questId / status / progress`，
-**不存**标题描述等静态内容（那些从 `QuestConfig` 读，改文案不用改存档）。
+见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §3 —— 存 `questId / status / objectives[{objectiveId, progress}]`，
+**不存**标题描述等静态内容（那些从 `QuestConfig` 读，改文案不用改存档），
+**也不存**前置任务（那是配置，不是进度）。
 
 ---
 
@@ -183,16 +224,24 @@ GameEvents ─────────┘         │
 ```
 
 - `QuestService` 持有**任务表**（`QuestConfig[]`，可以在 Inspector 里配，或一个 `QuestCatalog` SO）
-- 启动时把 `ProgressService.Progress.quests` 与任务表对齐：表里有、存档里没有的补成 `Available`
+- 启动时把 `ProgressService.Progress.quests` 与任务表对齐，分三种情况：
+  1. 表里有、存档没有 → 新建 `QuestSave`，状态按前置算：**前置全 `Completed` → `Available`，否则 `Locked`**
+  2. 存档里有、表里没有（任务被删）→ **保留数据不动**，UI 不显示（删掉就找不回来了）
+  3. 两边都有 → 补上配置里新增的目标（`progress = 0`），剔掉配置里已删除的目标
+- ❗ **启动时校验前置图**（一次即可，失败打 error 不崩）：自环、环、引用了不存在的 `questId`。
+  不校验的后果是玩家看到一条**永远锁着**的任务，而没有任何提示
 - 进度变化 → 写 `QuestSave` → `ProgressService.MarkDirty()` → 广播 `QuestsChanged`
+- 某条任务转为 `Completed` 后，**重算所有 `Locked` 任务**：前置满足了就提升为 `Available`（并发 `QuestsChanged`）
 
 ### 5.1 谁订阅什么
 
 | 事件 | 谁发 | `QuestService` 的反应 |
 |---|---|---|
-| `GameEvents.EnemyKilled(EnemyHealth, string enemyId, int exp)` | `EnemyHealth.Die` | `KillCount` 且 `targetId == enemyId` → progress++ |
-| `GameEvents.BossDied` | `BossController.EnterDeath` | `KillBoss` → progress = need |
-| `GameEvents.SceneEntered(string sceneName)` | 场景加载后 | `ReachScene` 且 `targetId == sceneName` → progress = need |
+| `GameEvents.EnemyKilled(EnemyHealth, string enemyId, int exp)` | `EnemyHealth.Die` | 遍历**所有 `Active` 任务的每个目标**：`KillCount` 且 `targetId == enemyId` → 该目标 progress++ |
+| `GameEvents.BossDied` | `BossController.EnterDeath` | 同上：类型 `KillBoss` 的目标 → progress = need |
+| `GameEvents.SceneEntered(string sceneName)` | 场景加载后 | 同上：类型 `ReachScene` 且 `targetId == sceneName` → progress = need |
+
+每次推进后重算整条任务：**全部目标 `progress >= need` → `ReadyToTurnIn`**（仍不自动 `Completed`）。
 
 ⚠️ **`QuestService` 必须只订阅一次**。它是 `DontDestroyOnLoad` 单例 ⇒ 切场景不会重建 ⇒
 在 `Awake` 里订阅、`OnDestroy` 里退订即可。**不要**写在 `OnEnable`（场景切换会重复叠加，
@@ -221,20 +270,26 @@ public static event Action QuestsChanged;                           // 任务数
 
 ```
 酒馆 · 告示板（Interactable → QuestPanel.Open）
-   └─ 面板列表里选一条 Available → 点「接取」
-        ├─ QuestStatus = Active
-        ├─ progress = 0 → MarkDirty
-        └─ ⭐ 大门的 targetScene = quest.targetScene（SceneGate.SetTarget）
+   └─ 动态列表：Locked（置灰，带"需先完成 XXX"）/ Available / Active / ReadyToTurnIn
+        └─ 选一条 Available → 点「接取」
+             ├─ QuestStatus = Active
+             ├─ objectives 全部 progress = 0 → MarkDirty
+             └─ ⭐ 大门的 targetScene = quest.targetScene（SceneGate.SetTarget）
 
-城堡 · 推进
-   └─ 击杀 / 到达 → progress++ → 满则 ReadyToTurnIn（不自动完成）→ MarkDirty
+城堡 · 推进（多目标并行）
+   └─ 击杀 / 到达 → 命中对应目标 → 该目标 progress++
+        └─ 全部目标达标 → ReadyToTurnIn（不自动完成）→ MarkDirty
 
 酒馆 · 告示板
    └─ 选 ReadyToTurnIn → 点「交付」
         ├─ 发奖励（魔晶 / 装备等级 / 解锁法术）
         ├─ QuestStatus = Completed → MarkDirty
+        ├─ ⭐ 重算所有 Locked 任务：前置满足了就转 Available（前置链由此解开）
         └─ 大门目标回落（SceneGate.ClearTarget 或指向下一条任务）
 ```
+
+示例：「铁匠的请求」= 目标 [到达 Castle] → [击杀 5 × swordsman] → [击杀 boss_crichton]；
+目标 `hint` 分别是"前往城堡" / "击杀 5 名剑兵" / "击败克里顿"。
 
 ### 7.2 与大门 / SceneCatalog 的联动
 
@@ -245,14 +300,25 @@ public static event Action QuestsChanged;                           // 任务数
 
 ---
 
-## 8. 待拍板的 4 件事
+## 8. 已拍板的 4 件事（2026-10-22 13:40）
 
-| # | 问题 | 推荐 |
-|---|---|---|
-| 1 | 任务槽位固定 2 条，还是做动态列表？ | **V1 固定 2 槽**，限制同时最多接 2 条；动态列表留到任务数量真的超过 2 条时再做 |
-| 2 | 能否同时接多条任务？ | **可以**（上限见 #1），不设前置链 |
-| 3 | 「可交付」是进度打满自动转，还是必须回酒馆点交付？ | **必须回酒馆点交付**，否则"回酒馆交付"这条循环消失 |
-| 4 | V1 是否加「到达场景」型目标？ | **加**，成本极低且"前往城堡"这条任务本来就需要 |
+| # | 问题 | 结论 | 与原推荐的差异 |
+|---|---|---|---|
+| 1 | 任务槽位固定 2 条，还是动态列表？ | **动态列表** | ⚠️ **推翻原推荐**（原推荐固定 2 槽） |
+| 2 | 能否同时接多条任务？能不能有前置？ | **可以同时接多条**；新增 **`prerequisites` 前置任务**，未全部完成则 `Locked` 不可接，可为空 | ⚠️ **新增能力**（原规划明确写"不做前置链"） |
+| 3 | 「可交付」自动转还是必须回酒馆点交付？ | **必须回酒馆点交付** | 一致 |
+| 4 | V1 要不要「到达场景」型目标？ | **要，但不做成独立任务** —— 它只是复合任务里的一个目标 | ⚠️ **改性质**（从"任务类型"降为"目标类型"） |
+
+**我自己拍的两个实现细节**（不影响玩法，可随时推翻）：
+
+1. **多目标并行推进**，不是"必须按顺序完成"。理由：数据结构最简（目标之间无状态依赖），
+   而且"先到城堡再杀怪"这种顺序感用**文案**（`hint` 带序号）就能表达，不必写进状态机。
+   将来真需要强顺序，加一个 `int stage` 字段就行。
+2. **前置判定用"全部完成"（ALL）**，不是"任一完成"。任务链几乎都是 AND 语义；
+   OR 语义的情况交给"两条独立任务"表达更清楚。
+
+> ⚠️ 第 2 条带来一个**必须做的事**：`QuestCatalog` 启动时校验前置图（自环 / 环 / 引用了不存在的
+> `questId`）。不校验的后果是任务永远锁着且无提示，跟 bug 无法区分（见 §5）。
 
 ---
 
@@ -263,9 +329,9 @@ public static event Action QuestsChanged;                           // 任务数
 | 0 | **存档骨架**（`PlayerProgress` / `SaveSystem` / `ProgressService`） | 见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §8 |
 | 1 | `EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled` | 杀怪能打出 `enemyId`（Console 验证） |
 | 2 | `GameEvents.SceneEntered` + `QuestsChanged` | 进场景能收到 `sceneName` |
-| 3 | `QuestConfig` SO + `QuestCatalog` + 2~3 条示例任务资产 | Inspector 里能看到配置 |
-| 4 | `QuestService`（订阅 → 推进 → 状态机 → 广播） | 在 Console 里手动模拟事件，进度正确推进并落盘 |
-| 5 | `QuestPanel` 接服务（列表 + 详情 + 按钮） | 面板显示真实任务，能接取 / 交付 |
+| 3 | `QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + **前置图校验** + 2~3 条示例任务 | Inspector 里能看到配置；故意写一个坏前置（引用不存在的 id）→ 启动打 error |
+| 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |
+| 5 | `Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮） | 列表条目随任务数变化，锁着的置灰并显示原因 |
 | 6 | 大门联动（接取时 `SetTarget`） | 接「前往森林」后，酒馆大门真的去了森林 |
 | 7 | 端到端联调 + 存档验证 | 接任务 → 打怪 → 退出游戏 → 重进 → 进度还在 → 回酒馆交付得奖励 |
 
@@ -276,7 +342,11 @@ public static event Action QuestsChanged;                           // 任务数
 - [ ] 告示板能列出**真实**任务，不再是占位文本
 - [ ] 接取后状态变 `Active`，面板按钮变灰
 - [ ] 接取后酒馆大门的目标场景 = 任务地点；没有任务时回落到默认
-- [ ] 杀对应怪 / 到达目标场景 → 进度 +1，UI 实时刷新
+- [ ] 杀对应怪 / 到达目标场景 → 对应**那一个**目标的计数 +1，UI 实时刷新
+- [ ] **多目标任务**：只有全部目标达标才转 `ReadyToTurnIn`，缺一个不转
+- [ ] **前置链**：前置未完成的任务显示为 `Locked` 且不可接；前置交付后自动变 `Available`
+- [ ] 前置图里有环 / 引用不存在的 id → 启动时 console 有 error，**但游戏不崩**
+- [ ] 动态列表：任务数 1 / 2 / 5 时列表都对，不出现重叠或空行
 - [ ] 进度打满 → `ReadyToTurnIn`，**不会**自动完成
 - [ ] 回酒馆交付 → 奖励到账、状态 `Completed`
 - [ ] **退出游戏重进**，任务状态与进度都还在

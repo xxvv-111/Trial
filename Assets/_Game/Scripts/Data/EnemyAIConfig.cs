@@ -5,6 +5,11 @@ namespace Game.Data
     [CreateAssetMenu(fileName = "EnemyAIConfig", menuName = "Game/EnemyAIConfig")]
     public class EnemyAIConfig : ScriptableObject
     {
+        [Tooltip("敌人唯一标识，任务系统按它统计击杀（例 swordsman / caster / boss_crichton）。\n" +
+                 "⚠️ 定下别改：任务配置里存的就是这个字符串，改了老任务就统计不到。\n" +
+                 "⚠️ 别拿下面的 displayName 当 id —— 那是给人看的中文名，改文案就会断任务。")]
+        public string enemyId;
+
         public string displayName = "拳击手";
         public int hp = 30;
         public float aggroRange = 8f;//追击距离

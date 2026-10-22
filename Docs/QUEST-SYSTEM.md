@@ -99,8 +99,16 @@ public List<QuestObjective> objectives;   // 一条任务 1~N 个目标，全部
 
 **需要先补**：
 1. `EnemyAIConfig.enemyId`（唯一字符串，例 `"swordsman"` / `"caster"` / `"boss_crichton"`）
-2. `EnemyHealth.ConfigId`（只读属性，转发 `_config.enemyId`）
-3. `GameEvents.EnemyKilled(EnemyHealth, string enemyId, int exp)`
+2. `EnemyHealth.ConfigId`（只读属性，转发 `_config.enemyId`；配置为空时返回 `""` 并打 warning）
+3. `GameEvents.EnemyKilled(string enemyId, Vector3 position)`
+
+> ✅ **2026-10-22 已落地**。实做时把原设计的 `EnemyKilled(EnemyHealth, string, int exp)` 改成了两个参数：
+> **去掉 `exp`**（工程里没有经验系统，凭空加个字段没人填）；**去掉 `EnemyHealth` 实例**（否则
+> `Game.Core` 要依赖 `Game.Gameplay`，而 Gameplay 本就依赖 Core ⇒ 将来拆 asmdef 必成环）。
+> 位置信息留给掉落物用；任务只需要 `enemyId`。已填的 id：`swordsman` / `caster` / `boss_crichton`。
+>
+> ⚠️ **Boss 也走 `EnemyHealth.Die`** ⇒ 击杀 Boss 会**同时**发 `EnemyKilled("boss_crichton")` 与 `BossDied`。
+> 所以任务写 `KillBoss` 或 `KillCount{ targetId = boss_crichton }` 都能统计到，选一种即可（别两条都配，会重复计数）。
 
 ⚠️ **别用 `displayName` 当 id**：那是给人看的，改名就断任务。
 
@@ -237,7 +245,7 @@ GameEvents ─────────┘         │
 
 | 事件 | 谁发 | `QuestService` 的反应 |
 |---|---|---|
-| `GameEvents.EnemyKilled(EnemyHealth, string enemyId, int exp)` | `EnemyHealth.Die` | 遍历**所有 `Active` 任务的每个目标**：`KillCount` 且 `targetId == enemyId` → 该目标 progress++ |
+| `GameEvents.EnemyKilled(string enemyId, Vector3 position)` | `EnemyHealth.Die`（只广播一次，带 `_killedBroadcast` 守卫） | 遍历**所有 `Active` 任务的每个目标**：`KillCount` 且 `targetId == enemyId` → 该目标 progress++ |
 | `GameEvents.BossDied` | `BossController.EnterDeath` | 同上：类型 `KillBoss` 的目标 → progress = need |
 | `GameEvents.SceneEntered(string sceneName)` | 场景加载后 | 同上：类型 `ReachScene` 且 `targetId == sceneName` → progress = need |
 
@@ -254,9 +262,9 @@ GameEvents ─────────┘         │
 在现有 `Core/GameEvents.cs`（只有 `PlayerDied` / `BossDied`）上新增：
 
 ```csharp
-public static event Action<EnemyHealth, string, int> EnemyKilled;   // 敌人, enemyId, 经验
-public static event Action<string> SceneEntered;                    // sceneName
-public static event Action QuestsChanged;                           // 任务数据变了（脏通知）
+public static event Action<string, Vector3> EnemyKilled;   // enemyId, 死亡位置（⚠️ id 可能为空）
+public static event Action<string> SceneEntered;            // sceneName
+public static event Action QuestsChanged;                   // 任务数据变了（脏通知）
 ```
 
 ⚠️ **静态事件必须成对订阅/退订**（`OnEnable` 订 / `OnDisable` 退，或单例的 `Awake`/`OnDestroy`）。
@@ -327,7 +335,7 @@ public static event Action QuestsChanged;                           // 任务数
 | 步 | 内容 | 验收 |
 |---|---|---|
 | 0 | **存档骨架**（`PlayerProgress` / `SaveSystem` / `ProgressService`） | 见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §8 |
-| 1 | `EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled` | 杀怪能打出 `enemyId`（Console 验证） |
+| 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] swordsman（剑兵）@ (x, y, z)`；配置漏填则打 warning |
 | 2 | `GameEvents.SceneEntered` + `QuestsChanged` | 进场景能收到 `sceneName` |
 | 3 | `QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + **前置图校验** + 2~3 条示例任务 | Inspector 里能看到配置；故意写一个坏前置（引用不存在的 id）→ 启动打 error |
 | 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |

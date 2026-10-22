@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ee1093cde978034dab052cb8a3afe48, type: 3}
   m_Name: BossConfig
   m_EditorClassIdentifier: 
+  enemyId: boss_crichton
   displayName: Boss Crichton
   hp: 600
   aggroRange: 12

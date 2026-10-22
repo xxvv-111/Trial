@@ -59,6 +59,12 @@ namespace Game.Gameplay
         public int MaxHp { get; private set; }
         public int CurHp { get; private set; }
 
+        /// <summary>
+        /// 配置里的**稳定 id**（任务系统按它统计击杀，例 <c>swordsman</c> / <c>caster</c> / <c>boss_crichton</c>）。
+        /// 空字符串 = 配置没填 <see cref="EnemyAIConfig.enemyId"/>，击杀不会被任务统计（<see cref="Die"/> 会打 warning）。
+        /// </summary>
+        public string ConfigId => _config != null ? _config.enemyId : string.Empty;
+
         public bool IsDead { get { return CurHp <= 0; } }
 
         /// <summary>
@@ -77,6 +83,9 @@ namespace Game.Gameplay
         private bool _hidingScheduled;
         private float _hideAtUnscaled;
 
+        //死亡只广播一次：防止极少数情况下 Die() 被重复进入导致任务进度 +2（同类问题见 T7）
+        private bool _killedBroadcast;
+
         private void OnEnable()
         {
             //重置于满血：让被复用的敌人（场景重开 / 对象池）状态干净
@@ -85,6 +94,7 @@ namespace Game.Gameplay
 
             _hidingScheduled = false;//被复用复活时，别继承上一次的隐藏倒计时
             _hideAtUnscaled = 0f;
+            _killedBroadcast = false;//被复用复活时，允许重新广播一次击杀
 
             RaiseHpChanged();//血条跟着回到满格（复用复活的关键一步）
         }
@@ -141,6 +151,22 @@ namespace Game.Gameplay
 
         private void Die()
         {
+            if (_killedBroadcast) return;//一帧内被反复判定死亡时，只算一次击杀
+            _killedBroadcast = true;
+
+            //⭐ 任务系统的击杀统计入口（QUEST-SYSTEM.md §3.4 / §5.1）
+            var enemyId = ConfigId;
+            if (string.IsNullOrEmpty(enemyId))
+            {
+                Debug.LogWarning($"[Quest] 敌人「{name}」的配置没填 enemyId，这次击杀不会被任何任务统计", this);
+            }
+            else
+            {
+                // 验收用日志：杀一只怪应该看到这一行
+                Debug.Log($"[EnemyKilled] {enemyId}（{(_config != null ? _config.displayName : name)}）@ {transform.position}");
+            }
+            GameEvents.RaiseEnemyKilled(enemyId, transform.position);
+
             if (Died != null) Died(this);
 
             if (_deathHideDelay <= 0f)

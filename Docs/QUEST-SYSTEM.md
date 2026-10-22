@@ -267,8 +267,15 @@ public static event Action<string> SceneEntered;            // sceneName
 public static event Action QuestsChanged;                   // 任务数据变了（脏通知）
 ```
 
-⚠️ **静态事件必须成对订阅/退订**（`OnEnable` 订 / `OnDisable` 退，或单例的 `Awake`/`OnDestroy`）。
-历史坑：T7。
+> ✅ **2026-10-22 已落地**：`SceneEntered` 由 `Core/SceneFlow.cs` 转发 —— 它是常驻对象
+> （`BeforeSceneLoad` 自动创建 + `DontDestroyOnLoad`），并在 `Start` 里对首个场景补发一次
+> （首个场景的 `sceneLoaded` 可能在订阅之前就已触发）。
+> ❗ **不能让场景里的对象直接订阅 `sceneLoaded`**：那个订阅者会在切场景时被销毁，
+> 于是最后那次加载永远收不到。
+> `QuestsChanged` 目前还没有发射方，等 `QuestService`（第 4 步）。
+
+⚠️ **静态事件必须成对订阅/退订**（`OnEnable` 订 / `OnDisable` 退，或常驻单例的 `Awake`/`OnDestroy`）。
+历史坑：T7（症状是"杀一只怪进度 +2"）。
 
 ---
 
@@ -336,7 +343,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 |---|---|---|
 | 0 | **存档骨架**（`PlayerProgress` / `SaveSystem` / `ProgressService`） | 见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §8 |
 | 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] swordsman（剑兵）@ (x, y, z)`；配置漏填则打 warning |
-| 2 | `GameEvents.SceneEntered` + `QuestsChanged` | 进场景能收到 `sceneName` |
+| 2 | ~~`GameEvents.SceneEntered` + `QuestsChanged`~~ ✅ **2026-10-22 已完成** | 进场景在 Console 看到 `[SceneEntered] Castle`；`QuestsChanged` 无订阅方时调用不报错 |
 | 3 | `QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + **前置图校验** + 2~3 条示例任务 | Inspector 里能看到配置；故意写一个坏前置（引用不存在的 id）→ 启动打 error |
 | 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |
 | 5 | `Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮） | 列表条目随任务数变化，锁着的置灰并显示原因 |

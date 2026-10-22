@@ -20,8 +20,28 @@ namespace Game.Core
         /// </summary>
         public static event Action<string, Vector3> EnemyKilled;
 
+        /// <summary>
+        /// 进入某个场景（含**第一次**进游戏的那个场景）。参数 = 场景名，取自
+        /// <c>SceneManager.GetActiveScene().name</c>，与 <c>SceneCatalog</c> 里的 key 一致。
+        ///
+        /// <para>由 <see cref="SceneFlow"/> 转发 —— 它是常驻对象，所以切场景不会丢订阅。</para>
+        /// </summary>
+        public static event Action<string> SceneEntered;
+
+        /// <summary>
+        /// 任务数据变了（**脏通知**，不带参数）。订阅方收到后自己去
+        /// <c>QuestService</c> 拉一份列表快照重建 UI。
+        ///
+        /// <para>为什么不做成 <c>QuestUpdated(questId, cur, need)</c>：UI 需要的是"列表快照"，
+        /// 而且接取 / 可交付 / 已完成这些**状态变化**也要刷新。为每种变化定义一个事件会让订阅方
+        /// 变成一堆 if；一个脏通知 + 主动拉取，代码少一半且不会漏。</para>
+        /// </summary>
+        public static event Action QuestsChanged;
+
         public static void RaisePlayerDied() => PlayerDied?.Invoke();
         public static void RaiseBossDied() => BossDied?.Invoke();
         public static void RaiseEnemyKilled(string enemyId, Vector3 position) => EnemyKilled?.Invoke(enemyId, position);
+        public static void RaiseSceneEntered(string sceneName) => SceneEntered?.Invoke(sceneName);
+        public static void RaiseQuestsChanged() => QuestsChanged?.Invoke();
     }
 }

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: EnemyCasterConfig
   m_EditorClassIdentifier: 
   enemyId: caster
-  displayName: "\u6CD5\u5E08"
+  displayName: 亡灵巫鬼
   hp: 30
   aggroRange: 14
   attackRange: 9

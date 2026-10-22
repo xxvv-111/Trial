@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _entries:
   - sceneName: Tavern
-    displayName: "\u9152\u9986"
+    displayName: 麋鹿酒馆
     subtitle: "TAVERN\u3000\xB7\u3000\u5B89\u5168\u533A\u57DF"
     isSafeZone: 1
   - sceneName: Castle
-    displayName: "\u57CE\u5821"
+    displayName: 灰烬堡
     subtitle: "CASTLE\u3000\xB7\u3000\u6218\u6597\u533A\u57DF"
     isSafeZone: 0
   - sceneName: Forest
-    displayName: "\u68EE\u6797"
+    displayName: 覆雪林地
     subtitle: "FOREST\u3000\xB7\u3000\u6218\u6597\u533A\u57DF"
     isSafeZone: 0

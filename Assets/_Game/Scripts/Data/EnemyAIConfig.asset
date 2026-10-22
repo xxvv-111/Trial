@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: EnemyAIConfig
   m_EditorClassIdentifier: 
   enemyId: swordsman
-  displayName: "\u5251\u5175"
+  displayName: 亡灵尸鬼
   hp: 30
   aggroRange: 8
   attackRange: 1

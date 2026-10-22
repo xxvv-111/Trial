@@ -32,7 +32,7 @@
 
 - ⭐ **一条任务 = 一组小目标**（2026-10-22 拍板）：`QuestConfig.objectives` 是列表，每个目标仍是
   `KillCount{ enemyId }` / `KillBoss` / `ReachScene{ sceneName }` 三种之一；**全部目标完成**才算可交付。
-  「到达场景」因此不再是一种"任务类型"，而是复合任务里的一步（例：先到城堡 → 再杀 5 名剑兵 → 回酒馆交付）。
+  「到达场景」因此不再是一种"任务类型"，而是复合任务里的一步（例：先到覆雪林地 → 再杀 5 只亡灵尸鬼 → 回酒馆交付）。
 - ⭐ **前置任务链**（2026-10-22 拍板）：`QuestConfig.prerequisites` 列出必须先完成的任务，全部 `Completed`
   才从 `Locked` 变 `Available`；留空 = 无条件。**可以同时接多条**，多目标并行推进。
 - 完整闭环：**酒馆接取 → 前往目标场景 → 目标逐个推进 → 回酒馆交付 → 发奖励 → 解锁下游任务**
@@ -46,6 +46,20 @@
 - 对话与叙事（`PHASE1-DESIGN` §1.2 已排除）
 - 限时任务 / 失败条件 / 放弃任务
 - 任务分支（同一前置可以解锁多条任务，但**不按玩家选择分叉**）
+
+### 2.3 当前任务表（2026-10-22 定，资产已建）
+
+| # | questId | 标题 | 类别 | 前置 | 地点 | 目标 | 奖励 |
+|---|---|---|---|---|---|---|---|
+| 1 | `quest_01_depart` | 启程 | 主线 | 无 | Forest | `ReachScene` Forest ×1（前往覆雪林地） | 100 魔晶 |
+| 2 | `quest_02_first_blood` | 初次交手 | 支线 | 无 | Forest | `KillCount` swordsman ×1（击败亡灵尸鬼）+ `KillCount` caster ×1（击败亡灵巫鬼） | 100 魔晶 |
+
+资产：`Assets/_Game/Scripts/Data/Quests/`（`QuestCatalog.asset` + `quest_01_depart.asset` + `quest_02_first_blood.asset`）。
+校验菜单：`Tools/任务/校验任务表`（当前 **0 问题**）。
+
+> ⚠️ **奖励口径待确认**：「启程」原始需求写的是「100 金币」，但存档里目前只有 `magicCrystal`（魔晶）一种货币，
+> 所以暂按 **100 魔晶**落地。若要真正的双货币（金币 / 魔晶），需要给 `PlayerProgress` 加 `gold` 字段、
+> 存档版本升 v2 —— 现在业务未接入，改的成本仍为零，但请先确认要不要。
 
 ---
 
@@ -161,6 +175,7 @@ public class QuestConfig : ScriptableObject
     public string questId;              // 唯一，⭐ 存档里存的就是它，定下别改
     public string title;                // 列表与详情标题
     [TextArea] public string description;
+    public QuestCategory category;      // Main / Side（只影响 UI 标记）
 
     // ⭐ 前置任务：列出的任务全部 Completed 才可从 Locked → Available；空 = 无条件
     public List<string> prerequisites = new List<string>();
@@ -169,7 +184,15 @@ public class QuestConfig : ScriptableObject
     public List<QuestObjective> objectives = new List<QuestObjective>();
 
     public string targetScene;          // 任务地点（对应 SceneCatalog 的 sceneName）；可空 = 不动大门
-    public List<QuestReward> rewards;   // 魔晶 / 装备等级 / 解锁法术
+    public List<QuestReward> rewards;   // MagicCrystal / Spell / Equipment
+}
+
+[Serializable]
+public class QuestReward
+{
+    public RewardKind kind;             // MagicCrystal = 0 / Spell = 1 / Equipment = 2
+    public string id;                   // Spell / Equipment 用；MagicCrystal 留空
+    public int amount = 1;
 }
 
 [Serializable]
@@ -344,7 +367,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 | 0 | **存档骨架**（`PlayerProgress` / `SaveSystem` / `ProgressService`） | 见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §8 |
 | 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] swordsman（剑兵）@ (x, y, z)`；配置漏填则打 warning |
 | 2 | ~~`GameEvents.SceneEntered` + `QuestsChanged`~~ ✅ **2026-10-22 已完成** | 进场景在 Console 看到 `[SceneEntered] Castle`；`QuestsChanged` 无订阅方时调用不报错 |
-| 3 | `QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + **前置图校验** + 2~3 条示例任务 | Inspector 里能看到配置；故意写一个坏前置（引用不存在的 id）→ 启动打 error |
+| 3 | ~~`QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + 前置图校验 + 示例任务~~ ✅ **2026-10-22 已完成** | 菜单 `Tools/任务/校验任务表` 通过（2 条任务、0 问题）；故意写一个环应该报错 |
 | 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |
 | 5 | `Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮） | 列表条目随任务数变化，锁着的置灰并显示原因 |
 | 6 | 大门联动（接取时 `SetTarget`） | 接「前往森林」后，酒馆大门真的去了森林 |

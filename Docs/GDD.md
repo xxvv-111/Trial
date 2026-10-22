@@ -59,6 +59,22 @@
 - 玩家应能在 30 秒内理解操作，在 3 分钟内感受到"魔力管理"（何时放特殊攻击）的策略压力。
 - 失败要"看得懂为什么输"（受击反馈清晰、魔力见底有明确提示）。
 
+### 1.4 命名与专名（2026-10-22 定）
+
+| 对象 | 专名 | 技术标识 / 出处 |
+|---|---|---|
+| 主角 | **trail**（音译「**特里娅尔**」） | 英文代号小写 `trail`；中文文案统一用「特里娅尔」 |
+| 普通敌人 1 | **亡灵尸鬼**（原"拳击手/剑兵"） | `enemyId = swordsman`，`EnemyAIConfig.asset` 的 `displayName` |
+| 普通敌人 2 | **亡灵巫鬼**（原"法师"） | `enemyId = caster`，`EnemyCasterConfig.asset` 的 `displayName` |
+| Boss | **骷髅骑士**，精英单位，**有名字：克里顿** | `enemyId = boss_crichton`，`BossConfig.asset` 的 `displayName`；UI 标题建议「骷髅骑士 · 克里顿」 |
+| 场景 `Tavern` | **麋鹿酒馆** | `SceneCatalog.asset` 的 `displayName`（安全区） |
+| 场景 `Forest` | **覆雪林地** | 位于**北部山脉**之下，上山通路的必经处 |
+| 场景 `Castle` | **灰烬堡** | 主战斗场景 |
+
+> ⚠️ **显示名与 `enemyId` 是两回事**：`displayName` 是给人看的中文名，可以随时改；
+> `enemyId`（`swordsman` / `caster` / `boss_crichton`）是任务统计用的稳定 id，**改了老任务就统计不到**。
+> 场景同理：`SceneCatalog.sceneName`（`Tavern` / `Forest` / `Castle`）是稳定 key，`displayName` 才是文案。
+
 ---
 
 ## 2. 核心玩法循环

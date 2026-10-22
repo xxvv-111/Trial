@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e42befefa921a0743ba2a3eefdab666c, type: 3}
+  m_Name: quest_01_depart
+  m_EditorClassIdentifier: 
+  questId: quest_01_depart
+  title: "\u542F\u7A0B"
+  description: "\u524D\u5F80\u5317\u90E8\u5C71\u8109\u4E0B\u7684\u8986\u96EA\u6797\u5730\u63A2\u67E5\u4E0A\u5C71\u901A\u8DEF\u3002"
+  category: 0
+  prerequisites: []
+  objectives:
+  - objectiveId: reach_forest
+    type: 2
+    targetId: Forest
+    needCount: 1
+    hint: "\u524D\u5F80\u8986\u96EA\u6797\u5730"
+  targetScene: Forest
+  rewards:
+  - kind: 0
+    id: 
+    amount: 100

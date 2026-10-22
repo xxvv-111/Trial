@@ -1,6 +1,6 @@
 # 存档系统（SaveSystem / ProgressService / PlayerProgress）
 
-> 最后更新：2026-10-22 · 状态：**设计定稿，尚未实现**
+> 最后更新：2026-10-22 · 状态：**运行时层已落地**（自测 30/30 通过），业务侧尚未接入
 >
 > **本文是存档系统的权威来源。** 策划层面的"存什么"见 [`PHASE1-DESIGN.md`](PHASE1-DESIGN.md) §7；
 > 本文负责"怎么存、谁存、什么时候存"。
@@ -10,7 +10,10 @@
 
 ## 1. 现状与定位
 
-- 工程目前**完全没有存档层**（`ProgressService` / `PlayerProgress` / `SaveSystem` 三个类都不存在）。
+- 存档层**已实现**（2026-10-22）。运行时 6 个文件在 `Assets/_Game/Scripts/Save/`：
+  `SaveData.cs` / `IFileStore.cs` / `DiskFileStore.cs` / `MemoryFileStore.cs` / `SaveSystem.cs` / `ProgressService.cs`；
+  编辑器 2 个：`Assets/_Game/Editor/SaveMenu.cs`、`Assets/_Game/Editor/SaveSelfTest.cs`。
+- 业务侧**还没接入**：任务 / 装备系统尚未写，目前只有 `ProgressService` 这一个入口可用。
 - **第一个消费者是任务系统** —— 任务进度必须跨场景、跨会话保留，否则"打到 2/3 关掉游戏就白打"。
 - 所以存档系统要**先于**任务系统落地，但不必一次做完所有业务。
 
@@ -40,7 +43,9 @@
 | 路径 | `Application.persistentDataPath/save.json` |
 | Windows 实际位置 | `%USERPROFILE%\AppData\LocalLow\<CompanyName>\<ProductName>\save.json` |
 | 序列化 | `JsonUtility`（⚠️ **不用** Newtonsoft，工程没有这个依赖） |
-| 格式 | 外层 `SaveFile { int version; PlayerProgress progress; }`，`prettyPrint = true`（手改便于排查） |
+| 格式 | 外层 `SaveFile { int version; SaveHeader header; PlayerProgress progress; }`，`prettyPrint = true`（手改便于排查） |
+| 校验 | 正文后追加一行 `#crc32:XXXXXXXX`（CRC-32/IEEE）。该行**缺失视为手改档放行**（打 warning），存在但不匹配才判坏档 |
+| 备份 | 覆盖写时旧档自动变 `save.json.bak`；坏档改名 `save.bad.json`（不覆盖、不删除，留人工抢救余地） |
 | 编码 | UTF-8 |
 
 ⚠️ **改 `CompanyName` / `ProductName` 等于换存档位置** —— 编辑器里表现为"存档突然没了"，别第一反应怀疑代码。
@@ -108,6 +113,18 @@ public enum QuestStatus
 | 关键节点（离开酒馆 / 通关 / 死亡结算） | 调 `SaveNow()` **立刻写**，不等防抖 |
 | `OnApplicationQuit` / `OnDisable` | 兜底 `SaveNow()`（防"最后一秒的改动没落盘"） |
 
+#### 4.2.1 落盘方式：原子写（2026-10-22 补）
+
+`DiskFileStore.WriteAllTextAtomic` 的四个步骤**顺序不可调换**：
+
+1. 写 `save.json.tmp`（`UTF8Encoding(false)`，**不写 BOM**）
+2. `fs.Flush(true)` —— 刷到物理盘，不是只进 OS 缓存
+3. 主档存在 → `File.Replace(tmp, save.json, save.json.bak)`（旧档自动变 `.bak`）；不存在 → `File.Move`
+4. `finally` 清残留 `.tmp`（成功时 tmp 已被消耗，是空操作）
+
+直接 `File.WriteAllText` 在断电 / 崩溃 / 磁盘满时会留下半截文件，下次启动就是坏档。
+原子写保证**任何时刻磁盘上都至少有一份完整档**：断电只会留下 `.tmp` 残片，主档完好。
+
 ⚠️ **不要每帧 Save**：写盘是 IO，几十 KB 的文件每帧写会造成明显卡顿。
 ⚠️ **防抖要用 `unscaledDeltaTime`**：暂停/顿帧时 `timeScale = 0`，用缩放时间会永远等不到落盘。
 
@@ -171,22 +188,41 @@ private static void Bootstrap()
 
 | 情况 | 处理 |
 |---|---|
-| 文件不存在 | 默认值，不写盘 |
-| JSON 损坏 / 截断 | 备份为 `save.bad.json`，默认值，打 error |
-| `progress == null` | 同上（`JsonUtility` 遇到空对象会给 null） |
-| `version` 比当前新 | 拒绝加载，默认值，打 error（**不要**尝试解析） |
-| `List` 字段为 null | 加载后统一 `?? new List<T>()` 补一遍 |
-| 磁盘只读 / 无权限 | 捕获异常、打 error，**不影响游戏继续跑**（内存里照样有进度） |
+| 文件不存在，但 `.bak` 在 | 从 `.bak` 恢复，打 warning |
+| 文件不存在，`.bak` 也没有 | 默认值，不写盘 |
+| JSON 损坏 / 截断 / CRC 不匹配 | 主档改名 `save.bad.json` → 试 `.bak` → 都失败则默认值 + error |
+| `progress == null` | ⚠️ **实测不可达**：`JsonUtility` 不会把嵌套对象反序列化成 null，`{"progress":null}` 只是空进度（自测 C4/C5 已锁定该行为） |
+| `version` 比当前新 | 拒绝加载，默认值，打 error，**且不备份、不覆盖**（那是未来的档，覆盖就真没了） |
+| `version` ≤ 0 / 缺字段 | 按 v1 处理并走迁移链 |
+| `List` 为 null / 元素为 null / 重复 ID | `SaveSystem.Normalize()` 统一补空、剔除、去重 |
+| 枚举越界 | `Normalize()` 归零为 `Locked` 并打 warning |
+| 文件头带 BOM | 读取前 `TrimStart('\uFEFF')`，否则 `JsonUtility` 抛 `ArgumentException` |
+| 磁盘只读 / 无权限 | 捕获异常、`Save()` 返回 false、打 error，**不影响游戏继续跑**（内存里照样有进度） |
 
 ---
 
 ## 7. 编辑器工具
 
-`Assets/_Game/Editor/SaveMenu.cs`（菜单 `Tools/存档/…`）：
+`Assets/_Game/Editor/SaveMenu.cs`（菜单 `Tools/存档/…`，已实现）：
 
 - **打开存档目录** — `EditorUtility.RevealInFinder`
-- **打印存档路径与大小** — 方便确认到底读的哪个文件
-- **删除存档** — 带二次确认（`EditorUtility.DisplayDialog`）
+- **打印存档路径与大小** — 主档 / `.bak` / `.bad.json` / `.tmp` 逐个报路径、字节数、最后写入时间
+- **写入测试数据** — 造一份魔晶 999、带 1 个任务的档（Play 模式中会警告会被覆盖）
+- **删除存档（含 .bak/.bad）** — 带二次确认（`EditorUtility.DisplayDialog`）
+
+### 7.1 自动化自测（30 项，毫秒级）
+
+`Assets/_Game/Editor/SaveSelfTest.cs`，菜单 `Tools/存档/自测（30 项）`。
+全部走 `MemoryFileStore` 与 `%TEMP%` 目录，**不碰玩家真实存档**。实测 86 ms 跑完。
+
+| 组 | 条数 | 覆盖 |
+|---|---|---|
+| A 往返 | 6 | 满数据 / 空 List / null List / 中文 / 2000 字符 / int 极值 |
+| B 默认值 | 3 | NotFound、默认进度、不凭空写盘 |
+| C 坏档 | 7 | 空文件 / CRC 篡改 / 截断 / 空白 / BOM 合法档 / `progress:null` / `{}` |
+| D 版本 | 4 | 999 拒绝、0 升级、缺 version、负数钳位 |
+| E 结构 | 5 | 缺字段、多余字段、枚举 99、null 元素、重复 ID |
+| F 原子写 | 5 | 生成文件、`.bak` 内容、无 `.tmp` 残留、中断后主档不变、失败返回 false |
 
 ---
 
@@ -201,6 +237,9 @@ private static void Bootstrap()
 - [ ] 从 Castle 走到 Tavern（切场景）→ `Instance` 是**同一个对象**，进度不丢
 - [ ] 暂停（`timeScale = 0`）期间改数据 → 仍能落盘（验证用的是 unscaled 防抖）
 
+> 前四条里的坏档 / 版本号场景已由 `Tools/存档/自测（30 项）` 自动化覆盖，
+> 剩下的是**只能在 Play 模式或打包后验证**的部分（生命周期、单例唯一性、强杀进程）。
+
 ---
 
 ## 9. 已知坑
@@ -212,6 +251,10 @@ private static void Bootstrap()
 5. **`persistentDataPath` 随产品名变化** —— 改 ProductName 会"丢档"。
 6. **别在 `Update` 里存盘** —— IO 开销。
 7. **别用 `Time.deltaTime` 做防抖** —— 暂停时 `timeScale = 0`，永远不落盘。
+8. **`JsonUtility` 不会把嵌套对象反序列化成 null** —— `{"progress":null}` 拿到的是默认实例，
+   所以「`progress == null` 就是坏档」这个判断实际不会触发（2026-10-22 实测）。
+9. **带 BOM 的文本会让 `JsonUtility.FromJson` 抛 `ArgumentException`** —— 自己写文件时用 `UTF8Encoding(false)`，读的时候再兜一次 `TrimStart('\uFEFF')`。
+10. **`File.Replace` 要求源和目标在同一卷** —— `.tmp` 必须和目标文件同目录，不能写到 `%TEMP%` 再挪过去。
 
 ---
 

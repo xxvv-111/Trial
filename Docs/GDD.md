@@ -883,7 +883,7 @@ Return        ──走回出生点 / 超过 20 s 兜底────> N_idle
 | `PlayerConfig` | ✅ 已有（移动/生存/**魔力**） | ✅ **已精简（M2.1）**：武器相关字段（攻击伤害/判定范围）已迁到 `WeaponConfig`，旧字段降级为兜底。🔄 **2026-10-06**：`maxEnergy`→`maxMana`、`specialEnergyCost`→`specialManaCost`，删除 `dashEnergyCost` / `attackEnergyCost` |
 | `EnemyAIConfig` | ✅ 已有（近战 Monster1 数值 + M1.2 受击反应参数） | ✅ 已按定位分开：近战 `EnemyAIConfig.asset` / 远程 `EnemyCasterConfig.asset` |
 | `WeaponConfig` | ✅ **已重做并接入（M2.1）**：`Data/WeaponConfig.cs` + `Data/Weapons/{Sword,Spear}.asset`。⚠️ 原同名文件（命名空间拼错 `Game.Date`、零引用）已在阶段 0 清理死代码时删除，M2.1 是**从零新建** | 已完成，待补图标与模型 |
-| `BossConfig` | ✅ **已建（2026-10-15）**：`Data/BossConfig.cs`（只放 Boss 独有数值：CD / 三选一权重 / `comboChance` / 特殊攻击 / **韧性条**）。⚠️ **2026-10-22 重构**：改为 `ScriptableObject` + 内含 `EnemyAIConfig baseStats`（指向 `BossBaseStats.asset`），**不再继承** —— 血量/攻击/移速/视野在 `BossBaseStats.asset`，招式/韧性/脱战在 `BossConfig.asset` | ✅ 已完成（预制体 `_config` → `BossBaseStats`，`_bossConfig` → `BossConfig`） |
+| `BossConfig` | ✅ **已建（2026-10-15）**：`Data/BossConfig.cs`（`BossConfig : EnemyAIConfig`，只放 Boss 独有数值：CD / 三选一权重 / `comboChance` / 特殊攻击 / **韧性条**） | ✅ 已完成，待挂到预制体 + 建 `.asset` 并填数值 |
 | `AudioLibrary` | ❌ | 新增（音效表） |
 
 ### 11.2 存档方案 ⚠️ 待你选择（下方含两种方式介绍）

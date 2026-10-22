@@ -1136,7 +1136,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23a62effe02c8f247a0daffe096bfe25, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _config: {fileID: 11400000, guid: 692b10a6ff7e4d6b99ccd1366ce8ae25, type: 2}
+  _config: {fileID: 11400000, guid: fc03d41bf2d6dca47a16171668238a0a, type: 2}
   _deathHideDelay: 2.4
 --- !u!114 &5062634762048543010
 MonoBehaviour:
@@ -1150,8 +1150,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bd9a65110b914114587f4dc71036bcc9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _config: {fileID: 11400000, guid: 692b10a6ff7e4d6b99ccd1366ce8ae25, type: 2}
-  _bossConfig: {fileID: 11400000, guid: fc03d41bf2d6dca47a16171668238a0a, type: 2}
+  _config: {fileID: 11400000, guid: fc03d41bf2d6dca47a16171668238a0a, type: 2}
   _logTransitions: 0
   _hitFlashColor: {r: 1, g: 0.28, b: 0.22, a: 1}
   _hitFlashEmission: 2

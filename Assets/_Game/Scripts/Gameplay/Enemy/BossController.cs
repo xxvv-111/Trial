@@ -165,19 +165,8 @@ namespace Game.Gameplay
 
         // ==================== 配置取值（配置没挂时给安全默认，避免 NRE） ====================
 
-        /// <summary>
-        /// Boss 专用配置（招式 / 韧性 / 脱战）。
-        ///
-        /// <para>⚠️ 2026-10-22 起 <c>BossConfig</c> **不再继承** <c>EnemyAIConfig</c>，
-        /// 所以基类那个 <c>_config</c> 字段（类型是 <c>EnemyAIConfig</c>）现在指的是
-        /// <c>BossBaseStats.asset</c>（血量 / 攻击力 / 移速 / 视野），本字段才是 Boss 独有数值。</para>
-        ///
-        /// <para>即：预制体上 **两个引用都要拖** —— <c>_config</c> → BossBaseStats，
-        /// <c>_bossConfig</c> → BossConfig。后者里的 <c>baseStats</c> 也应指向同一个 BossBaseStats。</para>
-        /// </summary>
-        [SerializeField] private BossConfig _bossConfig;
-
-        protected BossConfig BossCfg { get { return _bossConfig; } }
+        /// <summary>Boss 专用配置。<c>_config</c> 不是 BossConfig 时为 null（会在 Awake 里报错）。</summary>
+        protected BossConfig BossCfg { get { return _config as BossConfig; } }
 
         private float CfgTurnSpeed { get { return BossCfg != null ? BossCfg.turnSpeed : 240f; } }
         //注：踱步改成"纯切向"后不再需要固定半径，原先的 CfgStrafeRadius 已删除
@@ -214,28 +203,9 @@ namespace Game.Gameplay
         {
             base.Awake();
 
-            if (BossCfg == null)
-            {
-                Debug.LogError("[BossController] BossConfig 字段没拖 —— Boss 的招式 / 韧性 / 脱战数值会全部走安全默认值。" +
-                               "请在预制体上把 _bossConfig 指向 BossConfig.asset。", this);
-            }
-            else
-            {
-                if (_config == null)
-                {
-                    Debug.LogError("[BossController] 基础数值没拖 —— 血量 / 攻击力 / 移速 / 视野会走" +
-                                   "EnemyAIController 的兜底默认值（血量还会被 EnemyHealth 读成 0）。" +
-                                   "请把 _config 指向 BossBaseStats.asset。", this);
-                }
-                else if (BossCfg.baseStats != _config)
-                {
-                    // 两处指向不同的基础数值资产时，BossController 读 A、EnemyHealth 读 B ⇒ 血量 /
-                    // 攻击力的表现会和预期莫名其妙地对不上，所以这里明确警告出来。
-                    Debug.LogWarning("[BossController] BossConfig.baseStats 与预制体上的基础数值不是同一个资产：" +
-                                     $"bossConfig.baseStats={(BossCfg.baseStats != null ? BossCfg.baseStats.name : "空")}，" +
-                                     $"预制体 _config={_config.name}。建议两者指向同一个 BossBaseStats.asset。", this);
-                }
-            }
+            if (_config != null && BossCfg == null)
+                Debug.LogError("[BossController] Config 字段指的不是 BossConfig 资产 —— " +
+                               "Boss 的招式 / 韧性数值会全部走安全默认值。请在预制体上改指到 BossConfig.asset。", this);
 
             _fsm = new EnemyStateMachine<EState>(name);
 

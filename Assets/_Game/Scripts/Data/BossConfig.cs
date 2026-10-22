@@ -3,22 +3,21 @@ using UnityEngine;
 namespace Game.Data
 {
     /// <summary>
-    /// Boss（Crichton）专用数值。**不再继承 <see cref="EnemyAIConfig"/>**（2026-10-22 重构）——
-    /// 「Boss 是一种小怪」这个类型关系是假的，而且继承会把法师专用字段（<c>comfortDistance</c> /
-    /// <c>castRangeMin</c> / <c>castCooldown</c> / <c>projectileSpeed</c>）一起塞进 Boss 的面板。
-    ///
-    /// 现在的结构是**组合**：本类只放 Boss 独有数值；与小怪共用的那部分（血量 / 攻击 / 移速 /
-    /// 受击 / 视野）放在 <see cref="baseStats"/> 指向的 <see cref="EnemyAIConfig"/> 资产里
-    /// （<c>BossBaseStats.asset</c>）。
-    ///
-    /// <para>⭐ **为什么要这么分**：<see cref="Game.Gameplay.EnemyAIController"/> 里那 20 个 getter
+    /// Boss（Crichton）专用数值。**继承 <see cref="EnemyAIConfig"/>**，这样
+    /// <see cref="Game.Gameplay.EnemyAIController"/> 里那一整套 getter
     /// （<c>AggroRange</c> / <c>AttackRange</c> / <c>MoveSpeed</c> / <c>Damage</c> / <c>FlashTime</c> …）
-    /// 都读写一个 <c>EnemyAIConfig</c> 类型的字段，<see cref="Game.Gameplay.EnemyHealth"/> 也一样
-    /// （它要读 <c>hp</c>）。Boss 复用这些代码，就必须有一个真实存在的 <see cref="EnemyAIConfig"/> 资产
-    /// 指向基础数值 —— 这就是 <c>BossBaseStats</c> 的由来。</para>
+    /// 全部直接复用，不必重写一遍。这里只放 **Boss 独有的数值**。
     ///
-    /// <para>⚠️ **调数值时注意分两个地方**：血量 / 攻击力 / 移速 / 视野 → <c>BossBaseStats.asset</c>；
-    /// 招式 / 韧性 / 脱战 / 转向 → 本资产 <c>BossConfig.asset</c>。</para>
+    /// 复用的继承字段（在 Inspector 的「敌人配置」区块里）：
+    /// <list type="bullet">
+    ///   <item><c>hp</c> = Boss 血量（GDD §7.1 定 600）</item>
+    ///   <item><c>aggroRange</c> = **战斗范围**（进战斗 / 脱战判据）</item>
+    ///   <item><c>attackRange</c> = **攻击范围**</item>
+    ///   <item><c>moveSpeed</c> = 追击速度（也决定绕圈侧移的线速度）</item>
+    ///   <item><c>damage</c> = 每次攻击的伤害</item>
+    ///   <item><c>flashTime</c> = 受击闪白时长</item>
+    ///   <item><c>canBeInterrupted</c> = **必须 false**（Boss 不会被普通受击打断，只被破韧打断）</item>
+    /// </list>
     ///
     /// ⚠️ **口径变更记录**：GDD §6.1 / §7.3 原文写「不引入硬直条 / 破防机制，Stagger 状态已移除」。
     ///    本配置按**新需求**引入了「韧性条（破韧）」，属于对原口径的修改 ——
@@ -26,18 +25,11 @@ namespace Game.Data
     ///    与 <c>Docs/PHASE1-DESIGN.md</c>（§5.4.1~§5.4.4 / §5.5 / §6）。
     /// </summary>
     [CreateAssetMenu(fileName = "BossConfig", menuName = "Game/BossConfig")]
-    public class BossConfig : ScriptableObject
+    public class BossConfig : EnemyAIConfig
     {
-        [Header("Boss · 基础数值（指向 BossBaseStats.asset）")]
-        [Tooltip("与小怪共用的数值容器：血量 / 攻击力 / 移速 / 前摇后摇 / 受击闪白 / 视野。\n" +
-                 "⚠️ 必须指向 BossBaseStats.asset，且**与预制体上 EnemyHealth 的 _config 是同一个资产**，\n" +
-                 "否则 BossController 会在 Awake 打 warning（两处数值不一致时行为会莫名其妙）。")]
-        public EnemyAIConfig baseStats;
-
         // ====================================================================
-
         [Header("Boss · 脱战")]
-        [Tooltip("玩家水平距离超出「战斗范围」（= baseStats.aggroRange）并持续这么久之后，脱战回 N_idle。\n" +
+        [Tooltip("玩家水平距离超出「战斗范围」（= 继承的 aggroRange）并持续这么久之后，脱战回 N_idle。\n" +
                  "0 = 永不脱战（会一直贴在玩家附近绕圈）。")]
         public float disengageTime = 4f;
 

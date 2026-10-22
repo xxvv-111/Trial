@@ -451,7 +451,7 @@ PlayerLevel     : 运行时等级/经验；订阅 GameEvents.EnemyKilled → 加
 #### 5.4.2 状态机（✅ 2026-10-15 已实现；🔄 2026-10-21 增至 **8 状态**，新增 `Return`；复用现有基类，**不要新写一套**）
 
 ✅ **已落地**：`Assets/_Game/Scripts/Gameplay/Enemy/BossController.cs`（8 状态，`EnemyStateMachine<EState>` 表驱动）
-＋ `Assets/_Game/Scripts/Data/BossConfig.cs`（⚠️ **2026-10-22 已重构**：`BossConfig : ScriptableObject` + 内含 `EnemyAIConfig baseStats` 引用，不再继承）。与 `GDD.md` §7.3 是同一份口径。
+＋ `Assets/_Game/Scripts/Data/BossConfig.cs`（`BossConfig : EnemyAIConfig`）。与 `GDD.md` §7.3 是同一份口径。
 
 ```
 NIdle      ──玩家进战斗范围────────────────> CombatIdle
@@ -511,13 +511,7 @@ Return     ──走回出生点 / 超 20 s 兜底─────> NIdle
 
 ⚠️ **所有数字都在 SO 里填，代码里不许出现具体数值**（§6 的既定口径）。下表列出的是**字段清单**，默认值只是占位。
 
-**`BossConfig : ScriptableObject`（组合）字段**
-
-> ⚠️ **2026-10-22 重构**：早先 `BossConfig` 继承 `EnemyAIConfig`，好处是 Boss 能直接复用基类那 20 个 getter，
-> 坏处是法师专用的 4 个字段（`comfortDistance` / `castRangeMin` / `castCooldown` / `projectileSpeed`）也会出现在
-> Boss 面板上，而且「Boss 是一种小怪」这个类型关系并不成立。现在改为**组合**：
-> 本类只放 Boss 独有数值，与小怪共用的部分放进 `baseStats` 指向的 **`BossBaseStats.asset`**（`EnemyAIConfig`）。
-> **调数值时注意分两个地方**：血量 / 攻击力 / 移速 / 视野 → `BossBaseStats.asset`；招式 / 韧性 / 脱战 → `BossConfig.asset`。
+**`BossConfig : EnemyAIConfig` 字段**
 
 | 分组 | 字段 | 含义 |
 |---|---|---|
@@ -575,9 +569,8 @@ Return     ──走回出生点 / 超 20 s 兜底─────> NIdle
 
 **预制体还要补**（`Boss_Crichton.prefab` 目前**只有 `Animator`**）
 
-1. `EnemyHealth` —— `_config` 指向 **`BossBaseStats.asset`**（血量从这里读）
-2. `BossController` —— `_config` 指向**同一个** `BossBaseStats.asset`，**另加** `_bossConfig` 指向 `BossConfig.asset`
-   （⚠️ 2026-10-22 起 `BossConfig` 不再是 `EnemyAIConfig`，两个引用都要拖；`BossConfig.baseStats` 也指同一个基础资产）
+1. `EnemyHealth` —— `_config` 指向 **BossConfig**（血量从这里读）
+2. `BossController` —— `_config` 指向**同一个** BossConfig
 3. `HitboxController`
 4. 4 个判定体子物体：`Hitbox_AttackA` / `Hitbox_AttackB` / `Hitbox_AttackC` / `Hitbox_Special`，各挂 `Hitbox`（`_team = Enemy`、`_targetLayers` 勾 Player 层 = 8）。**建议挂在武器挂点 `Bip001-Prop1` 下**，判定盒才会跟着剑走
 5. ⚠️ **`CapsuleCollider` + `NavMeshAgent`** —— 两样现在都没有，`EnemyLocomotion` 会退化成 transform 直线，Boss 会**穿墙**

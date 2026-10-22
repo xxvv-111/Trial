@@ -74,8 +74,12 @@ namespace Game.Gameplay
     {
         [SerializeField] private PlayerConfig config;
 
-        [Tooltip("相机 Transform。留空则自动取 Camera.main。用于把输入换算成「相对相机」的方向。")]
-        [SerializeField] private Transform _camera;
+        //⭐ 2026-10-22：这里原来有一个 `Transform _camera` 字段（+ Start 里 Camera.main 兜底），
+        //   和 CameraFollow 的 `_target` 一起构成双向引用。现在改成读中立的
+        //   `Game.Core.MovementBasis`（相机每帧写 yaw、玩家读）——**玩家对相机零引用**，
+        //   依赖只剩「相机 → 玩家」一条单向边。详见 MovementBasis 的类注释。
+        //   ⚠️ 别把相机引用加回来：那会让"玩家预制体脱离相机就无法测试"。
+        private bool _warnedNoBasis;//"没有相机写移动基准"只提示一次，避免刷屏
 
         [Tooltip("贴地下压速度（米/秒）。每帧实际下压 = 该值 × deltaTime。\n⚠️ 不要直接写「每帧下压的米数」——那样下压量会随帧率变化，导致角色位置抖动。")]
         [SerializeField] private float groundStickSpeed = 2f;
@@ -346,8 +350,13 @@ namespace Game.Gameplay
 
         private void Start()
         {
-            if (_camera == null && Camera.main != null)
-                _camera = Camera.main.transform;
+            //⚠️ 2026-10-22：原来这里做 `_camera = Camera.main.transform` 的兜底 —— 已删。
+            //   `Camera.main` 取谁完全取决于 tag：Castle 场景根下就有一个 `Cameras` 容器（12 个子物体），
+            //   换场景 / 换相机就可能取错。现在移动方向只认 `MovementBasis`，与相机实例无关。
+            //
+            //⚠️ 这里**不要**检查 `MovementBasis.HasValue`：各物体的 Start 顺序不定，
+            //   相机可能还没跑（它也在 Start 里写初值）⇒ 会误报"没有相机"。检查挪到
+            //   `CameraRelative` 里按需报一次，只有真的按了移动键还没基准时才提示。
         }
 
         /// <summary>
@@ -475,27 +484,29 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 把输入(Vector2)换算成世界方向：**以相机为参照系**。
+        /// 把输入(Vector2)换算成世界方向：**以相机水平角为参照系**。
         /// axis.y = 前/后（屏幕上下），axis.x = 左/右（屏幕左右）。
+        ///
+        /// ⭐ 2026-10-22：数据源从"相机 Transform 的 forward/right"改成 <see cref="MovementBasis"/>。
+        /// 两者完全等价 —— 原来也是把相机的 forward/right **拍平 Y** 再取，等价于只用水平角 yaw；
+        /// 但改成读中立的基准后，玩家不再持有相机引用（相机的俯仰 / 距离 / 是否还在都不影响移动）。
+        /// ⚠️ 没有相机写值时 <c>Forward/Right</c> 退回世界坐标轴 —— 和以前 <c>_camera == null</c> 的兜底一致。
         /// </summary>
         private Vector3 CameraRelative(Vector2 axis)
         {
             if (axis.sqrMagnitude <= 0.01f) return Vector3.zero;
 
-            Vector3 fwd = Vector3.forward;
-            Vector3 right = Vector3.right;
-
-            if (_camera != null)
+            //按需报一次：真的按了移动键却没有任何相机写过基准（场景里没有启用的 CameraFollow），
+            //此时移动会按世界坐标轴算 —— 很难自己发现，所以给一条提示。
+            if (!MovementBasis.HasValue && !_warnedNoBasis)
             {
-                //相机前向投影到水平面 —— 这就是「屏幕上方」在世界里的方向
-                fwd = _camera.forward;
-                fwd.y = 0f;
-                fwd = fwd.sqrMagnitude > 0.001f ? fwd.normalized : Vector3.forward;
-
-                right = _camera.right;
-                right.y = 0f;
-                right = right.sqrMagnitude > 0.001f ? right.normalized : Vector3.right;
+                _warnedNoBasis = true;
+                Debug.LogWarning("[PlayerMotor] MovementBasis 还没有值（场景里没有启用的 CameraFollow？）—— " +
+                                 "移动方向会按世界坐标轴算，不跟随视角。", this);
             }
+
+            Vector3 fwd = MovementBasis.Forward;
+            Vector3 right = MovementBasis.Right;
 
             return (fwd * axis.y + right * axis.x).normalized;
         }

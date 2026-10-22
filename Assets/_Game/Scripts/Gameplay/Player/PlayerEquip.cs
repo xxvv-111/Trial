@@ -1,3 +1,4 @@
+using Game.Core;
 using UnityEngine;
 
 namespace Game.Gameplay
@@ -51,11 +52,11 @@ namespace Game.Gameplay
         [SerializeField] private string _sheathTrigger = "";
 
         [Tooltip("初始是否已拔刀。⚠️ 编辑器里改这个值会立即预览形象（非运行状态）。")]
-        [SerializeField] private bool _startArmed = true;
+        [SerializeField] private bool _startArmed = false;
 
-        [Header("调试")]
-        [Tooltip("临时调试键：按一下切换拔刀/收刀。正式接输入后设成 None 关掉。")]
-        [SerializeField] private KeyCode _debugToggleKey = KeyCode.T;
+        [Header("输入")]
+        [Tooltip("拔刀 / 收刀 的切换键。默认 T；设成 None 可关掉（例如将来改用 Input System 的 action）。")]
+        [SerializeField] private KeyCode _toggleKey = KeyCode.T;
 
         /// <summary>当前是否已拔刀。⚠️ 这是**逻辑与形象**的唯一真相源。</summary>
         public bool IsArmed { get; private set; }
@@ -111,14 +112,22 @@ namespace Game.Gameplay
         }
 
         /// <summary>
-        /// 临时调试键。
-        /// ⚠️ 项目 `activeInputHandler = 2`（Both），所以旧版 <c>Input</c> API 可用；
-        ///   正式接入输入系统后把 <see cref="_debugToggleKey"/> 设成 <c>None</c>。
+        /// 按键切换拔刀 / 收刀（默认 <b>T</b>）。
+        ///
+        /// <para>⚠️ 项目 <c>activeInputHandler = 2</c>（Both），所以旧版 <c>Input</c> API 可用；
+        /// 若将来改成 Input System action，把 <see cref="_toggleKey"/> 设成 <c>None</c> 再走 action。</para>
+        ///
+        /// <para>⚠️ **暂停 / 交互面板 / 结算时不能响应** —— 那几种情况
+        /// <see cref="InputService.GameplayInputEnabled"/> 已经是 false（<c>PauseMenu</c> 与 <c>UIWindow</c> 都上这道闸），
+        /// 用同一个判据即可，不必再单独查面板。</para>
         /// </summary>
         private void Update()
         {
-            if (_debugToggleKey == KeyCode.None) return;
-            if (Input.GetKeyDown(_debugToggleKey)) Toggle();
+            if (_toggleKey == KeyCode.None) return;
+
+            if (InputService.Instance != null && !InputService.Instance.GameplayInputEnabled) return;
+
+            if (Input.GetKeyDown(_toggleKey)) Toggle();
         }
 
         /// <summary>切换拔刀 / 收刀。挂到输入上（建议 Tab）。</summary>

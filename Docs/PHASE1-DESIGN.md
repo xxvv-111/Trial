@@ -441,13 +441,16 @@ PlayerLevel     : 运行时等级/经验；订阅 GameEvents.EnemyKilled → 加
 | 特殊攻击（**双 CD 归零**才触发） | `Special`：近距 → **sa1**（`SpecialNear`，原地不移动）；远距 → **sa2**（`SpecialFar`，先追后打） | ⭐ **优先级必须高于普通攻击**，否则普攻会在 CD 归零那一帧抢走窗口 |
 | sa2 的"追击 + 攻击"在同一动画里 | 追击段位移由**代码**在 `specialApproachTime` 内推进 | ⚠️ 本工程**根运动全局关闭** ⇒ 做这条动画时**追击段只做姿态、不要放位移**，否则动画位移 + 代码位移叠加，Boss 会冲过玩家 |
 | **韧性条（破韧）** | 受击累积削韧 = 伤害 × `poisePerDamageMultiplier`（默认 **2**）→ 满则 `Hit` 硬直**打断一切** | 破韧后 `poiseBreakImmunityTime`（0.6 s）免疫；韧性自然回复默认关闭 |
-| 脱战 | 离开战斗范围超过 `disengageTime` → `NIdle`，并清空双 CD 与韧性 | 不补这条的话 Boss 会在 `walkleft` 里绕着空气转 |
+| 脱战 | 离开战斗范围超过 `disengageTime` → **`Return` 走回出生点**，并清空双 CD 与韧性 | 🔄 **2026-10-21 改**：原来直接回 `NIdle` 原地待机。出生点 = `Awake` 记下的初始位置；用 `Loco.MoveToOrStep` 沿 NavMesh 走回去 |
+| 脱战恢复 | 非战斗状态每秒回 `hpRecoverPercentPerSecond`（默认 **5%** 上限血） | 判据只有 `InCombat == false` ⇒ `NIdle` 与 `Return` 都回；`Hit` 算战斗中，不回 |
+| 非战斗免伤 | 非战斗状态伤害 ×(1 − `outOfCombatDamageReduction`)（默认 **×0.1**） | 堵住"站在 12 m 外偷血"；⚠️ 受击**不会**让它重新进战 —— Boss 该继续走回去 |
+| 回程被打断 | `Return` 中玩家进战斗范围 → 就地转 `CombatIdle`，不要求先走到家 | 刻意不做"复位后免进战"保护 |
 | 死亡 | `Death`（`IsDead = true` + 锁死状态机）→ `GameEvents.RaiseBossDied()` | ⚠️ 要**延迟隐藏**（复用 `EnemyHealth._deathHideDelay` 的做法） |
 | ⏸️ 初见动画 / 2 阶段 | **后续**，V1 不做 | 相机接管仍要自己写轻量 `CameraCue`（工程**无 Cinemachine**） |
 
-#### 5.4.2 状态机（✅ 2026-10-15 已实现；复用现有基类，**不要新写一套**）
+#### 5.4.2 状态机（✅ 2026-10-15 已实现；🔄 2026-10-21 增至 **8 状态**，新增 `Return`；复用现有基类，**不要新写一套**）
 
-✅ **已落地**：`Assets/_Game/Scripts/Gameplay/Enemy/BossController.cs`（7 状态，`EnemyStateMachine<EState>` 表驱动）
+✅ **已落地**：`Assets/_Game/Scripts/Gameplay/Enemy/BossController.cs`（8 状态，`EnemyStateMachine<EState>` 表驱动）
 ＋ `Assets/_Game/Scripts/Data/BossConfig.cs`（`BossConfig : EnemyAIConfig`）。与 `GDD.md` §7.3 是同一份口径。
 
 ```
@@ -456,16 +459,33 @@ CombatIdle ──双 CD 归零────────────────�
            ──普攻 CD 就绪 & 在攻击范围──────> Attack（a / b / c 带权随机）
            ──普攻 CD 就绪 & 不在攻击范围────> Chase
            ──普攻 CD 未就绪────────────────> 原地绕玩家侧移（walkleft，始终面向玩家）
-           ──离开战斗范围 > disengageTime──> NIdle（清双 CD 与韧性）
+           ──离开战斗范围 > disengageTime──> Return（走回出生点，清双 CD 与韧性）
 Chase      ──双 CD 归零────────────────────> Special
            ──进攻击范围────────────────────> Attack（CD 未就绪则回 CombatIdle）
+           ──离开战斗范围 > disengageTime──> Return
            ──否则──────────────────────────> walkfront 正面接近
 Attack     ──动画播完──────────────────────> CombatIdle（b 命中 comboChance 则先接 c）
 Special    ──动画播完──────────────────────> CombatIdle
-Hit        ──动画播完──────────────────────> CombatIdle（不在战斗范围则 NIdle）
+Hit        ──动画播完 & 玩家在战斗范围──────> CombatIdle
+           ──动画播完 & 玩家不在战斗范围────> Return
+Return     ──走回出生点 / 超 20 s 兜底─────> NIdle
+           ──玩家重进战斗范围──────────────> CombatIdle（就地开打）
 任意        ──韧性条削满───────────────────> Hit（打断一切）──> CombatIdle
 任意        ──HP ≤ 0───────────────────────> Death（锁死状态机）──> GameEvents.RaiseBossDied()
 ```
+
+**`Return` 的三个实现要点（2026-10-21）**
+
+1. **走回去而不是瞬移**：`_homePos` 在 `Awake` 记录；`UpdateReturn` 每帧 `Loco.MoveToOrStep(_homePos)`，
+   到点（`≤ 0.8 m`）或超过 **20 s 兜底超时** 转 `NIdle`（出生点被杂物挡住 / 不在 NavMesh 上时不至于永远卡住）。
+   ⚠️ **朝向同样要复位**：`MoveToOrStep` 把转向交给 `NavMeshAgent`，回家朝向 = 最后一段行进方向 ⇒
+   到点后按 `turnSpeed` 转回 `_homeRot`（`Awake` 记录）。**兜底超时那条路也要纠** —— 否则会停在行走朝向
+   （2026-10-21 用户报的「回原位后面朝 −90°」就是这条）。
+2. ⚠️ **`agent.stoppingDistance` 必须临时改**：追击用的 3.6 m 会让它停在离出生点三米多的地方 ⇒
+   进 `Return` 压到 `0.2 m`，`ExitReturn` 里还原（不还原的话 `Chase` 会怼进玩家身体）。
+3. ⚠️ **`_outOfRangeT` 不能在 `EnterCombatIdle` 里清零**：Boss 每次出完招都会重进 `CombatIdle`，
+   在那里清零等于每次出招都把脱战倒计时**重启**，`Return` 永远触发不了（实测被 Special 每 14 s 重置一次）。
+   清零只保留在「玩家确实在范围内」的分支与脱战成功时。
 
 **技术建议**
 
@@ -497,7 +517,9 @@ Hit        ──动画播完─────────────────
 |---|---|---|
 | 继承 | `hp` / `aggroRange` / `attackRange` / `moveSpeed` / `damage` / `flashTime` | 血量 / **战斗范围** / **攻击范围** / 追击速度 / 伤害 / 闪白时长 |
 | 继承 | `canBeInterrupted` | ⚠️ **必须 false** —— Boss 的打断只走韧性条，不走普通受击 |
-| 脱战 | `disengageTime` | 离开战斗范围多久回 `N_idle`（0 = 永不脱战） |
+| 脱战 | `disengageTime` | 离开战斗范围多久转 `Return`（0 = 永不脱战） |
+| 脱战 | `hpRecoverPercentPerSecond` | ⭐ 非战斗状态每秒回血比例（默认 **0.05** = 每秒回 5% 上限；0 = 不回） |
+| 脱战 | `outOfCombatDamageReduction` | ⭐ 非战斗状态免伤比例（默认 **0.9** = 只吃 10% 伤害；0 = 不减免） |
 | 移动 | `turnSpeed` / `strafeRadius` / `randomStrafeDirection` | 转身速度（建议 240，别用默认 720）/ 绕圈半径（0 = 不绕）/ 绕圈方向是否随机 |
 | 普攻 CD | `attackCdMin` / `attackCdMax` / `attackTimeout` | CD 随机区间 / 兜底超时（建议 = 最长攻击动画 + 0.5） |
 | 三选一 | `attackWeightA` / `attackWeightB` / `attackWeightC` / `attackHitboxActiveTime` | 三段权重（全 0 退化为等概率）/ 判定体开启时长 |
@@ -563,7 +585,8 @@ Hit        ──动画播完─────────────────
 - [ ] Boss：进战斗范围转战斗待机 → `walkfront` 靠近 → **a / b / c 三段**各能观测到 → b 有一定概率接出 **c 二连**
 - [ ] Boss：攻击 CD 期间持续面向玩家并 `walkleft` 绕圈；两条 CD 归零时**优先**打出特殊攻击（近距 sa1 / 远距 sa2）
 - [ ] Boss：削满韧性 → `hit` **破韧硬直打断动作** → 硬直后有免疫期、不会连续硬直
-- [ ] Boss：长时间离开战斗范围能脱战回 `N_idle`（双 CD 与韧性清零）
+- [x] Boss：长时间离开战斗范围 → `Return` 走回出生点（双 CD 与韧性清零），途中每秒回 5% 血，非战斗免伤 90%
+  （✅ 2026-10-21 play mode 实测：5 m→0.66 m 到点、HP 300→513→600、回程中玩家靠近即 `Return → Attack`）
 - [ ] ⏸️ Boss：初见动画 → 击败后 `BossDied` 触发胜利结算（**初见动画为后续**）
 
 ---
@@ -590,6 +613,8 @@ Hit        ──动画播完─────────────────
 | **Boss 韧性上限** | 100 | **新增**（`BossConfig.maxPoise`） |
 | **Boss 削韧倍率** | ×2（削韧 = 伤害 × 2） | **新增**（`BossConfig.poisePerDamageMultiplier`） |
 | **Boss 破韧免疫期** | 0.6 s | **新增**（`BossConfig.poiseBreakImmunityTime`） |
+| **Boss 脱战回血** | 每秒 5% 上限（600 血 ⇒ 30 HP/s，空血约 20 s 回满） | **新增**（`BossConfig.hpRecoverPercentPerSecond`，2026-10-21） |
+| **Boss 非战斗免伤** | 90%（伤害 ×0.1，≤4 的伤害取整为 0） | **新增**（`BossConfig.outOfCombatDamageReduction`，2026-10-21） |
 
 ---
 

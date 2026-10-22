@@ -112,6 +112,11 @@ namespace Game.Gameplay
             //开局直接把相机摆到正确机位：
             //否则会从场景里存的旧位置「飞」过来，看起来就像「初始位置不对」。
             SnapToTarget();
+
+            //⭐ 开局就把水平角发布出去：`PlayerMotor.Start` 可能比本组件的 `Update` 早跑
+            //   （各物体的 Start 全在第一次 Update 之前完成，但彼此顺序不定），
+            //   若只在 Update 里写，玩家在 Start 阶段读到的会是"还没有值"。
+            MovementBasis.SetYaw(CurrentYaw());
         }
 
         /// <summary>
@@ -162,6 +167,17 @@ namespace Game.Gameplay
             }
 
             HandleCursor();
+
+            //⭐ 把水平角发布到中立的「移动基准」——玩家（PlayerMotor）从这里读，而不是持有相机的引用。
+            //   这样依赖只剩「相机 → 玩家」一条单向边，见 MovementBasis 的注释。
+            //   ⚠️ 用 CurrentYaw() 而不是 _yaw：_followTargetYaw 打开时两者不同。
+            MovementBasis.SetYaw(CurrentYaw());
+        }
+
+        private void OnDestroy()
+        {
+            //避免把本场景的朝向留给下一个场景（静态状态不会自动清）
+            MovementBasis.Clear();
         }
 
         /// <summary>

@@ -54,6 +54,18 @@ namespace Game.Gameplay
         /// <summary>是否真的在用 Agent 驱动（有 Agent 且它已在导航网格上）。</summary>
         public bool UsesNavMesh { get { return _agent != null && _agent.isOnNavMesh; } }
 
+        /// <summary>
+        /// Agent 的**停靠距离**（离目标点多近就停下，米）。没 Agent 时为 0。
+        ///
+        /// <para>⚠️ 逃跑/脱战回原位这类"要**精确到点**"的用法必须临时调小它 ——
+        /// 追击用的 3.6 m 会让 Boss 停在离出生点三米多的地方。用完记得改回去。</para>
+        /// </summary>
+        public float StoppingDistance
+        {
+            get { return _agent != null ? _agent.stoppingDistance : 0f; }
+            set { if (_agent != null) _agent.stoppingDistance = Mathf.Max(0f, value); }
+        }
+
         public float Speed
         {
             get { return _speed; }

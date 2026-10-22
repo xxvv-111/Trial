@@ -10,10 +10,13 @@ namespace Game.UI
     /// Boss 血条是 <b>Screen Space Overlay</b> 的 UI —— 不管 Boss 跑到哪里、镜头怎么转，
     /// 它永远钉在屏幕固定位置（这里是顶部居中）。</para>
     ///
-    /// <para>用法：挂在 Canvas 下的一个空节点 <c>BossBar</c> 上，结构：</para>
+    /// <para>⭐ 2026-10-21 起：血条**不再挂在主 HUD 的 Canvas 下**，
+    /// 而是独立成 <c>Prefabs/UI/BossBar.prefab</c> 并**嵌在 <c>Boss_Crichton.prefab</c> 内部**
+    /// —— 把 Boss 拖进任何场景就自带血条，且血条自成一个 Screen Space Overlay Canvas
+    /// （sortingOrder = -1，让 HUD 里的暂停 / 结算面板能盖住它）。结构：</para>
     /// <code>
-    /// Canvas
-    /// └── BossBar            ← 本脚本（永远 active，负责收事件）
+    /// Boss_Crichton (BossController + EnemyHealth)
+    /// └── BossBar            ← 本脚本（永远 active，负责收事件）+ Canvas(Overlay, -1) + CanvasScaler
     ///     └── Panel          ← 拖给 _panel，显示/隐藏靠它
     ///         ├── Name       ← TextMeshProUGUI
     ///         ├── HpBack
@@ -122,7 +125,13 @@ namespace Game.UI
 
         private void ResolveRefs()
         {
-            if (_boss == null) _boss = FindFirstObjectByType<BossController>();
+            //⭐ 2026-10-21：血条已嵌在 Boss 预制体内部，`_boss` / `_health` 在预制体里**硬拖好了**
+            //   （指向 Boss 预制体根自身），所以这里不再做全场景查找。
+            //   ⚠️ 原来那句 `FindFirstObjectByType<BossController>()` 是**有害**的：
+            //      场景里出现第二只 Boss、或血条被误留在没有 Boss 的场景时，
+            //      它会静默绑到"随便哪一只"上去，比不绑定还难排查。
+            //   保留父链兜底（1 行、零成本）：把 BossBarCanvas 挂到任何 Boss 底下都能自愈，不用手拖。
+            if (_boss == null) _boss = GetComponentInParent<BossController>();
             if (_health == null && _boss != null) _health = _boss.GetComponent<EnemyHealth>();
         }
 

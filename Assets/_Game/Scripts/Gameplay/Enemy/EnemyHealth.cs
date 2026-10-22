@@ -61,6 +61,18 @@ namespace Game.Gameplay
 
         public bool IsDead { get { return CurHp <= 0; } }
 
+        /// <summary>
+        /// **受到的伤害倍率**（1 = 全额承受，0.1 = 只吃 10%）。
+        ///
+        /// <para>⭐ 2026-10-21 新增：Boss 在**非战斗状态**下由 <c>BossController</c> 设成 0.1（90% 免伤），
+        /// 防止玩家站在脱战距离外一路偷血把它打死。小怪不设，保持默认 1。</para>
+        ///
+        /// <para>⚠️ 取整用 <see cref="Mathf.RoundToInt"/>：小额伤害（≤ 4）四舍五入后是 0 ⇒
+        /// <see cref="TakeDamage"/> 直接返回，**不刷血条、不触发受击闪白、不累计削韧**
+        /// —— 表现就是"打上去没反应"，这正是 90% 免伤想要的效果。</para>
+        /// </summary>
+        public float DamageMultiplier { get; set; } = 1f;
+
         //死亡延迟隐藏（用 unscaledTime 计时，理由见 Die()）
         private bool _hidingScheduled;
         private float _hideAtUnscaled;
@@ -77,19 +89,49 @@ namespace Game.Gameplay
             RaiseHpChanged();//血条跟着回到满格（复用复活的关键一步）
         }
 
+        /// <summary>
+        /// **回血**（Boss 脱战恢复用）。
+        ///
+        /// <para>⚠️ 不会复活：<c>CurHp &lt;= 0</c> 时直接忽略 —— 复活走 <see cref="OnEnable"/> 里的重置。</para>
+        /// <para>⚠️ 传的是**整数点**：需要「每秒百分比」这种小数速率时，
+        ///    调用方（如 <c>BossController.RecoverHpWhileOutOfCombat</c>）自己攒够 1 点再调。</para>
+        /// </summary>
+        public void Restore(int amount)
+        {
+            if (amount <= 0) return;
+            if (CurHp <= 0) return;//已死 → 不回血（避免被当成复活）
+            if (CurHp >= MaxHp) return;
+
+            CurHp = Mathf.Min(MaxHp, CurHp + amount);
+            RaiseHpChanged();//血条跟着涨
+        }
+
         public void TakeDamage(int damage)
         {
             if (CurHp <= 0) return;//已死 → 忽略后续伤害（判定体可能还开着）
+
+            //⭐ 免伤结算（Boss 脱战 90% 免伤走这里）。四舍五入后为 0 ⇒ 整次命中作废。
+            damage = ScaleDamage(damage);
+            if (damage <= 0) return;
 
             CurHp -= damage;
             if (CurHp < 0) CurHp = 0;
 
             RaiseHpChanged();//先刷新血条，再走受击/死亡流程
 
-            //先通知受击（AI 要立刻进入硬直/闪白），再判断死亡
+            //先通知受击（AI 要立刻进入硬直/闪白），再判断死亡。
+            //⚠️ 传的是**实际扣掉的**伤害（已乘倍率）—— 削韧按它算，脱战期的削韧也就跟着打折。
             if (Damaged != null) Damaged(this, damage);
 
             if (CurHp <= 0) Die();
+        }
+
+        /// <summary>把原始伤害乘上 <see cref="DamageMultiplier"/> 并取整。0 表示这次命中被完全挡下。</summary>
+        private int ScaleDamage(int damage)
+        {
+            if (damage <= 0) return 0;
+            if (Mathf.Approximately(DamageMultiplier, 1f)) return damage;//常态零开销
+            return Mathf.RoundToInt(damage * Mathf.Max(0f, DamageMultiplier));
         }
 
         private void RaiseHpChanged()

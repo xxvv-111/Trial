@@ -39,7 +39,12 @@ namespace Game.Gameplay
     /// </summary>
     public class BossController : EnemyAIController
     {
-        public enum EState { NIdle, CombatIdle, Chase, Attack, Special, Hit, Death }
+        /// <summary>
+        /// Boss 状态。⭐ 2026-10-21 新增 <see cref="Return"/>：脱战后**走回出生点**，而不是瞬移 / 原地待机。
+        /// <para>它属于「非战斗」状态（<see cref="InCombat"/> 里被排除），所以血条在这一段是收起的，
+        /// 但 Boss 会沿 NavMesh 走回去，途中玩家进入战斗范围就<b>就地开打</b>。</para>
+        /// </summary>
+        public enum EState { NIdle, CombatIdle, Chase, Attack, Special, Hit, Return, Death }
 
         // ==================== 动画参数名（与 Animator 控制器里的参数逐字一致） ====================
         // ⚠️ 基类的 PlayHitAnim / PlayDeathAnim 里引用了名为 "Attack" 的参数，本 Boss 用的是
@@ -93,6 +98,30 @@ namespace Game.Gameplay
         private float _outOfRangeT;    //连续离开战斗范围的秒数
         private int _strafeDir = 1;    //+1 / -1，绕圈方向
 
+        // ==================== 脱战复位 / 回血 ====================
+        /// <summary>出生点（<see cref="Awake"/> 记下当时的 transform.position）。走回原位就是走回这里。</summary>
+        private Vector3 _homePos;
+        /// <summary>
+        /// 出生时的**朝向**。到点后要转回这个朝向 —— <c>MoveToOrStep</c> 会把转向交给 NavMeshAgent
+        /// （朝行进方向转），不纠正的话 Boss 回家后会**面朝它走回来的方向**（从 +X 回来就是 **−90°**）。
+        /// </summary>
+        private Quaternion _homeRot = Quaternion.identity;
+        /// <summary>本次「走回原位」已用时（秒），只用于兜底超时。</summary>
+        private float _returnT;
+        /// <summary>是否已走到出生点（进入"转回朝向"阶段）。</summary>
+        private bool _arrivedHome;
+        /// <summary>回血的整数余量。HP 是 int 而每帧回量 &lt; 1，不攒就会一直被取整成 0。</summary>
+        private float _hpRecoverAccum;
+
+        /// <summary>走回原位时离出生点多近算「到点」（米）。</summary>
+        private const float ReturnArriveRadius = 0.8f;
+        /// <summary>走回原位时临时把 Agent 停靠距离压到这个值（米）——否则它会在 3.6 m 外就停下，根本没回到位。</summary>
+        private const float ReturnStoppingDistance = 0.2f;
+        /// <summary>走回原位的兜底超时（秒）。出生点被杂物挡住 / 不在 NavMesh 上时，不让它永远卡在 Return。</summary>
+        private const float ReturnTimeout = 20f;
+        /// <summary>进入 Return 前的 Agent 停靠距离，离开时还原（Chase 靠它不怼进玩家身体里）。</summary>
+        private float _savedStoppingDistance;
+
         /// <summary>
         /// 本次特殊攻击是不是**远距的 sa2**（<c>false</c> = 近距的 sa1，原地出招）。
         /// 只用来决定"sa2 是否全程允许转向"，见 <see cref="CanTurn"/>。在 <see cref="EnterSpecial"/> 里赋值。
@@ -120,10 +149,18 @@ namespace Game.Gameplay
         /// </summary>
         public event Action<bool> CombatChanged;
 
-        /// <summary>当前是否处于战斗（不在 N_idle，且还没死）。UI 订阅事件后可以先读它同步初值。</summary>
+        /// <summary>当前是否处于战斗（不在 N_idle / Return / Death）。UI 订阅事件后可以先读它同步初值。</summary>
         public bool InCombat
         {
-            get { return _fsm != null && !_fsm.Is(EState.NIdle) && !_fsm.Is(EState.Death); }
+            get
+            {
+                //⚠️ Return（走回原位）**不算战斗** —— 它是脱战演出，血条得是收起状态。
+                //   破韧硬直（Hit）算战斗中，所以那一段不回血。
+                return _fsm != null
+                    && !_fsm.Is(EState.NIdle)
+                    && !_fsm.Is(EState.Return)
+                    && !_fsm.Is(EState.Death);
+            }
         }
 
         // ==================== 配置取值（配置没挂时给安全默认，避免 NRE） ====================
@@ -146,6 +183,18 @@ namespace Game.Gameplay
         private float CfgMaxPoise { get { return BossCfg != null ? BossCfg.maxPoise : 100f; } }
         private float CfgDisengageTime { get { return BossCfg != null ? BossCfg.disengageTime : 4f; } }
 
+        /// <summary>脱战回血速率（每秒回血上限的百分比）。配置没挂时默认 5%。</summary>
+        private float CfgHpRecoverPct
+        {
+            get { return BossCfg != null ? Mathf.Max(0f, BossCfg.hpRecoverPercentPerSecond) : 0f; }
+        }
+
+        /// <summary>非战斗状态的免伤比例（0.9 = 只吃 10%）。配置没挂时默认 0.9。</summary>
+        private float CfgOutOfCombatReduction
+        {
+            get { return BossCfg != null ? Mathf.Clamp01(BossCfg.outOfCombatDamageReduction) : 0.9f; }
+        }
+
         private float PoiseMax { get { return Mathf.Max(0.01f, CfgMaxPoise); } }
 
         // ==================== 状态表 ====================
@@ -166,15 +215,24 @@ namespace Game.Gameplay
             _fsm.Register(EState.Attack, enter: EnterAttack, update: UpdateAttack, exit: ExitAttack);
             _fsm.Register(EState.Special, enter: EnterSpecial, update: UpdateSpecial, exit: ExitSpecial);
             _fsm.Register(EState.Hit, enter: EnterHit, update: UpdateHit);
+            _fsm.Register(EState.Return, enter: EnterReturn, update: UpdateReturn, exit: ExitReturn);
             _fsm.Register(EState.Death, enter: EnterDeath);
 
             AttachStateMachine(_fsm);
+
+            //⭐ 出生点 = 场景里摆的这个位置。之后脱战就走回这里（不是瞬移）。
+            //   放在 Awake 而不是 Start：Start 之前没有任何状态会移动它。
+            _homePos = transform.position;
+            _homeRot = transform.rotation;
         }
 
         protected override void Start()
         {
             base.Start();
             _fsm.Start(EState.NIdle);
+
+            //开局就在非战斗态 —— 先把免伤挂上，别等第一帧 OnAIUpdate
+            UpdateOutOfCombatProtection();
         }
 
         protected override void OnEnable()
@@ -214,6 +272,51 @@ namespace Game.Gameplay
             {
                 SetPoise(_poise - BossCfg.poiseRecoverPerSecond * dt);
             }
+
+            RecoverHpWhileOutOfCombat(dt);//脱战回血（同样与状态无关，只在非战斗时生效）
+            UpdateOutOfCombatProtection();//脱战免伤（同上）
+        }
+
+        /// <summary>
+        /// **非战斗免伤**：不在战斗时把 <see cref="EnemyHealth.DamageMultiplier"/> 压到
+        /// <c>1 - outOfCombatDamageReduction</c>（默认 0.1），重新进战立刻恢复 1。
+        ///
+        /// <para>需求来源（2026-10-21）：玩家可以站在 <c>aggroRange</c>(12 m) 外一路偷血，
+        /// 把正在走回原位 / 待机的 Boss 打死 —— 加 90% 免伤把这条路堵住，
+        /// 同时**不希望**受击就直接重新进战（Boss 该继续走回去）。</para>
+        ///
+        /// <para>⚠️ 判据与回血共用 <see cref="InCombat"/>：Hit（破韧硬直）算战斗中 ⇒ 全额伤害。</para>
+        /// </summary>
+        private void UpdateOutOfCombatProtection()
+        {
+            if (Health == null) return;
+            Health.DamageMultiplier = InCombat ? 1f : 1f - CfgOutOfCombatReduction;
+        }
+
+        /// <summary>
+        /// **脱战回血**：每秒按血量上限的百分比回（<see cref="BossConfig.hpRecoverPercentPerSecond"/>，默认 5%/s）。
+        ///
+        /// <para>⭐ 只依赖 <see cref="InCombat"/> 这一个判据，所以「走回原位的路上」和「回到原位待机」都会回血，
+        ///    而破韧硬直（Hit 算战斗中）、死亡（FSM 已锁）都不会回。</para>
+        ///
+        /// <para>⚠️ HP 是 int，而每帧回量远小于 1（600 × 5% ÷ 60fps ≈ 0.5/帧）——
+        ///    必须用 <c>_hpRecoverAccum</c> 攒够整点再交出去，否则 <c>(int)</c> 取整后永远回不动。</para>
+        /// </summary>
+        private void RecoverHpWhileOutOfCombat(float dt)
+        {
+            if (InCombat) return;
+            if (Health == null || Health.IsDead) return;
+            if (CfgHpRecoverPct <= 0f) return;
+
+            if (Health.CurHp >= Health.MaxHp) { _hpRecoverAccum = 0f; return; }
+
+            _hpRecoverAccum += CfgHpRecoverPct * Health.MaxHp * dt;
+
+            int whole = (int)_hpRecoverAccum;
+            if (whole <= 0) return;
+
+            _hpRecoverAccum -= whole;
+            Health.Restore(whole);
         }
 
         // ==================== N_idle（未进战斗） ====================
@@ -236,6 +339,107 @@ namespace Game.Gameplay
             if (HorizontalDistanceToTarget <= AggroRange) _fsm.Change(EState.CombatIdle);
         }
 
+        // ==================== Return（脱战 → 走回出生点） ====================
+
+        /// <summary>
+        /// 脱战后的「回家」状态。⭐ 2026-10-21 新增。
+        ///
+        /// <para><b>为什么单独做一个状态</b>：需求是「退出战斗后走回原位」，而
+        /// <see cref="NIdle"/> 是原地待机（<c>Loco.Stop()</c>）。要让 Boss 真的走过去，
+        /// 就得有一个持续驱动 <c>Loco.MoveToOrStep</c> 的状态。</para>
+        ///
+        /// <para><b>三条规则</b>（对应用户 2026-10-21 的决定）：</para>
+        /// <list type="number">
+        ///   <item>回程中<b>玩家进入战斗范围就原地开打</b>，不要求先走到家（<see cref="UpdateReturn"/> 第一段）；</item>
+        ///   <item>回程中<b>持续回血</b>（走 <see cref="RecoverHpWhileOutOfCombat"/>，与 NIdle 同一套）；</item>
+        ///   <item>不带「复位后免进战」的保护 —— 复位后玩家在旁边就是正常重新进战。</item>
+        /// </list>
+        /// </summary>
+        private void EnterReturn()
+        {
+            //⚠️ 三条脱战路径（CombatIdle / Chase / Hit 退出）都汇到这里，
+            //   所以「清战斗残留」统一放这 —— 以前只有 CombatIdle 那条清了 CD 与韧性，
+            //   Chase 脱战会把 CD / 韧性带着走。
+            _atkCd = 0f;
+            _spCd = 0f;
+            _outOfRangeT = 0f;
+            _returnT = 0f;
+            _arrivedHome = false;
+
+            SetPoise(0f);//格挡（韧性）条回满
+            if (Hitboxes != null) Hitboxes.DisableAllHitboxes();
+
+            //⭐ 动画：离开侧移、方向复位，但**不要动 `InCombat` 动画参数**。
+            //   ⚠️ Animator 里 `N_idle` 是**单条待机 clip**，真正会走路的是 `Locomotion` 子状态机
+            //     （`idle` / `walk_front` / `walk_left`），而进入它的条件就是 `InCombat == true`。
+            //     所以这里若把 InCombat 设成 false，Boss 会切到 N_idle **滑着走回原位**（2026-10-21 实测动画图确认）。
+            //   逻辑上的"不在战斗"由 `InCombat` **属性**（按 FSM 状态算）负责，跟这个动画参数是两回事。
+            SetAnimBool(P_Strafe, false);
+            SetAnimFloat(P_WalkDir, 1f);
+
+            RaiseCombat(false);//UI：Boss 血条收起
+
+            //⭐ 追击用的停靠距离是 3.6 m（免得怼进玩家身体）—— 但"回家"要精确到点，
+            //   所以这一段临时压到 0.2 m，离开 Return 时在 ExitReturn 里还原。
+            _savedStoppingDistance = Loco.StoppingDistance;
+            Loco.StoppingDistance = ReturnStoppingDistance;
+
+            Loco.Resume();
+        }
+
+        /// <summary>离开 Return 必走这里 —— 还原 Agent 停靠距离，否则 Chase 会贴在玩家身上。</summary>
+        private void ExitReturn()
+        {
+            Loco.StoppingDistance = _savedStoppingDistance;
+        }
+
+        private void UpdateReturn()
+        {
+            _returnT += Time.deltaTime;
+
+            //⭐ 规则①：回程中玩家又进战斗范围 → **原地**进战斗（不要求走回原位）
+            if (Target != null && HorizontalDistanceToTarget <= AggroRange)
+            {
+                _outOfRangeT = 0f;
+                _fsm.Change(EState.CombatIdle);
+                return;
+            }
+
+            //---- 阶段一：还没到点，继续走 ----
+            if (!_arrivedHome)
+            {
+                float dist = HorizontalDistance(_homePos);
+
+                if (dist > ReturnArriveRadius && _returnT < ReturnTimeout)
+                {
+                    //沿用 Chase 那套：Agent 优先，没 Agent 时退回逐帧直线位移。
+                    //⚠️ 它会把转向权交还 Agent（朝行进方向转）—— 所以到点后必须自己把朝向转回来。
+                    Loco.MoveToOrStep(_homePos);
+                    return;
+                }
+
+                _arrivedHome = true;
+                Loco.Stop();//站定：停掉 Agent，把转向权收回来，否则它会继续朝行进方向转
+
+                //⚠️ 兜底超时也会走到这里（其实没到出生点）—— 下面照样纠正朝向，见阶段二的注释。
+            }
+
+            //---- 阶段二：转回**出生时的朝向** ----
+            //⭐ 不纠的话会保留"走回来那一路 Agent 给的朝向"：从 +X 方向走回来就停在 **−90°**，
+            //   看起来像 Boss 回家后面朝墙。按 turnSpeed 转过去（240°/s ⇒ 转 90° 约 0.38 s），不瞬切。
+            //⚠️ 这里**不区分"真的走到"还是"超时收场"** —— 两种情况都必须把朝向纠正，
+            //   否则超时那条路会留在行走朝向（2026-10-21 用户报的 −90° 就出在这条路上）。
+            if (Quaternion.Angle(transform.rotation, _homeRot) <= 1f)
+            {
+                transform.rotation = _homeRot;
+                _fsm.Change(EState.NIdle);
+                return;
+            }
+
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation, _homeRot, CfgTurnSpeed * Time.deltaTime);
+        }
+
         // ==================== 战斗待机（也是「攻击 CD 期间」的状态） ====================
         // 需求：处于攻击 CD 时「始终面向玩家，用 walkleft 动画」⇒ 本状态就是它。
         //   · CD 未就绪 → 绕玩家侧移（Strafe = true ⇒ 动画走 walkleft）
@@ -244,7 +448,14 @@ namespace Game.Gameplay
         private void EnterCombatIdle()
         {
             SetAnimBool(P_InCombat, true);
-            _outOfRangeT = 0f;
+
+            //⚠️ 2026-10-21：这里**不要**再 `_outOfRangeT = 0f`。
+            //   `_outOfRangeT` 的语义是「连续离开战斗范围的秒数」，而"进入战斗待机"这件事
+            //   跟距离无关 —— Boss 每次出完招都会重新进 CombatIdle，以前在这里清零，
+            //   等于每次出招都把脱战计时**重启**，结果玩家跑远后 Boss 反而永远不脱战
+            //   （实测：Special CD 每 14 s 就会重置一次计时，Return 永远触发不了）。
+            //   现在的清零只发生在 UpdateCombatIdle / UpdateChase 的「玩家确实在范围内」分支，
+            //   以及脱战成功时（EnterReturn / EnterNIdle）。
 
             //每次进战斗待机随机一次绕圈方向，避免看起来像在跑固定圈
             if (BossCfg == null || BossCfg.randomStrafeDirection)
@@ -267,10 +478,8 @@ namespace Game.Gameplay
                 _outOfRangeT += Time.deltaTime;
                 if (CfgDisengageTime > 0f && _outOfRangeT >= CfgDisengageTime)
                 {
-                    _atkCd = 0f;
-                    _spCd = 0f;
-                    SetPoise(0f);
-                    _fsm.Change(EState.NIdle);
+                    //CD / 韧性 / 血量上限的清理统一在 EnterReturn 里（三条脱战路径共用）
+                    _fsm.Change(EState.Return);
                     return;
                 }
             }
@@ -404,7 +613,7 @@ namespace Game.Gameplay
                 _outOfRangeT += Time.deltaTime;
                 if (CfgDisengageTime > 0f && _outOfRangeT >= CfgDisengageTime)
                 {
-                    _fsm.Change(EState.NIdle);
+                    _fsm.Change(EState.Return);//走回出生点（不是原地待机）
                     return;
                 }
             }
@@ -686,9 +895,14 @@ namespace Game.Gameplay
 
         private void UpdateHit()
         {
-            if (ActionFinished())
-                _fsm.Change(Target != null && HorizontalDistanceToTarget <= AggroRange
-                            ? EState.CombatIdle : EState.NIdle);
+            if (!ActionFinished()) return;
+
+            //⚠️ 2026-10-21：这里原来直接判 `dist <= AggroRange ? CombatIdle : NIdle`，
+            //   **不脱战计时** —— 也就是「Boss 被打破韧、玩家刚好跑出 12 m」会一步跳到 NIdle。
+            //   加了「脱战回血」之后那等于白送满血，所以改成走 Return：
+            //   玩家还在范围内就近身开打，否则走回出生点。
+            bool playerInRange = Target != null && HorizontalDistanceToTarget <= AggroRange;
+            _fsm.Change(playerInRange ? EState.CombatIdle : EState.Return);
         }
 
         // ==================== Death ====================
@@ -898,10 +1112,16 @@ namespace Game.Gameplay
             get
             {
                 if (Target == null) return float.MaxValue;
-                Vector3 d = Target.position - transform.position;
-                d.y = 0f;
-                return d.magnitude;
+                return HorizontalDistance(Target.position);
             }
+        }
+
+        /// <summary>到任意世界坐标的**水平距离**（同样忽略 Y）。脱战回程到点判定用。</summary>
+        private float HorizontalDistance(Vector3 worldPos)
+        {
+            Vector3 d = worldPos - transform.position;
+            d.y = 0f;
+            return d.magnitude;
         }
 
         // ==================== Scene 视图 ====================
@@ -924,6 +1144,10 @@ namespace Game.Gameplay
                 Gizmos.color = new Color(1f, 0.5f, 0f);//sa2 停靠距离
                 Gizmos.DrawWireSphere(transform.position, BossCfg.specialFarStopDistance);
             }
+
+            //出生点（脱战走回的目标）。⚠️ _homePos 在 Awake 才赋值，编辑模式下还没值 ⇒ 用当前位置顶上。
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(Application.isPlaying ? _homePos : transform.position, ReturnArriveRadius);
         }
     }
 }

@@ -12,9 +12,14 @@ namespace Game.UI
     ///
     /// ⚠️ 脚本资产本身**没有换 GUID**（用 git mv 同时移动 .cs 与 .meta），
     ///    所以场景里 <c>ManaBarBack</c> 上的组件引用**不会断**。
+    ///
+    /// ⚠️ 2026-10-21：UI 抽成共用预制体 <c>Prefabs/UI/HUD_Common.prefab</c> 后，
+    ///    <c>_player</c> 在预制体里必须留空（预制体不能引用场景里的玩家实例，
+    ///    且 Castle / Forest 用的是不同的玩家预制体）。运行时由 <see cref="Start"/> 自动查找。
     /// </summary>
     public class ManaBar : MonoBehaviour
     {
+        [Tooltip("留空 = 运行时自动找场景里的 PlayerMana（共用预制体请留空）。")]
         [SerializeField] private PlayerMana _player;
         [SerializeField] private RectTransform _fill;
 
@@ -33,6 +38,7 @@ namespace Game.UI
 
         private void OnEnable()
         {
+            ResolvePlayer();
             if (_player == null) return;
             _player.OnManaChanged += OnManaChanged;
             _player.OnManaSpendFailed += Flash;
@@ -43,6 +49,28 @@ namespace Game.UI
             if (_player == null) return;
             _player.OnManaChanged -= OnManaChanged;
             _player.OnManaSpendFailed -= Flash;
+        }
+
+        /// <summary>
+        /// ⚠️ 与 <see cref="HPBar.Start"/> 同样的两道保险：
+        ///   1. <c>OnEnable</c> 可能跑在玩家实例化之前，查不到就白订阅；
+        ///   2. <c>PlayerMana.Start</c> 会广播一次初值 —— 得先订阅上 + 主动拉一次。
+        /// </summary>
+        private void Start()
+        {
+            ResolvePlayer();
+            if (_player == null) return;
+
+            _player.OnManaChanged -= OnManaChanged;
+            _player.OnManaSpendFailed -= Flash;
+            _player.OnManaChanged += OnManaChanged;
+            _player.OnManaSpendFailed += Flash;
+            OnManaChanged(_player.CurMana, _player.MaxMana);
+        }
+
+        private void ResolvePlayer()
+        {
+            if (_player == null) _player = FindFirstObjectByType<PlayerMana>();
         }
 
         private void OnManaChanged(float cur, float max)

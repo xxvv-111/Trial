@@ -40,6 +40,8 @@ MonoBehaviour:
   aimHeight: 1
   loseTargetTime: 0
   disengageTime: 4
+  hpRecoverPercentPerSecond: 0.05
+  outOfCombatDamageReduction: 0.9
   turnSpeed: 240
   strafeRadius: 5
   randomStrafeDirection: 1

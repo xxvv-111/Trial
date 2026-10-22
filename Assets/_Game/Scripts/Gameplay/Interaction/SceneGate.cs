@@ -16,7 +16,8 @@ namespace Game.Gameplay
     /// </summary>
     public class SceneGate : MonoBehaviour
     {
-        [Tooltip("目标场景名。必须已加入 Build Settings（本项目 = Castle）。")]
+        [Tooltip("**默认**目标场景名（Inspector 里填的那份）。必须已加入 Build Settings（本项目 = Castle）。\n" +
+                 "⚠️ 运行时若有更具体的目标（例如任务指定的地点），以运行时值为准 —— 见 SetTarget。")]
         [SerializeField] private string _sceneName = "Castle";
 
         [Tooltip("勾选 = 异步加载，大场景不会卡住一瞬。")]
@@ -24,12 +25,45 @@ namespace Game.Gameplay
 
         private bool _loading;
 
+        /// <summary>
+        /// **运行时覆写**的目标场景名（空 = 用 Inspector 里的 <c>_sceneName</c>）。
+        ///
+        /// <para>⭐ 2026-10-22 新增，为任务系统留的口子：接取任务后调用
+        /// <see cref="SetTarget"/>，门口这道门就会切到任务地点。</para>
+        /// </summary>
+        private string _runtimeTarget;
+
+        /// <summary>当前**实际生效**的目标场景名（运行时覆写优先）。</summary>
+        public string TargetScene { get { return string.IsNullOrEmpty(_runtimeTarget) ? _sceneName : _runtimeTarget; } }
+
+        /// <summary>是否已被运行时改过目标（UI 可以据此决定显示"默认目的地"还是"任务目的地"）。</summary>
+        public bool HasRuntimeTarget { get { return !string.IsNullOrEmpty(_runtimeTarget); } }
+
+        /// <summary>
+        /// 改目标场景（任务系统接取任务时调用）。
+        /// ⚠️ 传空串 / null = 清除覆写，退回 Inspector 里的默认目标。
+        /// ⚠️ 不校验场景是否存在 —— 调用方自己保证它是 <c>SceneCatalog</c> 里登记过的场景名。
+        /// </summary>
+        public void SetTarget(string sceneName)
+        {
+            _runtimeTarget = sceneName;
+        }
+
+        /// <summary>清除运行时覆写，退回默认目标。</summary>
+        public void ClearTarget()
+        {
+            _runtimeTarget = null;
+        }
+
         /// <summary>切换场景。挂到 <c>Interactable.onInteract</c> 上。</summary>
         public void Go()
         {
             if (_loading) return;//防连按：异步加载期间可能又被触发一次
 
-            if (string.IsNullOrEmpty(_sceneName))
+            //⭐ 运行时覆写优先（任务指定的地点），否则用 Inspector 的默认目标
+            string target = TargetScene;
+
+            if (string.IsNullOrEmpty(target))
             {
                 Debug.LogError("[SceneGate] 目标场景名为空，无法切换。");
                 return;
@@ -51,11 +85,11 @@ namespace Game.Gameplay
                 //   要做出场淡入淡出，可以在这里先播一个全屏黑幕的 CanvasGroup 淡入，
                 //   等 op.isDone 后再淡出（用协程 + WaitForSecondsRealtime，
                 //   ⚠️ 注意用 Realtime 版本，因为切场景前 timeScale 可能刚被改）。
-                SceneManager.LoadSceneAsync(_sceneName);
+                SceneManager.LoadSceneAsync(target);
             }
             else
             {
-                SceneManager.LoadScene(_sceneName);
+                SceneManager.LoadScene(target);
             }
         }
     }

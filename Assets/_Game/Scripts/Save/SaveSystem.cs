@@ -24,7 +24,15 @@ namespace Game.Save
     /// </summary>
     public sealed class SaveSystem
     {
-        public const int CurrentVersion = 1;
+        /// <summary>
+        /// 存档格式版本。改动记录：
+        /// <list type="bullet">
+        ///   <item>v1 —— 初版（魔晶 / 装备 / 法术 / 锻炼 / 任务 / 统计）</item>
+        ///   <item>v2（2026-10-22）—— `PlayerProgress` 增加 `gold`（金币）。旧档读进来 gold = 0，
+        ///         不需要额外搬运，但版本号必须升 —— 否则旧客户端读到新档会静默忽略金币。</item>
+        /// </list>
+        /// </summary>
+        public const int CurrentVersion = 2;
         public const string DefaultFileName = "save.json";
         public const string BackupSuffix = ".bak";
         public const string BadSuffix = ".bad.json";
@@ -253,11 +261,18 @@ namespace Game.Save
             {
                 switch (v)
                 {
-                    // case 1: Migrate_1_to_2(file); break;
+                    // v1 → v2：新增 gold。旧档没有这个字段，反序列化后本来就是 0，这里只是把意图写明。
+                    case 1: Migrate_1_to_2(file); break;
                     default: break;
                 }
             }
             file.version = CurrentVersion;
+        }
+
+        /// <summary>v1 → v2：金币字段是新增的，默认 0。旧档里的魔晶不动。</summary>
+        static void Migrate_1_to_2(SaveFile file)
+        {
+            if (file.progress != null && file.progress.gold < 0) file.progress.gold = 0;
         }
 
         // ───────────────────────────── 清洗 ─────────────────────────────
@@ -274,6 +289,10 @@ namespace Game.Save
             if (file.version < CurrentVersion) file.version = CurrentVersion;
 
             var p = file.progress;
+
+            // 货币不允许负数（手改档可能写出来）
+            if (p.magicCrystal < 0) p.magicCrystal = 0;
+            if (p.gold < 0) p.gold = 0;
 
             if (p.equipmentLevels == null) p.equipmentLevels = new List<EquipmentSave>();
             if (p.learnedSpellIds == null) p.learnedSpellIds = new List<string>();

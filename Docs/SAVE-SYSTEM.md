@@ -1,6 +1,6 @@
 # 存档系统（SaveSystem / ProgressService / PlayerProgress）
 
-> 最后更新：2026-10-22 · 状态：**运行时层已落地**（自测 30/30 通过），业务侧尚未接入
+> 最后更新：2026-10-22 · 状态：**运行时层已落地**（自测 31/31 通过），业务侧尚未接入
 >
 > **本文是存档系统的权威来源。** 策划层面的"存什么"见 [`PHASE1-DESIGN.md`](PHASE1-DESIGN.md) §7；
 > 本文负责"怎么存、谁存、什么时候存"。
@@ -60,7 +60,8 @@
 [Serializable]
 public class PlayerProgress
 {
-    public int magicCrystal;                                     // 魔晶
+    public int magicCrystal;                                     // 魔晶（学法术）
+    public int gold;                                             // 金币（买装备）· v2 新增
     public List<EquipmentSave> equipmentLevels = new List<EquipmentSave>();
     public List<string> learnedSpellIds = new List<string>();
     public List<TrainingSave> trainingCounts = new List<TrainingSave>();
@@ -101,9 +102,19 @@ public enum QuestStatus
 
 1. 文件不存在 → **用默认值**（新玩家），**不立刻写盘**（等第一次真正变化再写）
 2. 读取成功、`version == Current` → 直接用
-3. `version < Current` → 调 `Migrate()`（本阶段是空壳，直接按新格式读）
+3. `version < Current` → 调 `Migrate()` 逐级升级（见下面的版本历史）
 4. `version > Current` → **拒绝加载**，打 error，用默认值（旧版本客户端读到新档，宁可重来也别写坏）
 5. 解析异常 / 内容为 null → 把坏文件**改名备份**为 `save.bad.json`，用默认值，打 error
+
+### 4.1.1 版本历史（`SaveSystem.CurrentVersion`）
+
+| 版本 | 变更 | 迁移 |
+|---|---|---|
+| v1 | 初版：魔晶 / 装备等级 / 法术 / 锻炼 / 任务 / 统计 | — |
+| **v2**（2026-10-22） | `PlayerProgress` 增加 **`gold`（金币）** —— 金币买装备、魔晶学法术 | 旧档没有该字段，反序列化后本来就是 0；`Migrate_1_to_2` 顺手把负数钳到 0 |
+
+> ⚠️ 加字段本身不需要迁移代码（缺字段 = 默认值），但**版本号必须升** —— 否则旧客户端读到新档会静默忽略金币，
+> 玩家在旧版本里花掉的/获得的金币会对不上。这就是 `version > CurrentVersion` 要拒绝加载的原因。
 
 ### 4.2 存盘（Save）
 
@@ -211,9 +222,9 @@ private static void Bootstrap()
 - **写入测试数据** — 造一份魔晶 999、带 1 个任务的档（Play 模式中会警告会被覆盖）
 - **删除存档（含 .bak/.bad）** — 带二次确认（`EditorUtility.DisplayDialog`）
 
-### 7.1 自动化自测（30 项，毫秒级）
+### 7.1 自动化自测（31 项，毫秒级）
 
-`Assets/_Game/Editor/SaveSelfTest.cs`，菜单 `Tools/存档/自测（30 项）`。
+`Assets/_Game/Editor/SaveSelfTest.cs`，菜单 `Tools/存档/自测（31 项）`。
 全部走 `MemoryFileStore` 与 `%TEMP%` 目录，**不碰玩家真实存档**。实测 86 ms 跑完。
 
 | 组 | 条数 | 覆盖 |
@@ -221,7 +232,7 @@ private static void Bootstrap()
 | A 往返 | 6 | 满数据 / 空 List / null List / 中文 / 2000 字符 / int 极值 |
 | B 默认值 | 3 | NotFound、默认进度、不凭空写盘 |
 | C 坏档 | 7 | 空文件 / CRC 篡改 / 截断 / 空白 / BOM 合法档 / `progress:null` / `{}` |
-| D 版本 | 4 | 999 拒绝、0 升级、缺 version、负数钳位 |
+| D 版本 | 5 | 999 拒绝、0 升级、缺 version、负数钳位、**v1→v2 迁移（gold 默认 0）** |
 | E 结构 | 5 | 缺字段、多余字段、枚举 99、null 元素、重复 ID |
 | F 原子写 | 5 | 生成文件、`.bak` 内容、无 `.tmp` 残留、中断后主档不变、失败返回 false |
 

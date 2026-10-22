@@ -32,7 +32,8 @@ namespace Game.Save
     [Serializable]
     public class PlayerProgress
     {
-        public int magicCrystal;                                            // 魔晶
+        public int magicCrystal;                                            // 魔晶（学法术用）
+        public int gold;                                                    // 金币（买装备用，v2 新增）
         public List<EquipmentSave> equipmentLevels = new List<EquipmentSave>();
         public List<string> learnedSpellIds = new List<string>();
         public List<TrainingSave> trainingCounts = new List<TrainingSave>();

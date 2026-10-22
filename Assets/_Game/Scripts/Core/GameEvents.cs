@@ -29,6 +29,14 @@ namespace Game.Core
         public static event Action<string> SceneEntered;
 
         /// <summary>
+        /// 玩家进入了某个"探查点"的范围。参数 = 点的 <c>pointId</c>。
+        ///
+        /// <para>由场景里的 <c>Gameplay.QuestPointTrigger</c> 发出。任务目标类型
+        /// <c>ReachPoint</c> 靠它推进 —— 比"到达场景"更细：可以要求玩家走到地图某个具体位置。</para>
+        /// </summary>
+        public static event Action<string> PointReached;
+
+        /// <summary>
         /// 任务数据变了（**脏通知**，不带参数）。订阅方收到后自己去
         /// <c>QuestService</c> 拉一份列表快照重建 UI。
         ///
@@ -42,6 +50,7 @@ namespace Game.Core
         public static void RaiseBossDied() => BossDied?.Invoke();
         public static void RaiseEnemyKilled(string enemyId, Vector3 position) => EnemyKilled?.Invoke(enemyId, position);
         public static void RaiseSceneEntered(string sceneName) => SceneEntered?.Invoke(sceneName);
+        public static void RaisePointReached(string pointId) => PointReached?.Invoke(pointId);
         public static void RaiseQuestsChanged() => QuestsChanged?.Invoke();
     }
 }

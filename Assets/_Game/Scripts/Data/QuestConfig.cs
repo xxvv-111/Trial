@@ -62,8 +62,9 @@ namespace Game.Data
 
         public QuestObjectiveType type;
 
-        [Tooltip("KillCount → 敌人的 enemyId（swordsman / caster / boss_crichton）\n" +
+        [Tooltip("KillCount → 敌人的 enemyId（enemy1 / enemy2 / boss_crichton）\n" +
                  "ReachScene → 场景名（Forest / Castle / Tavern）\n" +
+                 "ReachPoint → 探查点的 pointId（必须与场景里 QuestPointTrigger 上填的一致）\n" +
                  "KillBoss → 留空")]
         public string targetId;
 
@@ -96,6 +97,7 @@ namespace Game.Data
         KillCount = 0,    // 击杀指定敌人 N 次
         KillBoss = 1,     // 击败 Boss（不区分哪个 Boss，V1 只有一个）
         ReachScene = 2,   // 到达指定场景
+        ReachPoint = 3,   // 进入场景里的某个探查点范围（2026-10-22 新增，见 QuestPointTrigger）
     }
 
     public enum QuestCategory
@@ -106,8 +108,9 @@ namespace Game.Data
 
     public enum RewardKind
     {
-        MagicCrystal = 0,
+        MagicCrystal = 0,   // 魔晶：学法术
         Spell = 1,
         Equipment = 2,
+        Gold = 3,           // 金币：买装备（2026-10-22 新增，追加在末尾，不改旧值）
     }
 }

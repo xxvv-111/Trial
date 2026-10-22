@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 798ea0714f1918d4792ff83bc443e6e1, type: 3}
   m_Name: EnemyCasterConfig
   m_EditorClassIdentifier: 
-  enemyId: caster
+  enemyId: enemy2
   displayName: 亡灵巫鬼
   hp: 30
   aggroRange: 14

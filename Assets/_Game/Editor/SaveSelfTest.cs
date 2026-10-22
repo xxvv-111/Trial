@@ -6,8 +6,8 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// 存档系统自测（30 项）。全部走 MemoryFileStore / 临时目录，不碰玩家的真实存档。
-/// 用法：菜单 Tools > 存档 > 自测（30 项）。红了的项会在 Console 里逐条列出。
+/// 存档系统自测（31 项）。全部走 MemoryFileStore / 临时目录，不碰玩家的真实存档。
+/// 用法：菜单 Tools > 存档 > 自测（31 项）。红了的项会在 Console 里逐条列出。
 /// </summary>
 public static class SaveSelfTest
 {
@@ -18,7 +18,7 @@ public static class SaveSelfTest
     static int _fail;
     static readonly List<string> _failures = new List<string>();
 
-    [MenuItem("Tools/存档/自测（30 项）")]
+    [MenuItem("Tools/存档/自测（31 项）")]
     public static void Run()
     {
         _pass = 0;
@@ -53,6 +53,7 @@ public static class SaveSelfTest
         var sys = NewMemorySystem();
         var src = SaveSystem.CreateDefault();
         src.progress.magicCrystal = 1234;
+        src.progress.gold = 250;
         src.progress.learnedSpellIds.Add("spell_fireball");
         src.progress.equipmentLevels.Add(new EquipmentSave { equipmentId = "sword_01", level = 3 });
         src.progress.trainingCounts.Add(new TrainingSave { statId = "str", count = 7 });
@@ -80,6 +81,7 @@ public static class SaveSelfTest
         else
         {
             if (back.progress.magicCrystal != 1234) problems.Add("魔晶");
+            if (back.progress.gold != 250) problems.Add("金币");
             if (back.progress.learnedSpellIds.Count != 1 || back.progress.learnedSpellIds[0] != "spell_fireball") problems.Add("法术");
             if (back.progress.equipmentLevels.Count != 1 || back.progress.equipmentLevels[0].level != 3) problems.Add("装备等级");
             if (back.progress.trainingCounts.Count != 1 || back.progress.trainingCounts[0].count != 7) problems.Add("锻炼次数");
@@ -219,6 +221,13 @@ public static class SaveSelfTest
 
         status = Load("{\"version\":-3,\"progress\":{}}", out var negative);
         Check("D4 负版本号被钳到 1", status == LoadStatus.Ok && negative.version == SaveSystem.CurrentVersion, "实际=" + status);
+
+        // D5 v1 → v2 迁移：旧档没有 gold 字段，读进来应该是 0，版本升到 2
+        status = Load("{\"version\":1,\"progress\":{\"magicCrystal\":88}}", out var v1);
+        Check("D5 v1 旧档迁移到 v2（gold 默认 0，魔晶不丢）",
+            status == LoadStatus.Ok && v1.version == SaveSystem.CurrentVersion
+            && v1.progress.gold == 0 && v1.progress.magicCrystal == 88,
+            "实际=" + status + " ver=" + v1.version + " gold=" + v1.progress.gold);
     }
 
     static LoadStatus Load(string json, out SaveFile file)

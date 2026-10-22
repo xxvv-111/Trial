@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 798ea0714f1918d4792ff83bc443e6e1, type: 3}
   m_Name: EnemyAIConfig
   m_EditorClassIdentifier: 
-  enemyId: swordsman
+  enemyId: enemy1
   displayName: 亡灵尸鬼
   hp: 30
   aggroRange: 8

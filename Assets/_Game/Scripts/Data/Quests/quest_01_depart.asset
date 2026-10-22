@@ -18,13 +18,13 @@ MonoBehaviour:
   category: 0
   prerequisites: []
   objectives:
-  - objectiveId: reach_forest
-    type: 2
-    targetId: Forest
+  - objectiveId: reach_scout_point
+    type: 3
+    targetId: point_forest_scout
     needCount: 1
-    hint: "\u524D\u5F80\u8986\u96EA\u6797\u5730"
+    hint: "\u62B5\u8FBE\u8986\u96EA\u6797\u5730\u7684\u63A2\u67E5\u70B9"
   targetScene: Forest
   rewards:
-  - kind: 0
+  - kind: 3
     id: 
     amount: 100

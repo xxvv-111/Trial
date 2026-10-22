@@ -95,6 +95,12 @@ namespace Game.Data
                             else if (_sceneCatalog != null && _sceneCatalog.Find(o.targetId) == null)
                                 errors.Add($"{q.questId}/{o.objectiveId}：场景 {o.targetId} 没在 SceneCatalog 里登记");
                             break;
+                        case QuestObjectiveType.ReachPoint:
+                            // 探查点是场景里的对象，配置表管不到 ⇒ 只能检查 id 是否填了。
+                            // 拼错的表现是"任务永远完不成"，所以运行时 QuestPointTrigger 会打日志。
+                            if (string.IsNullOrWhiteSpace(o.targetId))
+                                errors.Add($"{q.questId}/{o.objectiveId}：ReachPoint 没填 pointId");
+                            break;
                     }
                 }
             }

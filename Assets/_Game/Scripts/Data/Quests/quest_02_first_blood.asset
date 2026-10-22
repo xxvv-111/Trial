@@ -20,12 +20,12 @@ MonoBehaviour:
   objectives:
   - objectiveId: kill_ghoul
     type: 0
-    targetId: swordsman
+    targetId: enemy1
     needCount: 1
     hint: "\u51FB\u8D25 1 \u4E2A\u4EA1\u7075\u5C38\u9B3C"
   - objectiveId: kill_wraith
     type: 0
-    targetId: caster
+    targetId: enemy2
     needCount: 1
     hint: "\u51FB\u8D25 1 \u4E2A\u4EA1\u7075\u5DEB\u9B3C"
   targetScene: Forest

@@ -51,15 +51,21 @@
 
 | # | questId | 标题 | 类别 | 前置 | 地点 | 目标 | 奖励 |
 |---|---|---|---|---|---|---|---|
-| 1 | `quest_01_depart` | 启程 | 主线 | 无 | Forest | `ReachScene` Forest ×1（前往覆雪林地） | 100 魔晶 |
-| 2 | `quest_02_first_blood` | 初次交手 | 支线 | 无 | Forest | `KillCount` swordsman ×1（击败亡灵尸鬼）+ `KillCount` caster ×1（击败亡灵巫鬼） | 100 魔晶 |
+| 1 | `quest_01_depart` | 启程 | 主线 | 无 | Forest | `ReachPoint` `point_forest_scout` ×1（抵达路线末端的探查点） | 100 金币 |
+| 2 | `quest_02_first_blood` | 初次交手 | 支线 | 无 | Forest | `KillCount` enemy1 ×1（击败亡灵尸鬼）+ `KillCount` enemy2 ×1（击败亡灵巫鬼） | 100 魔晶 |
 
 资产：`Assets/_Game/Scripts/Data/Quests/`（`QuestCatalog.asset` + `quest_01_depart.asset` + `quest_02_first_blood.asset`）。
 校验菜单：`Tools/任务/校验任务表`（当前 **0 问题**）。
 
-> ⚠️ **奖励口径待确认**：「启程」原始需求写的是「100 金币」，但存档里目前只有 `magicCrystal`（魔晶）一种货币，
-> 所以暂按 **100 魔晶**落地。若要真正的双货币（金币 / 魔晶），需要给 `PlayerProgress` 加 `gold` 字段、
-> 存档版本升 v2 —— 现在业务未接入，改的成本仍为零，但请先确认要不要。
+> ⭐ **「启程」为什么不是 `ReachScene`**（2026-10-22 调整）：任务目的是「探查上山通路」，
+> 只进 Forest 显然不算 —— 必须**走到规划路线的末端**。而 `ReachScene` 只能表达"进了这张地图"，
+> 所以新增目标类型 **`ReachPoint`** + 场景里的触发器组件 **`Gameplay/Quest/QuestPointTrigger.cs`**：
+> 在路线末端摆一个带 `SphereCollider`（Trigger）的空物体、挂上该组件、`pointId` 填
+> `point_forest_scout`（= 任务里的 `targetId`，**两处逐字一致**）。玩家进范围 → `GameEvents.PointReached`
+> → 任务完成。途中遭遇小怪的战斗正好充当新手教学。
+
+> 💰 **双货币（2026-10-22 定）**：**金币买装备 / 魔晶学法术**。存档 `PlayerProgress` 新增 `gold`，
+> 存档版本升到 **v2**（旧档读进来 gold = 0，不丢魔晶）。
 
 ---
 
@@ -100,7 +106,7 @@ public List<QuestObjective> objectives;   // 一条任务 1~N 个目标，全部
 三个直接后果：
 
 1. `ReachScene` 从"任务类型"降级为"目标类型"，典型用法是复合任务的第 1 步：
-   `[到达 Castle] → [击杀 5 名 swordsman]`。这样"跑图"不再是独立任务，而是复合任务的开场。
+   `[到达 Castle] → [击杀 5 只亡灵尸鬼]`。这样"跑图"不再是独立任务，而是复合任务的开场。
 2. **目标必须有稳定 id**（`objectiveId`）：存档按 id 记进度，将来往列表中间插一个目标，
    不会把其它目标的进度冲掉。
 3. 存档结构从 `progress: int` 变成 `objectives: List<{objectiveId, progress}>`。
@@ -112,14 +118,14 @@ public List<QuestObjective> objectives;   // 一条任务 1~N 个目标，全部
 `EnemyHealth` 也不对外暴露 config。
 
 **需要先补**：
-1. `EnemyAIConfig.enemyId`（唯一字符串，例 `"swordsman"` / `"caster"` / `"boss_crichton"`）
+1. `EnemyAIConfig.enemyId`（唯一字符串，例 `"enemy1"` / `"enemy2"` / `"boss_crichton"`）
 2. `EnemyHealth.ConfigId`（只读属性，转发 `_config.enemyId`；配置为空时返回 `""` 并打 warning）
 3. `GameEvents.EnemyKilled(string enemyId, Vector3 position)`
 
 > ✅ **2026-10-22 已落地**。实做时把原设计的 `EnemyKilled(EnemyHealth, string, int exp)` 改成了两个参数：
 > **去掉 `exp`**（工程里没有经验系统，凭空加个字段没人填）；**去掉 `EnemyHealth` 实例**（否则
 > `Game.Core` 要依赖 `Game.Gameplay`，而 Gameplay 本就依赖 Core ⇒ 将来拆 asmdef 必成环）。
-> 位置信息留给掉落物用；任务只需要 `enemyId`。已填的 id：`swordsman` / `caster` / `boss_crichton`。
+> 位置信息留给掉落物用；任务只需要 `enemyId`。已填的 id：`enemy1` / `enemy2` / `boss_crichton`。
 >
 > ⚠️ **Boss 也走 `EnemyHealth.Die`** ⇒ 击杀 Boss 会**同时**发 `EnemyKilled("boss_crichton")` 与 `BossDied`。
 > 所以任务写 `KillBoss` 或 `KillCount{ targetId = boss_crichton }` 都能统计到，选一种即可（别两条都配，会重复计数）。
@@ -198,14 +204,23 @@ public class QuestReward
 [Serializable]
 public class QuestObjective
 {
-    public string objectiveId;          // ⭐ 稳定 id（例 "kill_swordsman"）；存档按它记进度，别改
+    public string objectiveId;          // ⭐ 稳定 id（例 "kill_enemy1"）；存档按它记进度，别改
     public QuestObjectiveType type;
-    public string targetId;             // KillCount → enemyId；ReachScene → sceneName；KillBoss → 留空
+    public string targetId;             // KillCount → enemyId；ReachScene → sceneName；
+                                        // ReachPoint → 探查点 pointId；KillBoss → 留空
     public int needCount = 1;           // KillCount 用；其余填 1
     public string hint;                 // 详情面板那一行文案，如"击杀 5 名剑兵"
 }
 
-public enum QuestObjectiveType { KillCount = 0, KillBoss = 1, ReachScene = 2 }
+public enum QuestObjectiveType { KillCount = 0, KillBoss = 1, ReachScene = 2, ReachPoint = 3 }
+
+[Serializable]
+public class QuestReward
+{
+    public RewardKind kind;             // MagicCrystal=0 / Spell=1 / Equipment=2 / Gold=3
+    public string id;                   // Spell / Equipment 用；货币留空
+    public int amount = 1;
+}
 ```
 
 > **枚举 + 参数**，不要为每种目标写一个类 —— 原规划这条是对的，保留。
@@ -270,7 +285,8 @@ GameEvents ─────────┘         │
 |---|---|---|
 | `GameEvents.EnemyKilled(string enemyId, Vector3 position)` | `EnemyHealth.Die`（只广播一次，带 `_killedBroadcast` 守卫） | 遍历**所有 `Active` 任务的每个目标**：`KillCount` 且 `targetId == enemyId` → 该目标 progress++ |
 | `GameEvents.BossDied` | `BossController.EnterDeath` | 同上：类型 `KillBoss` 的目标 → progress = need |
-| `GameEvents.SceneEntered(string sceneName)` | 场景加载后 | 同上：类型 `ReachScene` 且 `targetId == sceneName` → progress = need |
+| `GameEvents.SceneEntered(string sceneName)` | 场景加载后（`SceneFlow`） | 同上：类型 `ReachScene` 且 `targetId == sceneName` → progress = need |
+| `GameEvents.PointReached(string pointId)` | 场景里的 `QuestPointTrigger` | 同上：类型 `ReachPoint` 且 `targetId == pointId` → progress = need |
 
 每次推进后重算整条任务：**全部目标 `progress >= need` → `ReadyToTurnIn`**（仍不自动 `Completed`）。
 
@@ -287,6 +303,7 @@ GameEvents ─────────┘         │
 ```csharp
 public static event Action<string, Vector3> EnemyKilled;   // enemyId, 死亡位置（⚠️ id 可能为空）
 public static event Action<string> SceneEntered;            // sceneName
+public static event Action<string> PointReached;             // 探查点 pointId
 public static event Action QuestsChanged;                   // 任务数据变了（脏通知）
 ```
 
@@ -315,7 +332,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
              └─ ⭐ 大门的 targetScene = quest.targetScene（SceneGate.SetTarget）
 
 城堡 · 推进（多目标并行）
-   └─ 击杀 / 到达 → 命中对应目标 → 该目标 progress++
+   └─ 击杀 / 到达场景 / 走进探查点 → 命中对应目标 → 该目标 progress++
         └─ 全部目标达标 → ReadyToTurnIn（不自动完成）→ MarkDirty
 
 酒馆 · 告示板
@@ -326,7 +343,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
         └─ 大门目标回落（SceneGate.ClearTarget 或指向下一条任务）
 ```
 
-示例：「铁匠的请求」= 目标 [到达 Castle] → [击杀 5 × swordsman] → [击杀 boss_crichton]；
+示例：「铁匠的请求」= 目标 [到达 Castle] → [击杀 5 × 亡灵尸鬼] → [击杀 boss_crichton]；
 目标 `hint` 分别是"前往城堡" / "击杀 5 名剑兵" / "击败克里顿"。
 
 ### 7.2 与大门 / SceneCatalog 的联动
@@ -365,7 +382,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 | 步 | 内容 | 验收 |
 |---|---|---|
 | 0 | **存档骨架**（`PlayerProgress` / `SaveSystem` / `ProgressService`） | 见 [`SAVE-SYSTEM.md`](SAVE-SYSTEM.md) §8 |
-| 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] swordsman（剑兵）@ (x, y, z)`；配置漏填则打 warning |
+| 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] enemy1（剑兵）@ (x, y, z)`；配置漏填则打 warning |
 | 2 | ~~`GameEvents.SceneEntered` + `QuestsChanged`~~ ✅ **2026-10-22 已完成** | 进场景在 Console 看到 `[SceneEntered] Castle`；`QuestsChanged` 无订阅方时调用不报错 |
 | 3 | ~~`QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + 前置图校验 + 示例任务~~ ✅ **2026-10-22 已完成** | 菜单 `Tools/任务/校验任务表` 通过（2 条任务、0 问题）；故意写一个环应该报错 |
 | 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |

@@ -54,7 +54,9 @@
 | 1 | `quest_01_depart` | 启程 | 主线 | 无 | Forest | `ReachPoint` `point_forest_scout` ×1（抵达路线末端的探查点） | 100 金币 |
 | 2 | `quest_02_first_blood` | 初次交手 | 支线 | 无 | Forest | `KillCount` enemy1 ×1（击败亡灵尸鬼）+ `KillCount` enemy2 ×1（击败亡灵巫鬼） | 100 魔晶 |
 
-资产：`Assets/_Game/Scripts/Data/Quests/`（`QuestCatalog.asset` + `quest_01_depart.asset` + `quest_02_first_blood.asset`）。
+资产：`Assets/_Game/Resources/Quests/`（`QuestCatalog.asset` + `quest_01_depart.asset` + `quest_02_first_blood.asset`）。
+⚠️ 放在 **Resources** 下是为了让运行时单例用 `Resources.Load<QuestCatalog>("Quests/QuestCatalog")` 拿到它
+（`QuestService` 是自动创建的，没有 Inspector 可以拖引用）。
 校验菜单：`Tools/任务/校验任务表`（当前 **0 问题**）。
 
 > ⭐ **「启程」为什么不是 `ReachScene`**（2026-10-22 调整）：任务目的是「探查上山通路」，
@@ -279,6 +281,21 @@ GameEvents ─────────┘         │
 - 进度变化 → 写 `QuestSave` → `ProgressService.MarkDirty()` → 广播 `QuestsChanged`
 - 某条任务转为 `Completed` 后，**重算所有 `Locked` 任务**：前置满足了就提升为 `Available`（并发 `QuestsChanged`）
 
+> ✅ **2026-10-22 已实现**：`Gameplay/Quest/QuestService.cs`（`DontDestroyOnLoad` + `BeforeSceneLoad` 自动创建），
+> 纯规则抽到 `Data/QuestState.cs` 的 **`QuestRules`**（`AllObjectivesDone` / `PrerequisitesDone` / `Recompute`），
+> 用 `Tools/任务/状态机自测` 跑 **14/14**（不碰 Unity 对象、不进 Play）。
+>
+> 实现时定的几条硬规则：
+> 1. **只有 `Active` 的任务会推进**（`Locked` / `Available` / `ReadyToTurnIn` 收到事件都不动）；
+> 2. **`Completed` 是终态**，任何事件都不会把它改回去；
+> 3. 目标全满**只到 `ReadyToTurnIn`**，绝不自动完成；
+> 4. **空目标列表算"没完成"** —— 0 个目标的任务不能被交付（配置校验也会报）；
+> 5. 初始化对齐（配置 ↔ 存档）只在 `Start` 里做，因为 `ProgressService` 与 `QuestService` 都是
+>    `BeforeSceneLoad` 创建的，谁先 `Awake` 没有保证；
+> 6. 对齐时**只有真修正了已有数据才 `MarkDirty`** —— 否则每次启动都会凭空生成一个存档文件。
+>
+> 调试菜单：`Tools/任务/打印任务状态（需 Play）`。
+
 ### 5.1 谁订阅什么
 
 | 事件 | 谁发 | `QuestService` 的反应 |
@@ -385,7 +402,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 | 1 | ~~`EnemyAIConfig.enemyId` + `EnemyHealth.ConfigId` + `GameEvents.EnemyKilled`~~ ✅ **2026-10-22 已完成** | 杀一只怪，Console 打出 `[EnemyKilled] enemy1（剑兵）@ (x, y, z)`；配置漏填则打 warning |
 | 2 | ~~`GameEvents.SceneEntered` + `QuestsChanged`~~ ✅ **2026-10-22 已完成** | 进场景在 Console 看到 `[SceneEntered] Castle`；`QuestsChanged` 无订阅方时调用不报错 |
 | 3 | ~~`QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + 前置图校验 + 示例任务~~ ✅ **2026-10-22 已完成** | 菜单 `Tools/任务/校验任务表` 通过（2 条任务、0 问题）；故意写一个环应该报错 |
-| 4 | `QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播） | Console 手动模拟事件，多目标各自推进正确、全满转 `ReadyToTurnIn`、交付后下游从 `Locked` 变 `Available` |
+| 4 | ~~`QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播）~~ ✅ **2026-10-22 已完成** | `Tools/任务/状态机自测` 14/14；Play 里 `Tools/任务/打印任务状态` 能看到状态变化 |
 | 5 | `Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮） | 列表条目随任务数变化，锁着的置灰并显示原因 |
 | 6 | 大门联动（接取时 `SetTarget`） | 接「前往森林」后，酒馆大门真的去了森林 |
 | 7 | 端到端联调 + 存档验证 | 接任务 → 打怪 → 退出游戏 → 重进 → 进度还在 → 回酒馆交付得奖励 |

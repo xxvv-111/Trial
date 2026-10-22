@@ -67,6 +67,34 @@ public static class QuestCatalogMenu
         Debug.Log(sb.ToString());
     }
 
+    [MenuItem("Tools/任务/打印任务状态（需 Play）", false, 4)]
+    public static void PrintRuntimeStates()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.LogWarning("[任务] 该菜单只在 Play 模式下有意义（运行时状态由 QuestService 持有）");
+            return;
+        }
+
+        var svc = Game.Gameplay.QuestService.Instance;
+        if (svc == null) { Debug.LogError("[任务] QuestService.Instance 为空 —— 服务没创建成功？"); return; }
+        if (!svc.IsReady) { Debug.LogWarning("[任务] QuestService 还没初始化完（等一帧再试）"); return; }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"[任务] 运行时状态（{svc.All.Count} 条）：");
+        for (int i = 0; i < svc.All.Count; i++)
+        {
+            var st = svc.All[i];
+            sb.AppendLine($"  {st.QuestId}｜{st.Title}｜{st.Status}");
+            for (int k = 0; k < st.Objectives.Count; k++)
+            {
+                var o = st.Objectives[k];
+                sb.AppendLine($"      - {o.Hint}（{o.Progress}/{o.Need}）{(o.IsDone ? " ✓" : "")}");
+            }
+        }
+        Debug.Log(sb.ToString());
+    }
+
     static QuestCatalog FindCatalog()
     {
         var guids = AssetDatabase.FindAssets("t:QuestCatalog");

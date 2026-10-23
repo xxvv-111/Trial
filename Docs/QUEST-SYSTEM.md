@@ -380,9 +380,18 @@ public static event Action QuestsChanged;                   // 任务数据变�
 ### 7.2 与大门 / SceneCatalog 的联动
 
 - 任务的「地点」= `QuestConfig.targetScene`，取值必须是 `SceneCatalog.asset` 里登记过的 `sceneName`
-- 接取时调 `SceneGate.SetTarget(...)`；没有进行中的任务时调 `ClearTarget()` 回落到 Inspector 默认值
-- 大门上的提示文案（`Interactable.prompt`）建议也随任务变（"前往城堡" / "前往森林"），
-  但 `prompt` 是 `[SerializeField]` 固定值 —— 需要给 `Interactable` 加一个运行时改文案的接口（待办）
+- ✅ **2026-10-23 已落地**：`Gameplay/Quest/QuestGateBinder.cs`，挂在**与 `SceneGate` 同一个物体**上
+  （`Environment/SceneGate`，靠 `[RequireComponent(typeof(SceneGate))]` 保证）
+  - 订阅 `GameEvents.QuestsChanged` —— 接取 / 推进 / 交付都会广播，一处订阅全覆盖
+  - 规则：只看 `Active`（进行中）的任务。`ReadyToTurnIn` 要回酒馆交付，不该把门指向它；
+    多条进行中且地点不同时取**任务表里靠前**的那条（V1 约定，简单可预期）；
+    没有进行中的任务 ⇒ `ClearTarget()`，回落到 Inspector 里的默认目标
+  - ⚠️ **刻意不写进 `QuestService`**：服务只管进度与状态机，不该知道"场景里有一扇门"。
+    反过来门也不该逼服务改规则，所以走事件单向依赖
+  - 初始化用 `Start` + `Update` 重试（与 `QuestService` 同因：两个单例都是 `BeforeSceneLoad`
+    自动创建，`Awake` 顺序不保证，只试一次会永久"没反应"）
+- 大门上的提示文案（`Interactable.prompt`）**仍未随任务变**：
+  `prompt` 是 `[SerializeField]` 固定值，要变需要给 `Interactable` 加一个运行时改文案的接口（待办）
 
 ---
 
@@ -418,7 +427,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 | 3 | ~~`QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + 前置图校验 + 示例任务~~ ✅ **2026-10-22 已完成** | 菜单 `Tools/任务/校验任务表` 通过（2 条任务、0 问题）；故意写一个环应该报错 |
 | 4 | ~~`QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播）~~ ✅ **2026-10-22 已完成** | `Tools/任务/状态机自测` 14/14；Play 里 `Tools/任务/打印任务状态` 能看到状态变化 |
 | 5 | ~~`Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮）~~ ✅ **2026-10-23 已完成** | Play 实测：2 条任务 → 2 行；接取后行变「进行中」、按钮置灰；到达探查点后变「可交付」；交付后金币 +100、状态「已完成」，存档里 `status` 同步 |
-| 6 | 大门联动（接取时 `SetTarget`） | 接「前往森林」后，酒馆大门真的去了森林 |
+| 6 | ~~大门联动（接取时 `SetTarget`）~~ ✅ **2026-10-23 已完成** | 新增 `QuestGateBinder` 挂在 `Environment/SceneGate`。Play 实测：接取后 `TargetScene` 自动 `Castle`→`Forest`；交付第一条后仍 `Forest`（第二条仍在进行）；两条都交付后回落 `Castle`、`HasRuntimeTarget=false` |
 | 7 | 端到端联调 + 存档验证 | 接任务 → 打怪 → 退出游戏 → 重进 → 进度还在 → 回酒馆交付得奖励 |
 
 ---

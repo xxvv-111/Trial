@@ -28,11 +28,21 @@ namespace Game.Core
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)//已有实例 → 自己是多余的
-            {
-                Destroy(gameObject);
-                return;
-            }
+            // ⚠️⚠️ 已有实例时**不能** `Destroy(gameObject); return;` —— 那会造成"切场景后
+            //    全局一个 InputService 都不剩"，症状是**角色完全不动、相机也转不了、Console 干净**。
+            //
+            // 为什么：本类是**每场景一个**（不常驻）。`SceneManager.LoadScene`（尤其 `LoadSceneAsync`）
+            // 的执行顺序是 **新场景对象的 Awake → 旧场景对象的 OnDestroy**。
+            // 于是新场景的实例醒来时，`Instance` 还指着旧场景那个：
+            //   · 若在这里自杀 ⇒ 本实例的 `_controls` 永远是 null、闸停在 false；
+            //   · 旧实例随后 OnDestroy，执行 `if (Instance == this) Instance = null` ⇒ 单例被清空；
+            //   · 结果两个都没了，`PlayerMotor.Update` 首行 `if (input == null) return;` 静默返回。
+            //
+            // 正确做法是**后到者赢**：新实例接管，旧实例让位（它本来就要随旧场景销毁）。
+            // 旧实例的 OnDestroy 因为 `Instance != this` 不会再清空单例 —— 那一句判断就是为此留的。
+            if (Instance != null && Instance != this)
+                Instance.Shutdown();
+
             Instance = this;
             _controls = new PlayerControls();
             _controls.Enable();
@@ -223,14 +233,24 @@ namespace Game.Core
             _specialAt = float.NegativeInfinity;
         }
 
-        private void OnDestroy()
+        /// <summary>
+        /// 释放输入资源。**幂等** —— 两条路径都会调用：
+        /// 正常销毁（<see cref="OnDestroy"/>）、以及切场景时被新场景的实例顶掉（见 <see cref="Awake"/>）。
+        /// </summary>
+        private void Shutdown()
         {
+            GameplayInputEnabled = false;//被顶掉之后，旧实例不该再对外给输入
             if (_controls != null)
             {
                 _controls.Disable();//先关掉 action map
                 _controls.Dispose();//再销毁 asset
                 _controls = null;   //⭐ 清空引用 —— 让 `Update` 的判空能挡住"销毁之后还跑一帧"
             }
+        }
+
+        private void OnDestroy()
+        {
+            Shutdown();
             if (Instance == this) Instance = null;
         }
     }

@@ -55,7 +55,7 @@
 
 ## 2. 脚本清单（先看总表，不用记）
 
-所有路径都在 `Demo-main/Assets/_Game/` 下。**共 17 个文件、约 2530 行**，其中任务本身约 1270 行。
+所有路径都在 `Demo-main/Assets/_Game/` 下。**共 19 个文件（含 1 个 prefab）、约 2700 行**，其中任务本身约 1450 行。
 
 | 层 | 文件 | 约多少行 | 一句话作用 |
 |---|---|---|---|
@@ -67,6 +67,8 @@
 | 运行时 | `Scripts/Data/QuestState.cs` | 104 | 给界面读的「任务现在什么样」+ 纯规则函数 |
 | 运行时 | `Scripts/Gameplay/Quest/QuestService.cs` | 438 | **核心**：推进进度、接取、交付、发奖励 |
 | 运行时 | `Scripts/Gameplay/Quest/QuestPointTrigger.cs` | 79 | 场景里的「探查点」，玩家走进来就上报 |
+| 界面 | `Scripts/UI/QuestPanel.cs` | 323 | 任务面板：动态列表 + 详情 + 接取/交付按钮 |
+| 界面 | `Prefabs/UI/Row_Quest.prefab` | — | 列表的一行（标题 + 状态 + 底部细线） |
 | 存档 | `Scripts/Save/ProgressService.cs` | 147 | 进度唯一入口（0.5 秒后自动存盘） |
 | 存档 | `Scripts/Save/SaveData.cs` | 112 | 存档长什么样（含 `quests` 和两种货币） |
 | 存档 | `Scripts/Save/SaveSystem.cs` | 394 | 打包 / 拆包 / 校验 / 版本迁移 |

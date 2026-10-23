@@ -33,6 +33,7 @@ namespace Game.Gameplay
         readonly Dictionary<string, QuestState> _byId = new Dictionary<string, QuestState>();
         QuestCatalog _catalog;
         bool _ready;
+        bool _waitWarned;
 
         /// <summary>全部任务的运行时视图（UI 用，顺序 = 任务表顺序）。</summary>
         public IReadOnlyList<QuestState> All { get { return _states; } }
@@ -80,7 +81,34 @@ namespace Game.Gameplay
 
         void Start()
         {
-            // 等 ProgressService 就绪（见类注释：两个单例的 Awake 顺序不保证）
+            // 等 ProgressService 就绪（见类注释：两个单例的 Awake 顺序不保证）。
+            // ⚠️ 不能只试一次：万一这一帧 ProgressService 还没准备好，任务系统就永久空转了。
+            //    TrySync 会在 Update 里继续重试，直到成功。
+            TrySync();
+        }
+
+        void Update()
+        {
+            if (_ready) return;
+            TrySync();
+        }
+
+        /// <summary>尝试与存档对齐；ProgressService 还没就绪就静默等待（只 warn 一次）。</summary>
+        void TrySync()
+        {
+            if (_ready || _catalog == null) return;
+
+            var progress = ProgressService.Instance != null ? ProgressService.Instance.Progress : null;
+            if (progress == null)
+            {
+                if (!_waitWarned)
+                {
+                    _waitWarned = true;
+                    Debug.Log("[Quest] 等待 ProgressService 就绪……");
+                }
+                return;
+            }
+
             SyncFromSave();
         }
 

@@ -296,6 +296,20 @@ GameEvents ─────────┘         │
 >
 > 调试菜单：`Tools/任务/打印任务状态（需 Play）`。
 
+### 5.2 界面（2026-10-23 落地）
+
+| 东西 | 位置 | 作用 |
+|---|---|---|
+| `Row_Quest.prefab` | `Prefabs/UI/` | 列表一行：标题 + 状态 + 底部 2px 细线（细线同时是按钮高亮目标） |
+| `List_Rows` | Tavern 场景 `Panel_QuestPanel/Content` | 行的父物体，挂 `VerticalLayoutGroup`（宽 460，行高 40，间距 6） |
+| `Button_Action` | 同上 | 接取 / 交付按钮（从 `Button_Close` 复制，样式与关闭键一致） |
+| `QuestPanel.cs` | `Scripts/UI/` | 订阅 `QuestsChanged` → 重建行 + 刷新详情；按钮点击直接转给 `QuestService` |
+
+> ⚠️ **锁着的任务要显示、不要隐藏**：置灰 + 详情里显示「需先完成：XXX」，否则玩家不知道后面还有内容。
+>
+> ⚠️ **重建列表时不能只 `Destroy`**：`Destroy` 帧末才生效，同一帧内两次 `Rebuild`（打开面板 + `QuestsChanged`）
+> 会让旧行还挂在父节点上 ⇒ 列表瞬间翻倍。做法是先 `SetActive(false)` 让它立刻退出布局，再 `Destroy`。
+
 ### 5.1 谁订阅什么
 
 | 事件 | 谁发 | `QuestService` 的反应 |
@@ -403,7 +417,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
 | 2 | ~~`GameEvents.SceneEntered` + `QuestsChanged`~~ ✅ **2026-10-22 已完成** | 进场景在 Console 看到 `[SceneEntered] Castle`；`QuestsChanged` 无订阅方时调用不报错 |
 | 3 | ~~`QuestConfig` SO（含 `prerequisites` / `objectives[]`）+ `QuestCatalog` + 前置图校验 + 示例任务~~ ✅ **2026-10-22 已完成** | 菜单 `Tools/任务/校验任务表` 通过（2 条任务、0 问题）；故意写一个环应该报错 |
 | 4 | ~~`QuestService`（订阅 → 多目标推进 → 状态机 → 前置解锁 → 广播）~~ ✅ **2026-10-22 已完成** | `Tools/任务/状态机自测` 14/14；Play 里 `Tools/任务/打印任务状态` 能看到状态变化 |
-| 5 | `Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮） | 列表条目随任务数变化，锁着的置灰并显示原因 |
+| 5 | ~~`Row_Quest.prefab` + `QuestPanel` 动态列表（列表 + 详情 + 目标清单 + 按钮）~~ ✅ **2026-10-23 已完成** | Play 实测：2 条任务 → 2 行；接取后行变「进行中」、按钮置灰；到达探查点后变「可交付」；交付后金币 +100、状态「已完成」，存档里 `status` 同步 |
 | 6 | 大门联动（接取时 `SetTarget`） | 接「前往森林」后，酒馆大门真的去了森林 |
 | 7 | 端到端联调 + 存档验证 | 接任务 → 打怪 → 退出游戏 → 重进 → 进度还在 → 回酒馆交付得奖励 |
 

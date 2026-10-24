@@ -98,12 +98,16 @@ namespace Game.Gameplay
         {
             if (!_drawGizmo) return;
 
-            var sphere = GetComponent<SphereCollider>();
-            var radius = sphere != null ? sphere.radius * Mathf.Max(transform.lossyScale.x, 0.0001f) : 1f;
-            var center = sphere != null ? transform.TransformPoint(sphere.center) : transform.position;
+            var col = GetComponent<Collider>();
+            if (col == null) return;
 
             Gizmos.color = new Color(0.3f, 0.8f, 1f, 0.6f);
-            Gizmos.DrawWireSphere(center, radius);
+
+            //⚠️ 原来只画 SphereCollider，选了 BoxCollider 时退化成"半径 1 的球"，
+            //   画出来的范围和实际能触发的范围**不一致** —— 会让人误判"我明明站在框里"。
+            //   统一改用 Collider.bounds：它已经是世界空间、且已经算进 localScale 的最终尺寸。
+            var b = col.bounds;
+            Gizmos.DrawWireCube(b.center, b.size);
         }
     }
 }

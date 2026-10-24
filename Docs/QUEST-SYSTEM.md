@@ -149,7 +149,7 @@ public List<QuestObjective> objectives;   // 一条任务 1~N 个目标，全部
 **2026-10-22 拍板：走方案 B（动态列表）**。理由不是"以后可能更多"，而是**前置链一进来就必然超过 2 条**：
 玩家同时要看得到「已接 2 条 + 可接 1 条 + 锁着 2 条」，2 个槽位连列表都列不全。
 
-做法：把现有两行抽成 `Row_Quest.prefab`（复用 `UIBuilderKit` 的排版），`QuestPanel` 持有
+做法：把现有两行抽成 `Row_Quest.prefab`（按 [`UI-STYLE.md`](UI-STYLE.md) v4 的排版规范：纯文字 + 底部 2px 细线），`QuestPanel` 持有
 `List<Row_Quest>`，用实例化 + 回收；条目数不超过池容量时只切 `SetActive`，不反复 `Instantiate`。
 
 ⚠️ 锁着的任务**要显示但置灰**（附一行"需先完成：XXX"），不要隐藏 —— 否则玩家不知道后面还有内容。

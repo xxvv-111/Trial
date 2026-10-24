@@ -37,6 +37,35 @@ public static class SaveMenu
         return $"{path}  （{bytes} B，最后写入 {File.GetLastWriteTime(path):yyyy-MM-dd HH:mm:ss}）";
     }
 
+    [MenuItem(MenuRoot + "重置存档（清空全部进度）", false, 10)]
+    static void ResetSave()
+    {
+        //⚠️ Play 中删文件等于没删：ProgressService 已经把进度读进内存，删掉的档随后会被覆盖写回。
+        //  真想"不退出 Play 地反复测"，用 Tools/任务/重置任务进度（它清的是内存里的任务状态）。
+        if (Application.isPlaying)
+        {
+            EditorUtility.DisplayDialog(
+                "请先停止 Play",
+                "重置存档要删除磁盘上的文件。Play 模式中进度还在内存里使用，"
+                + "删掉的文件随后会被覆盖写回，等于没重置。\n\n"
+                + "请先停止 Play 再执行。\n\n"
+                + "如果只想在 Play 里反复测任务，用 Tools/任务/重置任务进度。",
+                "知道了");
+            return;
+        }
+
+        var ok = EditorUtility.DisplayDialog(
+            "重置存档",
+            "将删除主档 / .bak / .bad，下次进入 Play 从零开始"
+            + "（金币、魔晶、装备、任务全部清零）。\n\n" + SavePath,
+            "重置", "取消");
+        if (!ok) return;
+
+        new SaveSystem(new DiskFileStore(), SavePath).DeleteAll();
+        AssetDatabase.Refresh();
+        Debug.LogWarning("[存档] 已重置：文件已删除，下次进入 Play 从零开始");
+    }
+
     [MenuItem(MenuRoot + "写入测试数据", false, 20)]
     static void WriteTestData()
     {
@@ -68,16 +97,4 @@ public static class SaveMenu
         }
     }
 
-    [MenuItem(MenuRoot + "删除存档（含 .bak/.bad）", false, 40)]
-    static void DeleteSave()
-    {
-        var ok = EditorUtility.DisplayDialog(
-            "删除存档",
-            "将删除以下三个文件：\n" + SavePath + "\n" + SavePath + ".bak\n" + SavePath + ".bad.json\n\n此操作不可撤销。",
-            "删除", "取消");
-        if (!ok) return;
-
-        new SaveSystem(new DiskFileStore(), SavePath).DeleteAll();
-        Debug.LogWarning("[存档] 已删除存档文件");
-    }
 }

@@ -44,6 +44,9 @@ RPG 层（酒馆 4 个 NPC 面板 + 魔晶 + 法术槽）**一行代码都没写
    已支持分栏：`_entryLabels[] / _detailTitle / _detailBody / _detailGoal`）、`PauseMenu`
 6. 生成器：`Tools/UI/生成酒馆 UI（全部）` + 三个分项 → `Assets/_Game/Editor/TavernUIBuilder.cs`，
    公共 helper 在 `Assets/_Game/Editor/UIBuilderKit.cs`
+   > ⚠️ **2026-10-24 已删除这两个脚本**：它们生成的是**旧版**任务面板（固定两行 `Row_Quest_1/2`），
+   > 与第 5 步改成 `List_Rows` + 动态行的现行结构冲突，重跑会覆盖掉现有面板。
+   > 需要复查 UI 结构时以场景里的实际对象为准（或 `git show <commit>:路径` 取回脚本）。
 7. ✅ 顺手修掉两个**旧 bug**：
    - 暂停面板三个按钮原先全接 `GameManager`，而 **Tavern 没有 GameManager** ⇒ `Missing`、点了没反应。
      现在改接 `PauseMenu` 自己（新增 `RestartScene()`）

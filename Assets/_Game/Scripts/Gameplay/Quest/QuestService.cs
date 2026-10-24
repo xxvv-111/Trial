@@ -355,6 +355,33 @@ namespace Game.Gameplay
             return true;
         }
 
+        /// <summary>
+        /// 清空**全部任务**的进度并重建（**仅供联调反复测试**）。
+        ///
+        /// <para>只动 <c>Progress.quests</c>：金币 / 魔晶 / 装备等级 / 法术**全部保留**，
+        /// 也不删除存档文件。重置后所有任务按前置重新计算状态
+        /// （无前置的回到 <c>Available</c>，有前置且未满足的回到 <c>Locked</c>）。</para>
+        ///
+        /// <para>⚠️ **最后那句 <c>MarkDirty()</c> 不能省**：<see cref="SyncFromSave"/> 内部只在
+        /// 「真修正了已有数据」时才标脏，而「清空后重新新建」走的是新建分支、不置 <c>changed</c>，
+        /// 所以不补这一下的话重置结果**不会落盘**，下次进 Play 又读回旧状态。</para>
+        /// </summary>
+        public void ResetAllProgress()
+        {
+            var pg = ProgressService.Instance;
+            if (pg == null)
+            {
+                Debug.LogError("[Quest] 没有 ProgressService，无法重置任务进度");
+                return;
+            }
+
+            pg.Progress.quests.Clear();
+            SyncFromSave();
+            pg.MarkDirty();
+
+            Debug.Log("[Quest] 已重置全部任务进度（金币 / 装备未改动）");
+        }
+
         /// <summary>不改变状态，只按当前进度/前置重算一次（读档后、配置改动后用）。</summary>
         public void RefreshStatus(QuestState st)
         {

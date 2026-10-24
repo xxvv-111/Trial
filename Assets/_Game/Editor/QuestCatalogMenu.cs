@@ -95,6 +95,47 @@ public static class QuestCatalogMenu
         Debug.Log(sb.ToString());
     }
 
+    /// <summary>
+    /// 把所有任务打回初始状态（**联调反复测试用**）。
+    ///
+    /// <para>为什么必须在 Play 里：任务进度只存在于运行时的 <c>QuestService</c> 内存里，
+    /// 编辑器状态下没有可重置的对象。好处是**不用退出 Play**，接着就能重新接取 / 交付。</para>
+    ///
+    /// <para>⚠️ 只清任务，金币 / 魔晶 / 装备**不动**；也不删存档文件。
+    /// 想连货币一起清，用 <c>Tools/存档/重置存档</c>（那个需要先停止 Play）。</para>
+    /// </summary>
+    [MenuItem("Tools/任务/重置任务进度（需 Play）", false, 5)]
+    public static void ResetRuntimeProgress()
+    {
+        if (!Application.isPlaying)
+        {
+            EditorUtility.DisplayDialog(
+                "需要 Play 模式",
+                "任务进度只存在于运行时的 QuestService 里，所以这个菜单要在 Play 模式下用。\n\n"
+                + "如果想把整个存档（金币、装备、任务）一起清掉，先停止 Play，"
+                + "再用 Tools/存档/重置存档。",
+                "知道了");
+            return;
+        }
+
+        var svc = Game.Gameplay.QuestService.Instance;
+        if (svc == null || !svc.IsReady)
+        {
+            Debug.LogWarning("[任务] QuestService 还没就绪，过一帧再点一次");
+            return;
+        }
+
+        bool ok = EditorUtility.DisplayDialog(
+            "重置任务进度",
+            "所有任务打回初始状态（可接取的回到可接取，已完成的也会回来）。\n\n"
+            + "金币 / 魔晶 / 装备等级保持不变，也不会删除存档文件。\n\n"
+            + "用途：反复测试接取 → 推进 → 交付，不必退出 Play。",
+            "重置", "取消");
+        if (!ok) return;
+
+        svc.ResetAllProgress();
+    }
+
     static QuestCatalog FindCatalog()
     {
         var guids = AssetDatabase.FindAssets("t:QuestCatalog");

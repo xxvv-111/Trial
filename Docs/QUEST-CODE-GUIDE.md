@@ -66,7 +66,8 @@
 | 配置 | `Resources/Quests/*.asset` | — | 具体两条任务的数据 |
 | 运行时 | `Scripts/Data/QuestState.cs` | 104 | 给界面读的「任务现在什么样」+ 纯规则函数 |
 | 运行时 | `Scripts/Gameplay/Quest/QuestService.cs` | 438 | **核心**：推进进度、接取、交付、发奖励 |
-| 运行时 | `Scripts/Gameplay/Quest/QuestPointTrigger.cs` | 79 | 场景里的「探查点」，玩家走进来就上报 |
+| 运行时 | `Scripts/Gameplay/Quest/QuestPointTrigger.cs` | 109 | 场景里的「探查点」，玩家按 F 调查才上报（战斗中不可交互） |
+| 运行时 | `Scripts/Gameplay/Enemy/CombatRegistry.cs` | 60 | 「玩家是否在战斗」的全局查询点，靠敌人状态判断 |
 | 界面 | `Scripts/UI/QuestPanel.cs` | 323 | 任务面板：动态列表 + 详情 + 接取/交付按钮 |
 | 界面 | `Prefabs/UI/Row_Quest.prefab` | — | 列表的一行（标题 + 状态 + 底部细线） |
 | 存档 | `Scripts/Save/ProgressService.cs` | 147 | 进度唯一入口（0.5 秒后自动存盘） |
@@ -98,7 +99,7 @@
 EnemyKilled(string enemyId, Vector3 位置)   // 有敌人死了，谁发的：EnemyHealth
 BossDied                                    // Boss 死了，谁发的：BossController
 SceneEntered(string sceneName)              // 进了场景，谁发的：SceneFlow
-PointReached(string pointId)                // 走进探查点，谁发的：QuestPointTrigger
+PointReached(string pointId)                // 玩家按 F 调查探查点，谁发的：QuestPointTrigger
 QuestsChanged()                             // 任务数据变了（给 UI 的提醒，暂无人发）
 ```
 
@@ -259,10 +260,27 @@ Locked ──前置完成──► Available ──玩家点接取──► Acti
 进 Forest 显然不算完成，必须走到路线末端。所以加了一个更细的目标类型 + 这个组件。
 
 **怎么用（游戏里）**：在路线末端建一个空物体 → 加 `SphereCollider`（勾 `Is Trigger`）→ 挂这个组件 →
-`pointId` 填 `point_forest_scout`。玩家走进范围就发 `GameEvents.PointReached`。
+`pointId` 填 `point_forest_scout`。玩家走近会出现「按 F 调查」的提示，**按下才发** `GameEvents.PointReached`。
 
-**代码里做了什么**：只用玩家层（第 8 层）过滤，避免怪物或子弹误触发；只上报一次；
-漏填 id 打 warning。拼错了它救不了你 —— 只能靠复制粘贴。
+**为什么是「交互」不是「走进触发」**（2026-10-24 改）：
+走进范围就自动完成会让玩家莫名其妙（"我明明是来打架的，任务怎么就完成了"）。
+「探查」这个动作本身就该是主动的。改成交互之后，它直接复用现有的
+`IInteractable` + `InteractionDetector` + `InteractPromptUI` 那一整套，不用新造系统。
+
+**代码里做了什么**：
+- 实现 `IInteractable` 四个成员：`Prompt`（默认"调查"）/ `Priority` / `CanInteract` / `Interact`
+- `CanInteract` 同时管两件事：**已经调查过**、**场景里有敌人在战斗中**（`CombatRegistry.AnyEngaged`）
+- `Interact` 里**又判了一次** `CanInteract` —— 这是唯一的兜底，别删：
+  玩家可能先站在范围内（提示已显示），之后敌人才冲过来；检测器不会因为敌人状态变化而重扫
+- 漏填 id 打 warning。拼错了它救不了你 —— 只能靠复制粘贴
+
+> ⚠️ **不能靠"进入时筛选"代替二次判断**：那是两个不同的时间点，缺一个就漏。
+
+**配套的 `CombatRegistry`（`Gameplay/Enemy/CombatRegistry.cs`，60 行）**
+是「玩家是否在战斗」的全局查询点。规则是：**场景里只要有敌人处于「已警觉 / 交战中」就算**，
+待机与死亡不算，Boss 的 `Return`（脱战回程）也不算。
+敌人由基类 `EnemyAIController` 的 `OnEnable` / `OnDisable` 自动登记，各子类实现一个
+`IsEngaged` 属性（三种敌人的 `EState` 是各自独立的枚举，基类拿不到统一状态类型）。
 
 ---
 
@@ -332,7 +350,7 @@ QuestService ─► ProgressService ─► SaveSystem ─► IFileStore ─► D
        └─ 敌人死亡 → EnemyHealth 发 EnemyKilled("enemy1")
               └─ QuestService：任务里是 ReachPoint 目标，不匹配 → 什么也不做
        ▼
-⑤ 玩家走进探查点
+⑤ 玩家走到探查点旁，按 F 调查（若此时有敌人警觉/交战，提示不出现、按了也无效）
        └─ QuestPointTrigger 发 PointReached("point_forest_scout")
               └─ QuestService：目标 targetId 匹配 → progress 0→1
                      ├─ 全部目标完成 → 状态 ReadyToTurnIn
@@ -389,7 +407,7 @@ QuestService ─► ProgressService ─► SaveSystem ─► IFileStore ─► D
 **已经能跑通（逻辑层）**
 
 - 两条任务配置可读、可校验（0 问题）
-- 击杀敌人 / 进场景 / 踩探查点 → 会推进对应目标
+- 击杀敌人 / 进场景 / 调查探查点 → 会推进对应目标（战斗中不能调查）
 - 目标全满 → 自动变「可交付」
 - 接取、交付、发奖励的 API 都在，且会写进存档
 - 退出游戏再进，任务状态和目标进度还在（由存档层保证）

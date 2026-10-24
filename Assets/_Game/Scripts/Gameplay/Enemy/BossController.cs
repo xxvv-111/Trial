@@ -163,6 +163,12 @@ namespace Game.Gameplay
             }
         }
 
+        /// <summary>
+        /// 与 <see cref="InCombat"/> 同义，供 <see cref="CombatRegistry"/> 统一查询。
+        /// <c>Return</c>（脱战走回原位）**不算**交战 —— 它是一段脱战演出。
+        /// </summary>
+        public override bool IsEngaged { get { return InCombat; } }
+
         // ==================== 配置取值（配置没挂时给安全默认，避免 NRE） ====================
 
         /// <summary>Boss 专用配置。<c>_config</c> 不是 BossConfig 时为 null（会在 Awake 里报错）。</summary>

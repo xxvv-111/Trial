@@ -38,6 +38,21 @@ namespace Game.Gameplay
         // ==================== 组件 ====================
 
         protected EnemyHealth Health { get; private set; }
+
+        /// <summary>
+        /// 是否处于「已警觉 / 交战中」—— <see cref="CombatRegistry"/> 靠它判断玩家是否在战斗。
+        ///
+        /// <para>⚠️ **必须由子类实现**：三种敌人的 `EState` 是**各自独立的枚举**
+        /// （<see cref="EnemyMeleeAI"/> / <see cref="EnemyCaster"/> / <see cref="BossController"/>），
+        /// 基类拿不到统一的状态类型，所以没法在这里写通用判据。</para>
+        ///
+        /// <para>判据约定：**待机与死亡返回 false**；其余（含 `Alert` 警觉、`CombatIdle`、`Reposition`）
+        /// 一律 true。Boss 的 `Return`（脱战走回原位）也返回 false —— 它语义上已经是脱战。</para>
+        ///
+        /// <para>用 `abstract` 而不是 `virtual`：新增敌人类型时编译器会强制表态，
+        /// 不会再出现「加了新怪但忘了写判据、它正打你时你还能安静调查」这种漏洞。</para>
+        /// </summary>
+        public abstract bool IsEngaged { get; }
         protected Animator Anim { get; private set; }
         protected HitboxController Hitboxes { get; private set; }
         protected EnemyPerception Perception { get; private set; }
@@ -269,6 +284,8 @@ namespace Game.Gameplay
 
         protected virtual void OnEnable()
         {
+            CombatRegistry.Register(this);                         //「玩家是否在战斗」靠这份名单判断
+
             if (Health != null) Health.Damaged += HandleDamaged;   //T21：受击通知接通点
 
             if (Loco != null) Loco.SyncWithNavMesh();              //被 SetActive(true) 复活后吸附回网格
@@ -276,6 +293,8 @@ namespace Game.Gameplay
 
         protected virtual void OnDisable()
         {
+            CombatRegistry.Unregister(this);
+
             if (Health != null) Health.Damaged -= HandleDamaged;
 
             //⚠️ 闪白中途被隐藏 / 死亡 / 房间切换的话，红色克隆材质会**留在渲染器上**，

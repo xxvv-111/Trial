@@ -61,10 +61,18 @@
 
 > ⭐ **「启程」为什么不是 `ReachScene`**（2026-10-22 调整）：任务目的是「探查上山通路」，
 > 只进 Forest 显然不算 —— 必须**走到规划路线的末端**。而 `ReachScene` 只能表达"进了这张地图"，
-> 所以新增目标类型 **`ReachPoint`** + 场景里的触发器组件 **`Gameplay/Quest/QuestPointTrigger.cs`**：
+> 所以新增目标类型 **`ReachPoint`** + 场景里的**可交互组件** **`Gameplay/Quest/QuestPointTrigger.cs`**：
 > 在路线末端摆一个带 `SphereCollider`（Trigger）的空物体、挂上该组件、`pointId` 填
-> `point_forest_scout`（= 任务里的 `targetId`，**两处逐字一致**）。玩家进范围 → `GameEvents.PointReached`
-> → 任务完成。途中遭遇小怪的战斗正好充当新手教学。
+> `point_forest_scout`（= 任务里的 `targetId`，**两处逐字一致**）。
+> 玩家走近 → 提示「按 F 调查」→ 按下 → `GameEvents.PointReached` → 任务完成。
+> 途中遭遇小怪的战斗正好充当新手教学。
+>
+> ⚠️ **是「交互」不是「走进触发」**（2026-10-24 改）：走进范围就自动完成会让玩家莫名其妙
+> （"我明明是来打架的，任务怎么就完成了"）。所以 `QuestPointTrigger` 实现了 `IInteractable`，
+> 复用现有的 `InteractionDetector` + `InteractPromptUI`。
+>
+> ⚠️ **战斗时不能调查**：场景里有任何敌人处于「已警觉 / 交战中」时 `CanInteract` 返回 false
+> （判据见 `CombatRegistry`）。待机与死亡不算；Boss 的 `Return`（脱战回程）也不算。
 
 > 💰 **双货币（2026-10-22 定）**：**金币买装备 / 魔晶学法术**。存档 `PlayerProgress` 新增 `gold`，
 > 存档版本升到 **v2**（旧档读进来 gold = 0，不丢魔晶）。
@@ -317,7 +325,7 @@ GameEvents ─────────┘         │
 | `GameEvents.EnemyKilled(string enemyId, Vector3 position)` | `EnemyHealth.Die`（只广播一次，带 `_killedBroadcast` 守卫） | 遍历**所有 `Active` 任务的每个目标**：`KillCount` 且 `targetId == enemyId` → 该目标 progress++ |
 | `GameEvents.BossDied` | `BossController.EnterDeath` | 同上：类型 `KillBoss` 的目标 → progress = need |
 | `GameEvents.SceneEntered(string sceneName)` | 场景加载后（`SceneFlow`） | 同上：类型 `ReachScene` 且 `targetId == sceneName` → progress = need |
-| `GameEvents.PointReached(string pointId)` | 场景里的 `QuestPointTrigger` | 同上：类型 `ReachPoint` 且 `targetId == pointId` → progress = need |
+| `GameEvents.PointReached(string pointId)` | 玩家在 `QuestPointTrigger` 上**按 F 交互后**（战斗中不可交互） | 同上：类型 `ReachPoint` 且 `targetId == pointId` → progress = need |
 
 每次推进后重算整条任务：**全部目标 `progress >= need` → `ReadyToTurnIn`**（仍不自动 `Completed`）。
 
@@ -363,7 +371,7 @@ public static event Action QuestsChanged;                   // 任务数据变�
              └─ ⭐ 大门的 targetScene = quest.targetScene（SceneGate.SetTarget）
 
 城堡 · 推进（多目标并行）
-   └─ 击杀 / 到达场景 / 走进探查点 → 命中对应目标 → 该目标 progress++
+   └─ 击杀 / 到达场景 / 走近探查点按 F 调查（战斗中不可调查）→ 命中对应目标 → 该目标 progress++
         └─ 全部目标达标 → ReadyToTurnIn（不自动完成）→ MarkDirty
 
 酒馆 · 告示板

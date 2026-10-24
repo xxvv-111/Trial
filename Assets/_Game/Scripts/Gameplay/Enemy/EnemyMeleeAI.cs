@@ -41,6 +41,21 @@ namespace Game.Gameplay
         //强类型状态机由子类自己持有（基类不能是泛型，见 EnemyAIController 的类注释）
         private EnemyStateMachine<EState> _fsm;
 
+        /// <summary>
+        /// 除待机与死亡外的任何状态都算交战 —— 含 `Alert`（刚发现玩家）、
+        /// `Chase` / `Attack` / `Reposition`（走位）/ `Hit`（受击硬直）。
+        /// 详见基类的 <see cref="EnemyAIController.IsEngaged"/>。
+        /// </summary>
+        public override bool IsEngaged
+        {
+            get
+            {
+                return _fsm != null
+                    && !_fsm.Is(EState.Idle)
+                    && !_fsm.Is(EState.Death);
+            }
+        }
+
         private float _atkT;   //进入攻击状态后经过的秒数
         private float _stunT;  //受击硬直剩余秒数
         private float _alertT; //Alert 停顿已过秒数

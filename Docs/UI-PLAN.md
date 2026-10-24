@@ -26,11 +26,15 @@ RPG 层（酒馆 4 个 NPC 面板 + 魔晶 + 法术槽）**一行代码都没写
 4. ⚠️ 目前只有**键位展示**，**不能改键**；改键功能见 §3.6
 5. ⚠️ 仍没有加载过程、没有武器/角色选择
 
-### 1.2 Tavern.unity（1 个 Canvas，3 块 UI —— ✅ 2026-10-20 全部重做为 v4 风格）
+### 1.2 Tavern.unity（✅ 2026-10-20 重做为 v4 风格；2026-10-24 并入共用 HUD）
 
-1. `Canvas_InteractPromot`（⚠️ 拼写如此，别改名，脚本按名字找）
-2. **`Panel_InteractPrompt`**（HUD 提示条，**必须保持 active**）：`KeyCap`（1px 方框 + `F`）+ `Text`（TMP）
-   —— ⚠️ 原先的旧 `UI.Text` 已换成 `TextMeshProUGUI`
+> ⚠️ **2026-10-24 结构变更**：原来的 `Canvas_InteractPromot` 已删除，酒馆改用共用
+> `HUD_Common.prefab`（与 Castle / Forest 同一份），只有接取面板独立成
+> `Prefabs/UI/Panel_QuestPanel.prefab`，放在单独的 `Canvas_QuestPanel`（sortingOrder 10）下。
+> 下面 1/2 两条是**历史记录**，现状以场景为准。
+
+1. ~~`Canvas_InteractPromot`~~（已删除）
+2. ~~**`Panel_InteractPrompt`**~~ → 现在由 `HUD_Common` 提供
 3. **`Panel_QuestPanel`**（弹窗，预设 **inactive**）：`Content` 下一整套分栏 ——
    标题 `任务` / `QUESTS` → 左列 `文本列表`+`Row_Quest_1/2`（序号 + 标题 + 状态 + 选中竖条）/
    中缝 `Divider_Vertical` / 右列 `详情` + `Text_DetailTitle` + `Text_DetailBody` + `Text_DetailGoal` /

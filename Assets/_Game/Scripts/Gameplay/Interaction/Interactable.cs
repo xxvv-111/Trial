@@ -23,9 +23,10 @@ namespace Game.Gameplay
     ///    否则检测器根本发现不了它。
     /// </summary>
     [DisallowMultipleComponent]
-    public class Interactable : MonoBehaviour, IInteractable
+    public class Interactable : MonoBehaviour, IInteractable, IInteractableHint
     {
-        [Tooltip("提示文案，不含键名。例如：查看告示栏 / 前往城堡")]
+        [Tooltip("提示文案，不含键名。例如：查看告示栏 / 前往城堡\n" +
+                 "⭐ 也可以在运行时用 SetPrompt 改（任务系统会让大门显示「前往覆雪林地」）。")]
         [SerializeField] private string prompt = "交互";
 
         [Tooltip("同屏多个可交互物时的优先度，数值大的先被选中（相同则比距离）。")]
@@ -34,14 +35,51 @@ namespace Game.Gameplay
         [Tooltip("按下交互键后要执行什么。拖方法进来，例如 QuestPanel.Open。")]
         [SerializeField] private UnityEvent onInteract = new UnityEvent();
 
+        /// <summary>Inspector 里填的**原始**文案。<c>SetPrompt</c> 传空串时用它复原。</summary>
+        private string _defaultPrompt;
+
+        /// <summary>运行时锁定（不序列化）：为 true 时不可交互。见 <see cref="SetLocked"/>。</summary>
+        private bool _locked;
+
+        /// <summary>锁定时提示条上仍要显示的说明（null = 直接隐藏）。</summary>
+        private string _disabledHint;
+
         public string Prompt { get { return prompt; } }
         public int Priority { get { return priority; } }
 
+        /// <summary>见 <see cref="IInteractableHint"/>。未锁定时恒为 null。</summary>
+        public string DisabledHint { get { return _locked ? _disabledHint : null; } }
+
         /// <summary>
-        /// 默认只要物体是激活的就可交互。
-        /// 需要条件判断时把本类当基类继承并 override（见 <see cref="CanInteract"/> 的用法说明）。
+        /// 默认只要物体是激活的**且没有被运行时锁定**就可交互。
+        /// 需要条件判断时把本类当基类继承并 override
+        /// ⚠️ 覆写时记得也要判 <c>_locked</c>（它不对派生类公开），否则锁不住。
         /// </summary>
-        public virtual bool CanInteract { get { return isActiveAndEnabled; } }
+        public virtual bool CanInteract { get { return isActiveAndEnabled && !_locked; } }
+
+        /// <summary>
+        /// 运行时改提示文案（任务系统用：大门随任务地点显示「前往覆雪林地」）。
+        /// ⚠️ 传 null / 空串 = 复原成 Inspector 里填的原文案。
+        /// </summary>
+        public void SetPrompt(string text)
+        {
+            if (string.IsNullOrEmpty(_defaultPrompt)) _defaultPrompt = prompt;
+            prompt = string.IsNullOrEmpty(text) ? _defaultPrompt : text;
+        }
+
+        /// <summary>
+        /// 运行时锁定 / 解锁。
+        /// </summary>
+        /// <param name="locked">true = 不可交互（按键无效）。</param>
+        /// <param name="disabledHint">
+        /// 锁定时仍要在提示条上显示的说明（例："暂无任务地点"）。传 null = 直接隐藏提示条。
+        /// ⚠️ 只有附近**没有别的可交互目标**时才会显示这一句 —— 见 <see cref="IInteractableHint"/>。
+        /// </param>
+        public void SetLocked(bool locked, string disabledHint = null)
+        {
+            _locked = locked;
+            _disabledHint = locked ? disabledHint : null;
+        }
 
         public void Interact(GameObject actor)
         {

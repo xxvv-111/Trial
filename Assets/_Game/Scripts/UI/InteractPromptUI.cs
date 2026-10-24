@@ -45,15 +45,30 @@ namespace Game.UI
         [Tooltip("文案模板。{key} = 键名，{action} = 交互物的 Prompt。")]
         [SerializeField] private string _format = "按 {key} {action}";
 
+        [Tooltip("目标**不可交互但仍要说明原因**时（例：大门锁着 → 暂无任务地点）的暗色文字。\n" +
+                 "可交互时自动用 TMP 上原本的颜色。见 IInteractableHint。")]
+        [SerializeField] private Color _disabledColor = new Color(0.56f, 0.51f, 0.44f, 1f);
+
         private InteractionDetector _detector;
+
+        /// <summary>TMP 上原本的文字颜色（运行时记下，解锁后复原用）。</summary>
+        private Color _normalColor = Color.white;
 
         /// <summary>当前交互目标（null = 附近没有可交互物）。</summary>
         private IInteractable _target;
+
+        /// <summary>上一次刷进提示条时目标的可用状态（见 <see cref="RefreshIfChanged"/>）。</summary>
+        private bool _shownUsable;
+
+        /// <summary>上一次刷进提示条的动作文字（按**引用**比较，由 SetPrompt 换新实例）。</summary>
+        private string _shownAction;
 
         private GameObject Panel { get { return _panel != null ? _panel : gameObject; } }
 
         private void Start()
         {
+            if (_text != null) _normalColor = _text.color;
+
             // ⚠️ 用 FindFirstObjectByType 而不是 FindObjectOfType：后者在 Unity 6 已标记过时。
             //    只找一次 —— 检测器是场景里的常驻对象，不需要每帧找。
             _detector = FindFirstObjectByType<InteractionDetector>();
@@ -83,6 +98,12 @@ namespace Game.UI
             bool want = _target != null && !blocked;
             GameObject panel = Panel;
             if (panel != null && panel.activeSelf != want) panel.SetActive(want);
+
+            //⭐ 目标没换、但**它自己变了**：接取 / 交付任务会让大门上锁或解锁、
+            //   文案从「暂无任务地点」变成「前往覆雪林地」。InteractionDetector 只在
+            //   "选中的对象发生更换"时发事件，这种情况收不到通知，只能自己比一次。
+            //   ⚠️ 比较的是 bool 与字符串**引用**（SetPrompt 换的才是新实例），不产生 GC。
+            if (!blocked && _text != null && _target != null) RefreshIfChanged(_target);
         }
 
         private void OnDestroy()
@@ -96,17 +117,65 @@ namespace Game.UI
             Refresh(target);
         }
 
+        /// <summary>目标的可用性 / 文案变了才重刷，避免每帧改 TMP 产生 GC。</summary>
+        private void RefreshIfChanged(IInteractable target)
+        {
+            bool usable = target.CanInteract;
+            string action = ActionOf(target);
+
+            if (usable == _shownUsable && ReferenceEquals(action, _shownAction)) return;
+
+            _shownUsable = usable;
+            _shownAction = action;
+
+            if (string.IsNullOrEmpty(action))
+            {
+                //不可交互又没有说明 ⇒ 不该显示（理论上检测器已排除，这里兜底）
+                GameObject panel = Panel;
+                if (panel != null && panel.activeSelf) panel.SetActive(false);
+                return;
+            }
+
+            ApplyText(usable, action);
+        }
+
+        /// <summary>要显示的动作文字：可交互用物体自己的 <see cref="IInteractable.Prompt"/>，
+        /// 锁着的用 <see cref="IInteractableHint.DisabledHint"/>（例："暂无任务地点"）。</summary>
+        private static string ActionOf(IInteractable target)
+        {
+            if (target.CanInteract) return target.Prompt;
+
+            IInteractableHint hint = target as IInteractableHint;
+            return hint != null ? hint.DisabledHint : null;
+        }
+
         private void Refresh(IInteractable target)
         {
             _target = target;
+
+            bool usable = target != null && target.CanInteract;
+            string action = target != null ? ActionOf(target) : null;
+            _shownUsable = usable;
+            _shownAction = action;
+
             GameObject panel = Panel;
             if (panel != null) panel.SetActive(target != null && IsGameplayInputOn());
 
-            if (_text == null || target == null) return;
+            if (_text == null || string.IsNullOrEmpty(action)) return;
+
+            ApplyText(usable, action);
+        }
+
+        private void ApplyText(bool usable, string action)
+        {
+            if (_text == null) return;
 
             _text.text = _format
                 .Replace("{key}", _keyLabel)
-                .Replace("{action}", target.Prompt);
+                .Replace("{action}", action);
+
+            //可交互 = 正常色；锁着 = 暗色（文案本身已说明原因）
+            _text.color = usable ? _normalColor : _disabledColor;
         }
 
         private static bool IsGameplayInputOn()

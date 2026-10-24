@@ -393,13 +393,25 @@ public static event Action QuestsChanged;                   // 任务数据变�
   - 订阅 `GameEvents.QuestsChanged` —— 接取 / 推进 / 交付都会广播，一处订阅全覆盖
   - 规则：只看 `Active`（进行中）的任务。`ReadyToTurnIn` 要回酒馆交付，不该把门指向它；
     多条进行中且地点不同时取**任务表里靠前**的那条（V1 约定，简单可预期）；
-    没有进行中的任务 ⇒ `ClearTarget()`，回落到 Inspector 里的默认目标
+    没有进行中的任务（或任务都不填 `targetScene`）⇒ `ClearTarget()` **并把门锁上**
   - ⚠️ **刻意不写进 `QuestService`**：服务只管进度与状态机，不该知道"场景里有一扇门"。
     反过来门也不该逼服务改规则，所以走事件单向依赖
   - 初始化用 `Start` + `Update` 重试（与 `QuestService` 同因：两个单例都是 `BeforeSceneLoad`
     自动创建，`Awake` 顺序不保证，只试一次会永久"没反应"）
-- 大门上的提示文案（`Interactable.prompt`）**仍未随任务变**：
-  `prompt` 是 `[SerializeField]` 固定值，要变需要给 `Interactable` 加一个运行时改文案的接口（待办）
+- ⭐ **门上的文案随任务变（2026-10-24 落地）**：
+  | 状态 | `CanInteract` | 提示条显示 |
+  |---|---|---|
+  | 有进行中且指定地点的任务 | true | 「前往**覆雪林地**」（显示名取自 `SceneCatalog`） |
+  | 没有 / 都不指定地点 | **false（锁门）** | 暗色「**暂无任务地点**」 |
+
+  实现分三处：
+  - `Interactable` 新增 `SetPrompt(string)` / `SetLocked(bool, string disabledHint)` —— 运行时改文案与上锁
+  - 新增可选接口 `IInteractableHint`（只有一个 `DisabledHint`）：**不可交互但仍要说明原因**的物体，
+    检测器在没有可用目标时会退而选中它，提示条显示暗色说明。
+    ⚠️ 不能塞进 `IInteractable`：那会逼所有交互物实现一个用不到的成员，而且会推翻
+    「`CanInteract == false` ⇒ 完全不参与选中」这条对绝大多数物体正确的约定
+  - `InteractionDetector.Rescan` 分两组比较（可用优先，兜底才用 hint），
+    `InteractPromptUI` 每帧比一次 `CanInteract` + 文案**引用**（门锁/解锁时检测器不发事件）
 
 ---
 

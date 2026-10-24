@@ -119,14 +119,23 @@ namespace Game.Gameplay
         /// <summary>
         /// 从候选里挑出唯一目标：**可用的**之中先比 <see cref="IInteractable.Priority"/>（大者优先），
         /// 优先级相同再比距离（近者优先）。
+        ///
+        /// <para>⭐ 若附近**一个可交互的都没有**，则退而选中「不可交互但提供了说明文案」的那个
+        /// （见 <see cref="IInteractableHint"/>），提示条会显示暗色说明（例："暂无任务地点"）。
+        /// 按键对它无效 —— <see cref="Interactable.Interact"/> 内部会再判一次 <c>CanInteract</c>。</para>
         /// </summary>
         private void Rescan()
         {
             Vector3 self = transform.position;
 
-            IInteractable best = null;
-            int bestPriority = int.MinValue;
-            float bestSqrDistance = float.MaxValue;
+            IInteractable bestUsable = null;
+            int usablePriority = int.MinValue;
+            float usableSqrDistance = float.MaxValue;
+
+            //兜底：不可交互、但有话要说的那个（只在没有可用目标时才用）
+            IInteractable bestHint = null;
+            int hintPriority = int.MinValue;
+            float hintSqrDistance = float.MaxValue;
 
             for (int i = _overlaps.Count - 1; i >= 0; i--)
             {
@@ -142,21 +151,39 @@ namespace Game.Gameplay
                     continue;
                 }
 
-                //⭐ 不可交互者整体排除 —— 不能出现"提示显示的是灰掉的那个"。
-                if (!candidate.CanInteract) continue;
-
                 Component comp = candidate as Component;
                 if (comp == null) continue;
 
                 float sqr = (comp.transform.position - self).sqrMagnitude;
-                if (candidate.Priority > bestPriority ||
-                    (candidate.Priority == bestPriority && sqr < bestSqrDistance))
+
+                //⭐ 可交互者优先 —— 沿用原约定：不能被"灰掉的物体"抢走目标
+                if (candidate.CanInteract)
                 {
-                    best = candidate;
-                    bestPriority = candidate.Priority;
-                    bestSqrDistance = sqr;
+                    if (candidate.Priority > usablePriority ||
+                        (candidate.Priority == usablePriority && sqr < usableSqrDistance))
+                    {
+                        bestUsable = candidate;
+                        usablePriority = candidate.Priority;
+                        usableSqrDistance = sqr;
+                    }
+                    continue;
+                }
+
+                //不可交互：只有**明确给了说明文案**的才作为兜底候选。
+                //  探查点战斗中这类"单纯暂时不可用"的返回 null ⇒ 依旧彻底不参与选中。
+                IInteractableHint hint = candidate as IInteractableHint;
+                if (hint == null || string.IsNullOrEmpty(hint.DisabledHint)) continue;
+
+                if (candidate.Priority > hintPriority ||
+                    (candidate.Priority == hintPriority && sqr < hintSqrDistance))
+                {
+                    bestHint = candidate;
+                    hintPriority = candidate.Priority;
+                    hintSqrDistance = sqr;
                 }
             }
+
+            IInteractable best = bestUsable != null ? bestUsable : bestHint;
 
             if (!ReferenceEquals(best, CurrentTarget))
             {
